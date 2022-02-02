@@ -41,7 +41,19 @@ The structure of the packets are the following:
 ## Files
 The important files will be listed and summed up below.
 
-### mission.py
+### vs_main.py
+
+### vs_gui.py
+This program includes the functionality behind the GUI for the main window, using **mainwindow.ui**
+as tghe design file for the GUI. The changes on the gui are passed as system commands to change 
+camera settings or passed to a data structure for drawing settings for **vs_opencv.py** to use.
+
+### vs_opencv.py
+This includes capturing camera frames and passing them to the image server. This is where
+the drawings for the video feed are updated using one data structure that **vs_gui.py** 
+writes to when switches on the GUI menu are changed.
+
+### vs_mission.py
 This contains one big function to return the correct response when a mission() call was called
 over UDP 7755.
 
