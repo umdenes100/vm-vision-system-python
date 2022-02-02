@@ -1,7 +1,6 @@
 
 # return the proper mission message based on mission type and curr index of mission value 
 def get_mission_message(curr, mission, msg):
-    
     try:
         msg = int(msg)
     except:

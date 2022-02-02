@@ -4,6 +4,8 @@ import os
 import math
 import vs_opencv
 
+obstacle_presets = ['01A', '01B', '02A', '02B', '10A', '10B', '12A', '12B', '20A', '20B', '21A', '21B']
+
 class Ui(QtWidgets.QMainWindow):
     def __init__(self):
         super(Ui, self).__init__()
@@ -62,32 +64,26 @@ class Ui(QtWidgets.QMainWindow):
     def randomize(self):
         print("randomizing")
 
-        # TODO - obstacle randomization, then pass onto opencv
-        #      - one rumbles
-        #      - two solid objects
-        vs_opencv.drawing_options['randomization'] = {}
-
+        # obstacle randomization, then pass onto opencv
+        #   - one rumbles
+        #   - two solid objects
+        vs_opencv.drawing_options['randomization'] = obstacle_presets[random.randrange(0,12)]
+        
+        # otv start location and mission location
         start = random.randrange(0,2)
         vs_opencv.drawing_options['otv_start_loc'] = start
         vs_opencv.drawing_options['mission_loc'] = (start + 1) % 2 # opposite of OTV start
+        
+        # otv start direction (theta) (always facing away from mission site inn 180 deg span)
         if start == 0: # BOTTOM
             vs_opencv.drawing_options['otv_start_dir_theta'] = (random.randrange(0,180) * 2 * math.pi) / 360 
         else:
             vs_opencv.drawing_options['otv_start_dir_theta'] = ((random.randrange(0,180) +180) * 2 * math.pi) / 360
 
-
-        if self.showdest.isChecked():
-            vs_opencv.drawing_options['draw_dest'] = True
-            print("drawing destination")
-
-        if self.showobst.isChecked():
-            vs_opencv.drawing_options['draw_obstacles'] = True
-            print("drawing obstacles")
-
-        if self.showcoord.isChecked():
-            vs_opencv.drawing_options['draw_coord'] = True
-            print(f"drawing coordinate at ({self.xcoord.value()}, {self.ycoord.value()})")
-
+        # Update whether we need to draw destination, obstacles, and/or coordinates
+        vs_opencv.drawing_options['draw_dest'] = self.showdest.isChecked()
+        vs_opencv.drawing_options['draw_obstacles'] = self.showobst.isChecked()
+        vs_opencv.drawing_options['draw_coord'] = self.showcoord.isChecked()
 
     def brightness(self):
         print(f"brightness is now {self.brightslider.value()}")

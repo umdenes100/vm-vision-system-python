@@ -23,12 +23,12 @@ def frame_capture(cap):
         # TODO - draw on image
         n_frame = draw_on_frame(frame)
  
-if __name__ == '__main__':
+def start_image_processing():
     cap = cv2.VideoCapture(0)
     while 1:
-        #cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G')) # depends on fourcc available camera
-        #cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        #cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G')) # depends on fourcc available camera
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         #cap.set(cv2.CAP_PROP_FPS, 10) # maybe 5
         
         frame_capture(cap)

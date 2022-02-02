@@ -4,11 +4,14 @@ from vs_comm import *
 from vs_gui import * 
 
 def main():
-    # TODO - start communication
+    # start communication thread
     start_new_thread(start_communication)
 
-    # TODO - start gui
-    start_gui()
+    # start gui thread
+    start_new_thread(start_gui)
+
+    # main process will now continue to opencv stuff
+    start_image_processing() 
 
 if __name__ == '__main__':
     main()

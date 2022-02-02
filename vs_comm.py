@@ -7,8 +7,8 @@ from vs_mission import *
 
 image_frame_list = []
 connections = []
-message_connections = []
-image_connections = []
+message_connections = {}
+#image_connections = []
 udp_connections = {}
 
 def udpthread(conn):
@@ -53,7 +53,7 @@ def udpthread(conn):
             send_message(udp_connections, 'PORT_LIST') # sends new port list to each connection
             send_message(str(int(time.time())), 'START') # send start command to msg server
 
-            # TODO - return the destination - OpenCV
+            # TODO - return the mission destination - OpenCV
             
             data_to_send = b'\x03'
         
@@ -100,9 +100,42 @@ def send_message(msgi, m_type):
 
 # TODO - figure out what we need to do when JavaScript sends a message back!
 def rec_msg(conn):
-    conn.sendall(b"initial message hehe")
-    #stuff = json.dumps({'TYPE': 'DEBUG', 'CONTENT': })
-    print("message stuff here?")
+    # conn.sendall(b"initial message hehe")
+    # stuff = json.dumps({'TYPE': 'DEBUG', 'CONTENT': })
+
+    # gather received messages and process
+    while 1:
+        data = conn.recv(1024).decode()
+        
+        if data == "Closed.":
+            # TODO - remove connection from connections
+            #      - return thread
+            print("IP")
+        else:
+            data = json.loads(data)
+
+            if data['TYPE'] == "OPEN":
+                if len(message_connections[data['PORT']]) > 0:
+                    message_connections[data['PORT']].append(conn)
+                else:
+                    message_connections[data['PORT']] = [conn]
+            
+            elif data['TYPE'] == "SWITCH":
+                new_port = data['NEW_PORT']
+                message_connections[data['PORT']].remove(conn)
+                if len(message_connections[new_port]) > 0:
+                    message_connections[new_port].append(conn)
+                else:
+                    message_connections[new_port] = [conn]
+            
+            elif data['TYPE'] == "HARD_CLOSE":
+                message_connections[data['PORT']].remove(conn)
+                # TODO - remove connection from connections
+
+            elif data['TYPE'] == "SOFT_CLOSE":
+                message_connections[data['PORT']].remove(conn)
+    
+    #print("message stuff here?")
     conn.close()
 
 # TODO
