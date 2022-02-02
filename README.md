@@ -7,7 +7,7 @@ This is the "server-side" application for the vision system that communicates wi
 [front-end application](https://github.com/umdenes100/VisionSystemRemoteClient) and the 
 [WiFi Modules (ESP8266)](https://github.com/umdenes100/WifiFirmware).
 
-#### Front-end Communcation
+### Front-end Communcation
 The front-end communication works over **TCP 8080** and **TCP 9000**. 
 
 The *image server* is the connection over TCP port 8080 and serves the JPEG images coming 
@@ -20,7 +20,7 @@ back and forth between the front-end and this back-end. This is a two-way commun
 where the back-end will send things like debug messages and mission calls to the front-end and 
 the front-end will send other pieces of information back. 
 
-#### WiFi Communication
+### WiFi Communication
 The OTV uses the ESP8266 modules to communicate over UDP port 7755. Check out the reference
 at the bottom of this README if you don't know the difference between TCP and UDP communication.
 
@@ -41,11 +41,11 @@ The structure of the packets are the following:
 ## Files
 The important files will be listed and summed up below.
 
-#### mission.py
+### mission.py
 This contains one big function to return the correct response when a mission() call was called
 over UDP 7755.
 
-#### mainwindow.ui
+### mainwindow.ui
 This is the GUI interface file for the Vision System. The development of this GUI utility was 
 done using **Qt 5 Designer**. One could write program to completely design the GUI interface instead 
 of using this nice utility, but the utility was very nice and useful.
