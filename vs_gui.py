@@ -5,6 +5,7 @@ import math
 import vs_opencv
 
 obstacle_presets = ['01A', '01B', '02A', '02B', '10A', '10B', '12A', '12B', '20A', '20B', '21A', '21B']
+camera_num = 0
 
 class Ui(QtWidgets.QMainWindow):
     def __init__(self):
@@ -44,7 +45,7 @@ class Ui(QtWidgets.QMainWindow):
         self.xcoord = self.findChild(QtWidgets.QDoubleSpinBox, 'xval')
         self.ycoord = self.findChild(QtWidgets.QDoubleSpinBox, 'yval')
         self.camnum = self.findChild(QtWidgets.QSpinBox, 'camnum')
-        self.camnum.valueChanged.connect(self.apply_camera_settings)
+        self.camnum.valueChanged.connect(self.camera_change)
 
         self.show()
 
@@ -52,6 +53,10 @@ class Ui(QtWidgets.QMainWindow):
     #    # change camera settings using camera number and picture settings
     #    print("applying camera settings")
     
+    def camera_change(self):
+        camera_num = self.camnum.value()
+        print(f"camera changed to {camera_num}")
+
     def reset_camera(self):
         print("resetting camera")
         self.brightslider.setValue(127)

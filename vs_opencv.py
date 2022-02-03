@@ -1,16 +1,19 @@
 # importing the necessary libraries
 import cv2
 import numpy as np
+import vs_comm 
 
 drawing_options = {'draw_dest': False, 'draw_obstacles': False, 'draw_coord': False, 
                    'otv_start_loc': 0, 'otv_start_dir_theta': 0, 'mission_loc': 1,
                    'randomization': {}}
+aruco_markers = {}
 
 def draw_on_frame(frame):
     # TODO - detect aruco markers
     # TODO - draw aruco markers
     # TODO - draw arena
     print("in progress...")
+    return frame
 
 def frame_capture(cap):
     # Loop until the end of the video
@@ -21,7 +24,12 @@ def frame_capture(cap):
         cv2.imshow('Frame', frame)
 
         # TODO - draw on image
-        n_frame = draw_on_frame(frame)
+        new_frame = draw_on_frame(frame)
+
+        jpeg_bytes = cv2.imencode('.jpg', new_frame)[1]
+        
+        # send frame to each of the connections in the connection list in vs_comm.py
+        vs_comm.send_frame(new_frame)
  
 def start_image_processing():
     cap = cv2.VideoCapture(0)

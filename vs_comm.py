@@ -4,6 +4,7 @@ from _thread import *
 import json
 import time
 from vs_mission import *
+from vs_opencv import aruco_markers
 
 image_frame_list = []
 connections = []
@@ -98,7 +99,8 @@ def send_message(msgi, m_type):
         conn = d['msg']
         conn.sendall(json_stuffi.encode())
 
-# TODO - figure out what we need to do when JavaScript sends a message back!
+# The front-end will send messages back depending on which clients are choosing to
+# view which UDP connections (aka which team from the frop-down menu)!
 def rec_msg(conn):
     # conn.sendall(b"initial message hehe")
     # stuff = json.dumps({'TYPE': 'DEBUG', 'CONTENT': })
@@ -138,7 +140,7 @@ def rec_msg(conn):
     #print("message stuff here?")
     conn.close()
 
-# TODO
+# TODO - do we still need to do this even though the front-end will send CLOSE messages?
 # check if connection is still alive --- this might be useful for killing old connections
 # what is a way to do this efficiently without disrupting?
 '''
@@ -159,6 +161,7 @@ def send_frame(frame):
     # on new frame, send JPEG byte array to each connection
 
     data = b'--newframe\r\nContent-Type: image/jpeg\r\nContent-Length: ' + str(len(frame)).encode() + b'\r\n\r\n'
+    print(f'frame = {frame}')
     data += frame.encode()
 
     for d in connections:
