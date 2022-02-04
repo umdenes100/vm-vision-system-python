@@ -4,10 +4,15 @@ from _thread import *
 import json
 import time
 import cv2
+import websocket
 from subprocess import Popen, PIPE
 from vs_mission import *
 from vs_opencv import aruco_markers
-
+import asyncio
+import websockets
+from websocket_server import WebsocketServer
+import hashlib
+import base64
 image_frame_list = []
 
 class Connections:
@@ -46,17 +51,14 @@ class Connections:
         self.udp_connections = ucs
 
     def set_cam(self, num):
-        start = time.time()
         self.video.release()
         p = Popen(["v4l2-ctl", f"--device=/dev/video{num}", "--all"], stdin=PIPE, stdout=PIPE, stderr=PIPE)
         output, err = p.communicate()
         if "brightness" in output.decode(): 
-            #print(output.decode())
             self.video = cv2.VideoCapture(num)
             self.video.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G')) # depends on fourcc available camera
             self.video.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
             self.video.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-        print(f"releasing + settings took {time.time() - start} seconds")
 
 
 def udpthread(conn, connections):
@@ -157,15 +159,22 @@ def rec_msg(conn, connections):
     # gather received messages and process
     while 1:
         data = conn.recv(1024).decode()
+        print(f"Data received as {data}")
         team_connections = connections.get_team_conns()
 
         if "websocket" in data:
             print(data)
-            conn.sendall(json.dumps({"TYPE": "PORT_LIST", "CONTENT": str(connections.get_udp_conns())}).encode())        
-            #conn.sendall(b'HTTP/1.1 200 OK\r\nContent-Type: multipart/x-mixed-replace; boundary=newframe\r\n\r\n')
+            key = data.split('Sec-WebSocket-Key: ')[1].split('\r\n')[0]
+            print(f"key = {key.encode()}")
+            accepted = base64.b64encode(hashlib.sha1(key.encode()).digest()).decode()
+            print(f"accepted = {accepted}")
+            to_send = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
+            to_send += f"Sec-WebSocket-Accept: {accepted}\r\nServer: LTFs\r\n" #Access-Control-Allow-Credentials: false\r\n"
+            #to_send += ""
+            conn.sendall(to_send.encode())
+            #conn.sendall(json.dumps({"TYPE": "PORT_LIST", "CONTENT": str(connections.get_udp_conns())}).encode())        
         elif data == "Closed.":
-            # TODO - remove connection from connections
-            #      - return thread
+            # TODO - remove connection from connections and return thread
             print("IP")
         else:
             print(f"data received = {data}")
@@ -234,6 +243,16 @@ def accept_image_conns(image_s, connections):
         img_conn.sendall(b'HTTP/1.1 200 OK\r\nContent-Type: multipart/x-mixed-replace; boundary=newframe\r\n\r\n')
         print(f'image_conns = {ics}\n')
 
+#def new_client(client, server):
+#    print(f"New client connected: id = {client['id']}")
+#
+#def client_left(client, server):
+#    print(f"Client {client['id']} has disconnected")
+#
+#def message_received(client, server, message):
+#    print(f"Client {client['id']} said: {message}")
+#
+
 def start_communication(connections):
     udp_s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     udp_s.bind(("", 7755))
@@ -245,21 +264,33 @@ def start_communication(connections):
 
     image_s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     image_s.bind(("", 8080))
-    image_s.listen()
-
-    # start new thread for accepting new image servers
+    image_s.listen() # start new thread for accepting new image servers
     start_new_thread(accept_image_conns, (image_s, connections, ))
 
+    #server = WebsocketServer(port = 9000)
+    #server.set_fn_new_client(new_client)
+    #server.set_fn_client_left(client_left)
+    #server.set_fn_message_received(message_received)
+    #server.run_forever()
+
+    
     # continue this main thread with accepting message servers
     while True:
         msg_conn, addr = message_s.accept()
-        
+        ip, port = addr
+
         message_connections = connections.get_msg_conns()
+        #ws = websocket.WebSocket()
+        #ws = websocket.create_connection(f"ws://{ip}:{port}/")
         message_connections.append({'conn': msg_conn, 'addr': addr})
+        #message_connections.append({'conn': msg_conn, 'addr': addr})
         connections.set_msg_conns(message_connections)
         print(f'message_conns = {message_connections}\n')
 
         # send initial json stuff and initial message to website
         #msg_conn.sendall(json.dumps({"TYPE": "PORT_LIST", "CONTENT": connections.get_udp_conns()}).encode())
+        #start_new_thread(rec_msg, (msg_conn, connections, ))
         start_new_thread(rec_msg, (msg_conn, connections, ))
+
+    
 
