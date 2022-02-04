@@ -2,13 +2,15 @@ from PyQt5 import QtWidgets, uic
 import sys
 import os
 import math
-import vs_opencv
+from vs_opencv import *
+import random
+import time
+from _thread import *
 
 obstacle_presets = ['01A', '01B', '02A', '02B', '10A', '10B', '12A', '12B', '20A', '20B', '21A', '21B']
-camera_num = 0
 
 class Ui(QtWidgets.QMainWindow):
-    def __init__(self):
+    def __init__(self, connections):
         super(Ui, self).__init__()
         uic.loadUi('mainwindow.ui', self)
        
@@ -48,14 +50,17 @@ class Ui(QtWidgets.QMainWindow):
         self.camnum.valueChanged.connect(self.camera_change)
 
         self.show()
+        self.connections = connections
 
     #def apply_camera_settings(self): # apply buttom may be removed
     #    # change camera settings using camera number and picture settings
     #    print("applying camera settings")
     
     def camera_change(self):
-        camera_num = self.camnum.value()
-        print(f"camera changed to {camera_num}")
+        start = time.time() 
+        start_new_thread(self.connections.set_cam, (self.camnum.value(), ))
+        print(f"\nthis took {time.time() - start} seconds")
+        print(f"camera changed to {self.camnum.value()}")
 
     def reset_camera(self):
         print("resetting camera")
@@ -67,46 +72,44 @@ class Ui(QtWidgets.QMainWindow):
         self.contrast()
 
     def randomize(self):
-        print("randomizing")
-
         # obstacle randomization, then pass onto opencv
         #   - one rumbles
         #   - two solid objects
-        vs_opencv.drawing_options['randomization'] = obstacle_presets[random.randrange(0,12)]
+        drawing_options['randomization'] = obstacle_presets[random.randrange(0,12)]
         
         # otv start location and mission location
         start = random.randrange(0,2)
-        vs_opencv.drawing_options['otv_start_loc'] = start
-        vs_opencv.drawing_options['mission_loc'] = (start + 1) % 2 # opposite of OTV start
+        drawing_options['otv_start_loc'] = start
+        drawing_options['mission_loc'] = (start + 1) % 2 # opposite of OTV start
         
         # otv start direction (theta) (always facing away from mission site inn 180 deg span)
         if start == 0: # BOTTOM
-            vs_opencv.drawing_options['otv_start_dir_theta'] = (random.randrange(0,180) * 2 * math.pi) / 360 
+            drawing_options['otv_start_dir_theta'] = (random.randrange(0,180) * 2 * math.pi) / 360 
         else:
-            vs_opencv.drawing_options['otv_start_dir_theta'] = ((random.randrange(0,180) +180) * 2 * math.pi) / 360
+            drawing_options['otv_start_dir_theta'] = ((random.randrange(0,180) +180) * 2 * math.pi) / 360
 
         # Update whether we need to draw destination, obstacles, and/or coordinates
-        vs_opencv.drawing_options['draw_dest'] = self.showdest.isChecked()
-        vs_opencv.drawing_options['draw_obstacles'] = self.showobst.isChecked()
-        vs_opencv.drawing_options['draw_coord'] = self.showcoord.isChecked()
+        drawing_options['draw_dest'] = self.showdest.isChecked()
+        drawing_options['draw_obstacles'] = self.showobst.isChecked()
+        drawing_options['draw_coord'] = self.showcoord.isChecked()
 
     def brightness(self):
-        print(f"brightness is now {self.brightslider.value()}")
-        command = f'v412-ctl -d /dev/video{self.camnum.value()} -c brightness={self.brightslider.value()}'
+        #print(f"brightness is now {self.brightslider.value()}")
+        command = f'v4l2-ctl -d /dev/video{self.camnum.value()} -c brightness={self.brightslider.value()}'
         os.system(command)
 
     def sharpness(self):
-        print(f"sharpness is now {self.sharpslider.value()}")
-        command = f'v412-ctl -d /dev/video{self.camnum.value()} -c sharpness={self.sharpslider.value()}'
+        #print(f"sharpness is now {self.sharpslider.value()}")
+        command = f'v4l2-ctl -d /dev/video{self.camnum.value()} -c sharpness={self.sharpslider.value()}'
         os.system(command)
 
     def contrast(self):
-        print(f"contrast is now {self.contrastslider.value()}")
-        command = f'v412-ctl -d /dev/video{self.camnum.value()} -c contrast={self.contrastslider.value()}'
+        #print(f"contrast is now {self.contrastslider.value()}")
+        command = f'v4l2-ctl -d /dev/video{self.camnum.value()} -c contrast={self.contrastslider.value()}'
         os.system(command)
 
-def start_gui():
+def start_gui(connections):
     app = QtWidgets.QApplication(sys.argv)
-    window = Ui()
+    window = Ui(connections)
     app.exec_()
 

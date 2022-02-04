@@ -3,18 +3,66 @@ import threading
 from _thread import *
 import json
 import time
+import cv2
+from subprocess import Popen, PIPE
 from vs_mission import *
 from vs_opencv import aruco_markers
 
 image_frame_list = []
-connections = []
-message_connections = {}
-#image_connections = []
-udp_connections = {}
 
-def udpthread(conn):
+class Connections:
+    def __init__(self):
+        self.team_connections = {}
+        self.message_connections = []
+        self.image_connections = []
+        self.udp_connections = {}
+        self.video = cv2.VideoCapture(0)
+
+    def get_team_conns(self):
+        return self.team_connections
+
+    def get_msg_conns(self):
+        return self.message_connections
+
+    def get_img_conns(self):
+        return self.image_connections
+
+    def get_udp_conns(self):
+        return self.udp_connections
+
+    def get_cam(self):
+        return self.video
+
+    def set_team_conns(self, tcs):
+        self.team_connections = tcs
+
+    def set_msg_conns(self, mcs):
+        self.message_connections = mcs
+    
+    def set_img_conns(self, ics):
+        self.image_connections = ics
+
+    def set_udp_conns(self, ucs):
+        self.udp_connections = ucs
+
+    def set_cam(self, num):
+        start = time.time()
+        self.video.release()
+        p = Popen(["v4l2-ctl", f"--device=/dev/video{num}", "--all"], stdin=PIPE, stdout=PIPE, stderr=PIPE)
+        output, err = p.communicate()
+        if "brightness" in output.decode(): 
+            #print(output.decode())
+            self.video = cv2.VideoCapture(num)
+            self.video.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G')) # depends on fourcc available camera
+            self.video.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            self.video.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        print(f"releasing + settings took {time.time() - start} seconds")
+
+
+def udpthread(conn, connections):
     print("udp thread started")
     while 1:
+        udp_connections = connections.get_udp_conns()
         data, addr = conn.recvfrom(1024)
         ip, port = addr
 
@@ -51,8 +99,8 @@ def udpthread(conn):
 
             print(f"\nTeam Name: {teamname}\nMission: {mission}\n")
             
-            send_message(udp_connections, 'PORT_LIST') # sends new port list to each connection
-            send_message(str(int(time.time())), 'START') # send start command to msg server
+            send_message(str(udp_connections), 'PORT_LIST', connections) # sends new port list to each connection
+            send_message(str(int(time.time())), 'START', connections) # send start command to msg server
 
             # TODO - return the mission destination - OpenCV
             
@@ -90,110 +138,128 @@ def udpthread(conn):
             print(f"Debug message = {msg}")
 
         conn.sendto(data_to_send, addr)
+        connections.set_udp_conns(udp_connections)
         #print(f'ip = {ip} --- data = {data} --- sec = {second}')
 
-def send_message(msgi, m_type):
+def send_message(msg, m_type, connections):
     # send message to each connection in list
     json_stuff = json.dumps({'TYPE': m_type, 'CONTENT': msg})
-    for d in connections:
+    for d in connections.get_msg_conns():
         conn = d['msg']
-        conn.sendall(json_stuffi.encode())
+        conn.sendall(json_stuff.encode())
 
 # The front-end will send messages back depending on which clients are choosing to
 # view which UDP connections (aka which team from the frop-down menu)!
-def rec_msg(conn):
+def rec_msg(conn, connections):
     # conn.sendall(b"initial message hehe")
     # stuff = json.dumps({'TYPE': 'DEBUG', 'CONTENT': })
 
     # gather received messages and process
     while 1:
         data = conn.recv(1024).decode()
-        
-        if data == "Closed.":
+        team_connections = connections.get_team_conns()
+
+        if "websocket" in data:
+            print(data)
+            conn.sendall(json.dumps({"TYPE": "PORT_LIST", "CONTENT": str(connections.get_udp_conns())}).encode())        
+            #conn.sendall(b'HTTP/1.1 200 OK\r\nContent-Type: multipart/x-mixed-replace; boundary=newframe\r\n\r\n')
+        elif data == "Closed.":
             # TODO - remove connection from connections
             #      - return thread
             print("IP")
         else:
+            print(f"data received = {data}")
             data = json.loads(data)
 
             if data['TYPE'] == "OPEN":
-                if len(message_connections[data['PORT']]) > 0:
-                    message_connections[data['PORT']].append(conn)
+                if len(team_connections[data['PORT']]) > 0:
+                    team_connections[data['PORT']].append(conn)
                 else:
-                    message_connections[data['PORT']] = [conn]
+                    team_connections[data['PORT']] = [conn]
             
             elif data['TYPE'] == "SWITCH":
                 new_port = data['NEW_PORT']
-                message_connections[data['PORT']].remove(conn)
-                if len(message_connections[new_port]) > 0:
-                    message_connections[new_port].append(conn)
+                team_connections[data['PORT']].remove(conn)
+                if len(team_connections[new_port]) > 0:
+                    team_connections[new_port].append(conn)
                 else:
-                    message_connections[new_port] = [conn]
+                    team_connections[new_port] = [conn]
             
             elif data['TYPE'] == "HARD_CLOSE":
-                message_connections[data['PORT']].remove(conn)
+                team_connections[data['PORT']].remove(conn)
                 # TODO - remove connection from connections
 
             elif data['TYPE'] == "SOFT_CLOSE":
-                message_connections[data['PORT']].remove(conn)
+                team_connections[data['PORT']].remove(conn)
+
+        connections.set_team_conns(team_connections)
     
     #print("message stuff here?")
     conn.close()
 
-# TODO - do we still need to do this even though the front-end will send CLOSE messages?
-# check if connection is still alive --- this might be useful for killing old connections
-# what is a way to do this efficiently without disrupting?
-'''
-def check_conn_list():
-    for d in range(len(connections)):
-        conn = connections[d]['msg']
-        try:
-            conn.sendall(b'test')
-        except:
-            connections = connections[0:d] + connections[d+1:]
-'''
 
 # send new image frame to each of the connections
-def send_frame(frame):
-    print("sending image frame")
-    
+def send_frame(frame, connections):
+    #print("sending image frame")
+    image_connections = connections.get_img_conns()
+
     # ONE WAY image service
     # on new frame, send JPEG byte array to each connection
 
     data = b'--newframe\r\nContent-Type: image/jpeg\r\nContent-Length: ' + str(len(frame)).encode() + b'\r\n\r\n'
-    print(f'frame = {frame}')
-    data += frame.encode()
+    #print(f'frame = {frame}')
+    data += frame
 
-    for d in connections:
+    for i in range(len(image_connections)):
         # send frame
-        conn = d['img']
-        conn.sendall(data)
-    
-def start_communication():
+        conn = image_connections[i]['conn']
+        try:
+            conn.sendall(data)
+        except:
+            print(f"image failed to send to {image_connections[i]['addr']}")
+            conn.close()
+            image_connections = image_connections[0:i] + image_connections[i+1:] 
+   
+    #print("finished")
+    connections.set_img_conns(image_connections)
+
+def accept_image_conns(image_s, connections):
+    while True:
+        img_conn, addr = image_s.accept()
+        
+        ics = connections.get_img_conns()
+        ics.append({'conn': img_conn, 'addr': addr})
+        connections.set_img_conns(ics)
+
+        img_conn.sendall(b'HTTP/1.1 200 OK\r\nContent-Type: multipart/x-mixed-replace; boundary=newframe\r\n\r\n')
+        print(f'image_conns = {ics}\n')
+
+def start_communication(connections):
     udp_s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     udp_s.bind(("", 7755))
-    start_new_thread(udpthread, (udp_s, ))
+    start_new_thread(udpthread, (udp_s, connections, ))
 
     message_s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     message_s.bind(("", 9000))
+    message_s.listen()
+
     image_s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     image_s.bind(("", 8080))
-
-    message_s.listen()
     image_s.listen()
 
+    # start new thread for accepting new image servers
+    start_new_thread(accept_image_conns, (image_s, connections, ))
+
+    # continue this main thread with accepting message servers
     while True:
         msg_conn, addr = message_s.accept()
-        img_conn, addr2 = image_s.accept()
-        connections.append({'msg': msg_conn, 'img': img_conn})
-        print(f'conns = {connections}\n')
+        
+        message_connections = connections.get_msg_conns()
+        message_connections.append({'conn': msg_conn, 'addr': addr})
+        connections.set_msg_conns(message_connections)
+        print(f'message_conns = {message_connections}\n')
 
-        # send initial image HTTP stuff and initial message to website
-        img_conn.sendall(b'HTTP/1.1 200 OK\r\nContent-Type: multipart/x-mixed-replace; boundary=newframe\r\n\r\n')
-        msg_conn.sendall(json.dumps({"TYPE": "PORT_LIST", "CONTENT": udp_connections}).encode())
+        # send initial json stuff and initial message to website
+        #msg_conn.sendall(json.dumps({"TYPE": "PORT_LIST", "CONTENT": connections.get_udp_conns()}).encode())
+        start_new_thread(rec_msg, (msg_conn, connections, ))
 
-        start_new_thread(rec_msg, (msg_conn, ))
-        #start_new_thread(image_)
-
-if __name__ == '__main__':
-    main()

@@ -1,18 +1,20 @@
 import threading
 from _thread import *
-import vs_comm  
-import vs_gui
-import vs_opencv
+from vs_comm import *
+from vs_gui import *
+from vs_opencv import *
 
 def main():
+    connections = Connections()
+
     # start communication thread
-    start_new_thread(vs_comm.start_communication, ())
+    start_new_thread(start_communication, (connections, ))
 
     # start image processing
-    start_new_thread(vs_opencv.start_image_processing, ())
+    start_new_thread(start_image_processing, (connections, ))
 
     # main process will now continue to GUI
-    vs_gui.start_gui()
+    start_gui(connections)
 
 if __name__ == '__main__':
     main()
