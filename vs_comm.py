@@ -4,34 +4,12 @@ from _thread import *
 import json
 import time
 import cv2
-import websocket
+import hashlib
+import base64
 from subprocess import Popen, PIPE
 from vs_mission import *
 from vs_opencv import aruco_markers
-import asyncio
-import websockets
-from websocket_server import WebsocketServer
-import hashlib
-import base64
-import struct
-
-image_frame_list = []
-
-FIN    = 0x80
-OPCODE = 0x0f
-MASKED = 0x80
-PAYLOAD_LEN = 0x7f
-PAYLOAD_LEN_EXT16 = 0x7e
-PAYLOAD_LEN_EXT64 = 0x7f
-
-OPCODE_CONTINUATION = 0x0
-OPCODE_TEXT         = 0x1
-OPCODE_BINARY       = 0x2
-OPCODE_CLOSE_CONN   = 0x8
-OPCODE_PING         = 0x9
-OPCODE_PONG         = 0xA
-
-CLOSE_STATUS_NORMAL = 1000
+from vs_ws import *
 
 class Connections:
     def __init__(self):
@@ -78,7 +56,6 @@ class Connections:
             self.video.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
             self.video.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
-
 def udpthread(conn, connections):
     print("udp thread started")
     while 1:
@@ -90,7 +67,6 @@ def udpthread(conn, connections):
         # add ip to udp connections for future use
         data_to_send = b''
         if not (ip in udp_connections.keys()):
-            #udp_connections[ip] = {'ip': ip} # may not need this extra info in there since the ip IS the key
             udp_connections[ip] = {}
 
         second = data[1]
@@ -120,9 +96,9 @@ def udpthread(conn, connections):
 
             print(f"\nTeam Name: {teamname}\nMission: {mission}\n")
             
-            send_message(udp_connections, 'PORT_LIST', connections) # sends new port list to each connection
+            send_message(udp_connections, 'PORT_LIST', connections, "ALL") # sends new port list to each connection
             print(f"UDP_CONNECTIONS = {udp_connections}")
-            send_message(str(int(time.time())), 'START', connections) # send start command to msg server
+            send_message(str(int(time.time())), 'START', connections, ip) # send start command to msg server
 
             # TODO - return the mission destination - OpenCV
             
@@ -150,106 +126,31 @@ def udpthread(conn, connections):
             curr = data[2]
 
             # send message to message server
-            send_message(get_mission_message(curr, udp_connections[ip]['MISSION'], message), 'MISSION', connections)
+            send_message(get_mission_message(curr, udp_connections[ip]['MISSION'], message), 'MISSION', connections, ip)
             data_to_send = b'\x07'
         
         # DEBUG
         elif second == 8:
             msg = data[2:].decode()
-            send_message(msg, 'DEBUG', connections) # send debug message to msg server
+            send_message(msg, 'DEBUG', connections, ip) # send debug message to msg server
             print(f"Debug message = {msg}")
 
         conn.sendto(data_to_send, addr)
         connections.set_udp_conns(udp_connections)
         #print(f'ip = {ip} --- data = {data} --- sec = {second}')
 
-def send_message(msg, m_type, connections):
+# format for calling send_text()
+def send_message(msg, m_type, connections, ip):
     json_stuff = json.dumps({'TYPE': m_type, 'CONTENT': msg})
-    send_text(json_stuff, connections)
+    #send_text(json_stuff, connections)
 
-def send_text(data, connections, opcode=OPCODE_TEXT):
-    header  = bytearray()
-    payload = data.encode()
-    payload_length = len(payload)
-
-    # Normal payload
-    if payload_length <= 125:
-        header.append(FIN | opcode)
-        header.append(payload_length)
-
-    # Extended payload
-    elif payload_length >= 126 and payload_length <= 65535:
-        header.append(FIN | opcode)
-        header.append(PAYLOAD_LEN_EXT16)
-        header.extend(struct.pack(">H", payload_length))
-
-    # Huge extended payload
-    elif payload_length < 18446744073709551616:
-        header.append(FIN | opcode)
-        header.append(PAYLOAD_LEN_EXT64)
-        header.extend(struct.pack(">Q", payload_length))
-
-    else:
-        raise Exception("Message is too big. Consider breaking it into chunks.")
-        return
-
+    # TODO - only send to connections that have that UDP port open (aka. the team name selected)
+    data = json_stuff
     for d in connections.get_msg_conns():
-        conn = d['conn']
-        conn.sendall(header + payload)
+        if ip == "ALL" or d['open'] == ip:
+            send_text(data, d['conn'])
 
-
-# This is a complicated receive function for websocket
-def read_next_message(message_in):
-    b1, b2 = message_in[0], message_in[1]
-
-    fin    = b1 & FIN
-    opcode = b1 & OPCODE
-    masked = b2 & MASKED
-    payload_length = b2 & PAYLOAD_LEN
-
-    if opcode == OPCODE_CLOSE_CONN:
-        print("Client asked to close connection.")
-        return "CLOSE"
-    if not masked:
-        print("Client must always be masked.")
-        return "CLOSE"
-    if opcode == OPCODE_CONTINUATION:
-        print("Continuation frames are not supported.")
-        return "CONTINUE"
-    elif opcode == OPCODE_BINARY:
-        print("Binary frames are not supported.")
-        return "CONTINUE"
-    elif opcode == OPCODE_TEXT:
-        print("opcode == OPCODE_TEXT")
-    elif opcode == OPCODE_PING:
-        print("PING_RECEIVED")
-        return "PING"
-    elif opcode == OPCODE_PONG:
-        return "PONG"
-    else:
-        print("Unknown opcode %#x." % opcode)
-        #self.keep_alive = 0
-        return "CLOSE"
-
-    if payload_length == 126:
-        payload_length = struct.unpack(">H", message_in[2:4])[0]
-        masks = message_in[4:8]
-        start = 8
-    elif payload_length == 127:
-        payload_length = struct.unpack(">Q", message_in[2:10])[0]
-        masks = message_in[10:14]
-        start = 14
-    else:
-        masks = message_in[2:6]
-        start = 6
-
-    message_bytes = bytearray()
-    for message_byte in message_in[start:start+payload_length]:
-        message_byte ^= masks[len(message_bytes) % 4]
-        message_bytes.append(message_byte)
-    
-    return message_bytes.decode()
-
+        
 # The front-end will send messages back depending on which clients are choosing to
 # view which UDP connections (aka which team from the frop-down menu)!
 def rec_msg(conn, connections):
@@ -261,31 +162,43 @@ def rec_msg(conn, connections):
 
         print(f"Data received as {data}")
         team_connections = connections.get_team_conns()
+        msg_conns = connections.get_msg_conns()
+        
+        # get index in msg_conns array for later use
+        for i in range(len(msg_conns)):
+            if msg_conns[i]['conn'] == conn:
+                break
+
         if b"websocket" in data:
             data = data.decode()
-            print(data)
+            #print(data)
             key = data.split('Sec-WebSocket-Key: ')[1].split('\r\n')[0]
             guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
-            print(f"key = {key+guid}")
+            #print(f"key = {key+guid}")
             accepted = base64.b64encode(hashlib.sha1((key+guid).encode()).digest()).strip().decode('ASCII')
-            print(f"accepted = {accepted}")
+            #print(f"accepted = {accepted}")
             to_send = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
             to_send += f"Sec-WebSocket-Accept: {accepted}\r\n\r\n" 
             conn.sendall(to_send.encode())
-            print("sent")
-            # TODO - send udp conns?
-            send_text(json.dumps({"TYPE": "PORT_LIST", "CONTENT": connections.get_udp_conns()}), connections)
+            #print("sent")
+            #send_text(json.dumps({"TYPE": "PORT_LIST", "CONTENT": connections.get_udp_conns()}), connections)
+            send_message(connections.get_udp_conns(), 'PORT_LIST', connections, "ALL") # sends new port list to each connection
+            print("handshake complete")
         else:
             msg = read_next_message(data)
 
             if msg == "PING":
-                send_text(data, connections, OPCODE_PONG)
+                send_text(data, connections, OPCODE_PONG) 
                 continue
             elif msg == "PONG":
                 print("PONG RECEIVED")
                 continue
             elif msg == "CLOSE":
-                # TODO - delete conn in database
+                #team_connections[data['PORT']].remove(conn)
+                for mc in msg_conns:
+                    if mc['conn'] == conn:
+                        msg_conns.remove(mc)
+                        break
                 conn.close()
                 break
             elif msg == "CONTINUE":
@@ -295,33 +208,39 @@ def rec_msg(conn, connections):
             data = json.loads(msg)
 
             if data['TYPE'] == "OPEN":
-                if len(team_connections[data['PORT']]) > 0:
-                    team_connections[data['PORT']].append(conn)
-                else:
-                    team_connections[data['PORT']] = [conn]
+                #if len(team_connections[data['PORT']]) > 0:
+                #    team_connections[data['PORT']].append(conn)
+                #else:
+                #    team_connections[data['PORT']] = [conn]
+                msg_conns[i]['open'] = data['PORT']
             
             elif data['TYPE'] == "SWITCH":
-                new_port = data['NEW_PORT']
-                team_connections[data['PORT']].remove(conn)
-                if len(team_connections[new_port]) > 0:
-                    team_connections[new_port].append(conn)
-                else:
-                    team_connections[new_port] = [conn]
+                #new_port = data['NEW_PORT']
+                #team_connections[data['PORT']].remove(conn)
+                #if len(team_connections[new_port]) > 0:
+                #    team_connections[new_port].append(conn)
+                #else:
+                #    team_connections[new_port] = [conn]
+                msg_conns[i]['open'] = data['PORT']
             
-            elif data['TYPE'] == "HARD_CLOSE":
-                team_connections[data['PORT']].remove(conn)
+            elif data['TYPE'] == "HARD_CLOSE": # TODO - what to do for hard close?
+                #team_connections[data['PORT']].remove(conn)
+                msg_conns[i]['open'] = ''
 
             elif data['TYPE'] == "SOFT_CLOSE":
-                if len(data['PORT']) > 0:
-                    team_connections[data['PORT']].remove(conn)
+                #if len(data['PORT']) > 0:
+                #    team_connections[data['PORT']].remove(conn)
+                msg_conns[i]['open'] = ''
 
+        connections.set_msg_conns(msg_conns)
         connections.set_team_conns(team_connections)
     
     #print("message stuff here?")
     conn.close()
 
 
-# send new image frame to each of the connections
+# send new image frame to each of the connections in img_conns
+# TODO - figure out how to remove img connection on close client-side
 def send_frame(frame, connections):
     #print("sending image frame")
     image_connections = connections.get_img_conns()
@@ -346,6 +265,8 @@ def send_frame(frame, connections):
     #print("finished")
     connections.set_img_conns(image_connections)
 
+
+# separate thread to accept incoming image connections and append to img_conns
 def accept_image_conns(image_s, connections):
     while True:
         img_conn, addr = image_s.accept()
@@ -356,16 +277,6 @@ def accept_image_conns(image_s, connections):
 
         img_conn.sendall(b'HTTP/1.1 200 OK\r\nContent-Type: multipart/x-mixed-replace; boundary=newframe\r\n\r\n')
         print(f'image_conns = {ics}\n')
-
-#def new_client(client, server):
-#    print(f"New client connected: id = {client['id']}")
-#
-#def client_left(client, server):
-#    print(f"Client {client['id']} has disconnected")
-#
-#def message_received(client, server, message):
-#    print(f"Client {client['id']} said: {message}")
-#
 
 def start_communication(connections):
     udp_s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -396,7 +307,7 @@ def start_communication(connections):
         message_connections = connections.get_msg_conns()
         #ws = websocket.WebSocket()
         #ws = websocket.create_connection(f"ws://{ip}:{port}/")
-        message_connections.append({'conn': msg_conn, 'addr': addr})
+        message_connections.append({'conn': msg_conn, 'addr': addr, 'open': ''})
         #message_connections.append({'conn': msg_conn, 'addr': addr})
         connections.set_msg_conns(message_connections)
         print(f'message_conns = {message_connections}\n')
