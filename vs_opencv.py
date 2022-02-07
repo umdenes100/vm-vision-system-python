@@ -1,6 +1,8 @@
 # importing the necessary libraries
 import cv2
 import numpy as np
+import aruco_marker
+import arena
 import vs_comm 
 import vs_gui
 import threading
@@ -13,11 +15,32 @@ drawing_options = {'draw_dest': False, 'draw_obstacles': False, 'draw_coord': Fa
 aruco_markers = {}
 
 def draw_on_frame(frame):
+    arucoDict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_4X4_1000)
+    arucoParams = cv2.aruco.DetectorParameters_create()
+    (corners, ids, rejected) = cv2.aruco.detectMarkers(frame, arucoDict, parameters=arucoParams)
+    frame = cv2.aruco.drawDetectedMarkers(frame,corners,ids)
+    #print(f"drawing0 --- {ids}")
+    #return frame
+
+    if ids:
+        print(f"drawing1 --- {ids}")
+        marker_list = []
+        for x in range(len(ids)):
+            p1 = aruco_marker.Marker(ids[x],corners[x][0][0],corners[x][0][1],corners[x][0][2],corners[x][0][3])
+            marker_list.append(p1)
+
+        print(marker_list)
+        frame_after = arena.process_Markers(frame,marker_list)    
+        print("sending")
+    else:
+        frame_after = frame
+
+
     # TODO - detect aruco markers
     # TODO - draw aruco markers
     # TODO - draw arena
     #print("in progress...")
-    return frame
+    return frame_after
 
 def frame_capture(cap, connections):
     # Loop until the end of the video
@@ -27,10 +50,8 @@ def frame_capture(cap, connections):
         # Display the resulting frame
         #cv2.imshow('Frame', frame)
 
-        # TODO - draw on image
-        new_frame = draw_on_frame(frame)
-
         try:
+            new_frame = draw_on_frame(frame)
             jpeg_bytes = cv2.imencode('.jpg', new_frame)[1]
         
             # send frame to each of the connections in the connection list in vs_comm.py

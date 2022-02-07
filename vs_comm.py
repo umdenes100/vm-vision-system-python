@@ -160,7 +160,7 @@ def rec_msg(conn, connections):
         if len(data) == 0:
             continue
 
-        print(f"Data received as {data}")
+        #print(f"Data received as {data}")
         team_connections = connections.get_team_conns()
         msg_conns = connections.get_msg_conns()
         
@@ -276,7 +276,7 @@ def accept_image_conns(image_s, connections):
         connections.set_img_conns(ics)
 
         img_conn.sendall(b'HTTP/1.1 200 OK\r\nContent-Type: multipart/x-mixed-replace; boundary=newframe\r\n\r\n')
-        print(f'image_conns = {ics}\n')
+        #print(f'image_conns = {ics}\n')
 
 def start_communication(connections):
     udp_s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -310,7 +310,7 @@ def start_communication(connections):
         message_connections.append({'conn': msg_conn, 'addr': addr, 'open': ''})
         #message_connections.append({'conn': msg_conn, 'addr': addr})
         connections.set_msg_conns(message_connections)
-        print(f'message_conns = {message_connections}\n')
+        #print(f'message_conns = {message_connections}\n')
 
         # send initial json stuff and initial message to website
         #msg_conn.sendall(json.dumps({"TYPE": "PORT_LIST", "CONTENT": connections.get_udp_conns()}).encode())
