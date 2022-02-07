@@ -13,7 +13,25 @@ import websockets
 from websocket_server import WebsocketServer
 import hashlib
 import base64
+import struct
+
 image_frame_list = []
+
+FIN    = 0x80
+OPCODE = 0x0f
+MASKED = 0x80
+PAYLOAD_LEN = 0x7f
+PAYLOAD_LEN_EXT16 = 0x7e
+PAYLOAD_LEN_EXT64 = 0x7f
+
+OPCODE_CONTINUATION = 0x0
+OPCODE_TEXT         = 0x1
+OPCODE_BINARY       = 0x2
+OPCODE_CLOSE_CONN   = 0x8
+OPCODE_PING         = 0x9
+OPCODE_PONG         = 0xA
+
+CLOSE_STATUS_NORMAL = 1000
 
 class Connections:
     def __init__(self):
@@ -67,6 +85,7 @@ def udpthread(conn, connections):
         udp_connections = connections.get_udp_conns()
         data, addr = conn.recvfrom(1024)
         ip, port = addr
+        ip = str(ip)
 
         # add ip to udp connections for future use
         data_to_send = b''
@@ -101,7 +120,8 @@ def udpthread(conn, connections):
 
             print(f"\nTeam Name: {teamname}\nMission: {mission}\n")
             
-            send_message(str(udp_connections), 'PORT_LIST', connections) # sends new port list to each connection
+            send_message(udp_connections, 'PORT_LIST', connections) # sends new port list to each connection
+            print(f"UDP_CONNECTIONS = {udp_connections}")
             send_message(str(int(time.time())), 'START', connections) # send start command to msg server
 
             # TODO - return the mission destination - OpenCV
@@ -144,11 +164,91 @@ def udpthread(conn, connections):
         #print(f'ip = {ip} --- data = {data} --- sec = {second}')
 
 def send_message(msg, m_type, connections):
-    # send message to each connection in list
     json_stuff = json.dumps({'TYPE': m_type, 'CONTENT': msg})
+    send_text(json_stuff, connections)
+
+def send_text(data, connections, opcode=OPCODE_TEXT):
+    header  = bytearray()
+    payload = data.encode()
+    payload_length = len(payload)
+
+    # Normal payload
+    if payload_length <= 125:
+        header.append(FIN | opcode)
+        header.append(payload_length)
+
+    # Extended payload
+    elif payload_length >= 126 and payload_length <= 65535:
+        header.append(FIN | opcode)
+        header.append(PAYLOAD_LEN_EXT16)
+        header.extend(struct.pack(">H", payload_length))
+
+    # Huge extended payload
+    elif payload_length < 18446744073709551616:
+        header.append(FIN | opcode)
+        header.append(PAYLOAD_LEN_EXT64)
+        header.extend(struct.pack(">Q", payload_length))
+
+    else:
+        raise Exception("Message is too big. Consider breaking it into chunks.")
+        return
+
     for d in connections.get_msg_conns():
         conn = d['conn']
-        conn.sendall(json_stuff.encode())
+        conn.sendall(header + payload)
+
+
+# This is a complicated receive function for websocket
+def read_next_message(message_in):
+    b1, b2 = message_in[0], message_in[1]
+
+    fin    = b1 & FIN
+    opcode = b1 & OPCODE
+    masked = b2 & MASKED
+    payload_length = b2 & PAYLOAD_LEN
+
+    if opcode == OPCODE_CLOSE_CONN:
+        print("Client asked to close connection.")
+        return "CLOSE"
+    if not masked:
+        print("Client must always be masked.")
+        return "CLOSE"
+    if opcode == OPCODE_CONTINUATION:
+        print("Continuation frames are not supported.")
+        return "CONTINUE"
+    elif opcode == OPCODE_BINARY:
+        print("Binary frames are not supported.")
+        return "CONTINUE"
+    elif opcode == OPCODE_TEXT:
+        print("opcode == OPCODE_TEXT")
+    elif opcode == OPCODE_PING:
+        print("PING_RECEIVED")
+        return "PING"
+    elif opcode == OPCODE_PONG:
+        return "PONG"
+    else:
+        print("Unknown opcode %#x." % opcode)
+        #self.keep_alive = 0
+        return "CLOSE"
+
+    if payload_length == 126:
+        payload_length = struct.unpack(">H", message_in[2:4])[0]
+        masks = message_in[4:8]
+        start = 8
+    elif payload_length == 127:
+        payload_length = struct.unpack(">Q", message_in[2:10])[0]
+        masks = message_in[10:14]
+        start = 14
+    else:
+        masks = message_in[2:6]
+        start = 6
+
+    message_bytes = bytearray()
+    for message_byte in message_in[start:start+payload_length]:
+        message_byte ^= masks[len(message_bytes) % 4]
+        message_bytes.append(message_byte)
+    
+    return message_bytes.decode()
 
 # The front-end will send messages back depending on which clients are choosing to
 # view which UDP connections (aka which team from the frop-down menu)!
@@ -170,17 +270,29 @@ def rec_msg(conn, connections):
             accepted = base64.b64encode(hashlib.sha1((key+guid).encode()).digest()).strip().decode('ASCII')
             print(f"accepted = {accepted}")
             to_send = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
-            to_send += f"Sec-WebSocket-Accept: {accepted}\r\n\r\n" #Server: LTFs\r\n" #Access-Control-Allow-Credentials: false\r\n"
-            #to_send += ""
+            to_send += f"Sec-WebSocket-Accept: {accepted}\r\n\r\n" 
             conn.sendall(to_send.encode())
             print("sent")
-            #conn.sendall(json.dumps({"TYPE": "PORT_LIST", "CONTENT": str(connections.get_udp_conns())}).encode())        
-        elif data == b"Closed.":
-            # TODO - remove connection from connections and return thread
-            print("IP")
+            # TODO - send udp conns?
+            send_text(json.dumps({"TYPE": "PORT_LIST", "CONTENT": connections.get_udp_conns()}), connections)
         else:
-            print(f"data received = {data}")
-            data = json.loads(data)
+            msg = read_next_message(data)
+
+            if msg == "PING":
+                send_text(data, connections, OPCODE_PONG)
+                continue
+            elif msg == "PONG":
+                print("PONG RECEIVED")
+                continue
+            elif msg == "CLOSE":
+                # TODO - delete conn in database
+                conn.close()
+                break
+            elif msg == "CONTINUE":
+                continue
+
+            print(f"data received = {msg}")
+            data = json.loads(msg)
 
             if data['TYPE'] == "OPEN":
                 if len(team_connections[data['PORT']]) > 0:
@@ -198,10 +310,10 @@ def rec_msg(conn, connections):
             
             elif data['TYPE'] == "HARD_CLOSE":
                 team_connections[data['PORT']].remove(conn)
-                # TODO - remove connection from connections
 
             elif data['TYPE'] == "SOFT_CLOSE":
-                team_connections[data['PORT']].remove(conn)
+                if len(data['PORT']) > 0:
+                    team_connections[data['PORT']].remove(conn)
 
         connections.set_team_conns(team_connections)
     

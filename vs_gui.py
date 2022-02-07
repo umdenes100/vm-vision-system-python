@@ -59,11 +59,11 @@ class Ui(QtWidgets.QMainWindow):
     def camera_change(self):
         start = time.time() 
         start_new_thread(self.connections.set_cam, (self.camnum.value(), ))
-        print(f"\nthis took {time.time() - start} seconds")
+        #print(f"\nthis took {time.time() - start} seconds")
         print(f"camera changed to {self.camnum.value()}")
 
     def reset_camera(self):
-        print("resetting camera")
+        #print("resetting camera")
         self.brightslider.setValue(127)
         self.sharpslider.setValue(127)
         self.contrastslider.setValue(127)
