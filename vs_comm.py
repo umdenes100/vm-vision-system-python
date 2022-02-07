@@ -130,13 +130,13 @@ def udpthread(conn, connections):
             curr = data[2]
 
             # send message to message server
-            send_message(get_mission_message(curr, udp_connections[ip]['MISSION'], message), 'MISSION')
+            send_message(get_mission_message(curr, udp_connections[ip]['MISSION'], message), 'MISSION', connections)
             data_to_send = b'\x07'
         
         # DEBUG
         elif second == 8:
             msg = data[2:].decode()
-            send_message(msg, 'DEBUG') # send debug message to msg server
+            send_message(msg, 'DEBUG', connections) # send debug message to msg server
             print(f"Debug message = {msg}")
 
         conn.sendto(data_to_send, addr)
@@ -147,33 +147,35 @@ def send_message(msg, m_type, connections):
     # send message to each connection in list
     json_stuff = json.dumps({'TYPE': m_type, 'CONTENT': msg})
     for d in connections.get_msg_conns():
-        conn = d['msg']
+        conn = d['conn']
         conn.sendall(json_stuff.encode())
 
 # The front-end will send messages back depending on which clients are choosing to
 # view which UDP connections (aka which team from the frop-down menu)!
 def rec_msg(conn, connections):
-    # conn.sendall(b"initial message hehe")
-    # stuff = json.dumps({'TYPE': 'DEBUG', 'CONTENT': })
-
     # gather received messages and process
     while 1:
-        data = conn.recv(1024).decode()
+        data = conn.recv(1024)
+        if len(data) == 0:
+            continue
+
         print(f"Data received as {data}")
         team_connections = connections.get_team_conns()
-
-        if "websocket" in data:
+        if b"websocket" in data:
+            data = data.decode()
             print(data)
             key = data.split('Sec-WebSocket-Key: ')[1].split('\r\n')[0]
-            print(f"key = {key.encode()}")
-            accepted = base64.b64encode(hashlib.sha1(key.encode()).digest()).decode()
+            guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+            print(f"key = {key+guid}")
+            accepted = base64.b64encode(hashlib.sha1((key+guid).encode()).digest()).strip().decode('ASCII')
             print(f"accepted = {accepted}")
             to_send = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
-            to_send += f"Sec-WebSocket-Accept: {accepted}\r\nServer: LTFs\r\n" #Access-Control-Allow-Credentials: false\r\n"
+            to_send += f"Sec-WebSocket-Accept: {accepted}\r\n\r\n" #Server: LTFs\r\n" #Access-Control-Allow-Credentials: false\r\n"
             #to_send += ""
             conn.sendall(to_send.encode())
+            print("sent")
             #conn.sendall(json.dumps({"TYPE": "PORT_LIST", "CONTENT": str(connections.get_udp_conns())}).encode())        
-        elif data == "Closed.":
+        elif data == b"Closed.":
             # TODO - remove connection from connections and return thread
             print("IP")
         else:
