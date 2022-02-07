@@ -78,4 +78,5 @@ $ sudo apt-get install qttools5-dev
 ## Resources & References
 [TCP vs UDP](https://www.lifesize.com/en/blog/tcp-vs-udp/)
 https://github.com/Pithikos/python-websocket-server/blob/56af8aeed025465e70133f19f96db18113e50a91/websocket_server/websocket_server.py#L186
+https://github.com/ephan1068/CV-Testing
 
