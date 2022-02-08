@@ -1,81 +1,64 @@
 import math
 import processed_marker
+import numpy as np
 import cv2
 
-origin = [0,0]
-axis = [4,4]
-mPpm = 1
-width = 4
-height = 2
-pixels_Meter = 1.0
-theta = 3.1415
+width = 4.0
+height = 2.0
 m_list = []
-
-def process_Markers(frame, marker_list):
-    print("starting process for markers")
-    # process corners of arena
+def getHomographyMatrix(frame,marker_list):
+    pt00 = (50,430)
+    pt02 = (50,50)
+    pt40 = (590,430)
+    pt42 = (590, 50)
     for x in marker_list:
-        if x.id == 0:
-            origin = x.corner1
+        print(f'id {x.id} = {x.corner1}')
+        if x.id == 0:  #finding all the corners of the arena
+            pt00 = x.corner1
         elif x.id == 1:
-            axis = x.corner1
-        else:
-            break
+            pt40 = x.corner1
+        elif x.id == 2:
+            pt02 = x.corner1
+        elif x.id == 3:
+            pt42 = x.corner1
     
-    pixels_Meter = math.sqrt((axis[0] - origin[0])*(axis[0] - origin[0]) + (axis[1] - origin[1]) * (axis[1] - origin[1])) / width
-    theta = -math.atan2(axis[1] - origin[1], axis[0] - origin[0])
+    #print('\n')
+    src_pts = np.float32([pt00, pt40, pt02, pt42]) #pixel coordinates of the markers
     
-    print("processed corners")
-    # process markers on arena for teams
+    dst_pts = np.float32([[0.0, 0.0], [width, 0.0], [0.0, height], [width, height]]) #arena coordinates of markers
+    H = cv2.getPerspectiveTransform(src_pts, dst_pts)
+    #print(H.shape)
+    return H
+
+
+def processMarkers(frame, marker_list, H):
     for x in marker_list:
-        if x.id > 1:
-            n_marker = translate(x)
+        if x.id > 3:
+            n_marker = translate(x, H)
+            #print(x.id)
             m_list.append(n_marker)
-            frame = cv2.arrowedLine(frame,(int(x.corner1[0]), int(x.corner1[1])),(int(x.corner2[0]), int(x.corner2[1])),(0, 255, 0),3)
-    
-    print("processed other markers")
+            
+            #Add a green arrowed line
+            frame = cv2.arrowedLine(frame,(int(x.corner1[0]), int(x.corner1[1])),(int(x.corner2[0]), 
+            int(x.corner2[1])),(0, 255, 0),2,tipLength= .4)
     return frame
     
 
-def translate(marker):
-    print("test")
-    # mArenaMutex.lock();
-    # // Calculate theta of the marker by comparing the degree of the line created
-    # // by two corners with the degree of the arena
+def translate(marker, H):
+    # find the center of the marker in pixels
+    marker_coords_px = np.float32(np.array([[[0.0, 0.0]]]))  # dont know why you need so many brakets, but this makes it work
+    marker_coords_px[0, 0, 0] = (marker.corner1[0] + marker.corner2[0] + marker.corner3[0] + marker.corner4[0]) / 4
+    marker_coords_px[0, 0, 1] = (marker.corner1[1] + marker.corner2[1] + marker.corner3[1] + marker.corner4[1]) / 4
 
-    mtheta = theta - math.atan2(marker.corner2[1] - marker.corner1[1], marker.corner2[0] - marker.corner1[0])
+    # Use homography transformation matrix to convert marker coords in px to meters
+    marker_coords_m = cv2.perspectiveTransform(marker_coords_px, H)[0]
+    #print(marker_coords_m)
 
-
-    # // Subtract away the origin
-    fx = marker.corner1[0] - origin[0]
-    fy = origin[1] - marker.corner1[1]
-    # float fx = m.x[0] - mOriginPx[0];
-    # float fy = mOriginPx[1] - m.y[0];
-
-    # // Convert camera frame of reference to arena frame of reference
-    A = fx * math.cos(theta) + fy * math.sin(theta)
-    B = fy * math.cos(theta) - fx * math.sin(theta)
-
-    # // Shift measurement to center of marker
-    # //float markerSide = sqrt((m[1].x - m[0].x)*(m[1].x - m[0].x) + (m[1].y - m[0].y)*(m[1].y - m[0].y));
-    markerSide = math.sqrt((marker.corner2[0] - marker.corner1[0])*(marker.corner2[0] - marker.corner1[0]) + 
-    (marker.corner2[1] - marker.corner1[1])*(marker.corner2[1] - marker.corner1[1]))
-    PI = 3.1415
-    if (math.cos(mtheta) >= 0) :
-         A += math.sqrt(2) * markerSide / 2 * math.cos(PI/4 - mtheta)
-         B -= math.sqrt(2) * markerSide / 2 * math.sin(PI/4 - mtheta)
-    else :
-         A -= math.sqrt(2) * markerSide / 2 * math.sin(theta - 3*PI/4)
-         B += math.sqrt(2) * markerSide / 2 * math.cos(theta - 3*PI/4)
-    
-
-    # // Convert to meters and store into Marker
-    x = A / pixels_Meter
-    y = B / pixels_Meter
-
-    # mArenaMutex.unlock();
-
-    n_marker = processed_marker.processed_Marker(marker.id, x, y, mtheta)
-
+    # Find theta of the marker
+    corner1_coords_m = cv2.perspectiveTransform(np.float32(np.array([[marker.corner1]])), H)
+    corner2_coords_m = cv2.perspectiveTransform(np.float32(np.array([[marker.corner2]])), H)
+    marker_theta = math.atan2(corner2_coords_m[0, 0, 1] - corner1_coords_m[0, 0, 1], corner2_coords_m[0, 0, 0] - corner1_coords_m[0, 0, 0])
+    #print(marker_theta)
+    n_marker = processed_marker.processed_Marker(marker.id, marker_coords_m[0,0], marker_coords_m[0,1], marker_theta)
 
     return n_marker

@@ -23,23 +23,19 @@ def draw_on_frame(frame):
     #return frame
 
     if ids:
-        print(f"drawing1 --- {ids}")
+        #print(f"drawing1 --- {ids}")
         marker_list = []
         for x in range(len(ids)):
             p1 = aruco_marker.Marker(ids[x],corners[x][0][0],corners[x][0][1],corners[x][0][2],corners[x][0][3])
             marker_list.append(p1)
-
-        print(marker_list)
-        frame_after = arena.process_Markers(frame,marker_list)    
-        print("sending")
+        
+        H = arena.getHomographyMatrix(frame,marker_list)
+        frame_after = arena.processMarkers(frame,marker_list,H) 
+        #print("successful frame_after")
     else:
         frame_after = frame
 
-
-    # TODO - detect aruco markers
-    # TODO - draw aruco markers
     # TODO - draw arena
-    #print("in progress...")
     return frame_after
 
 def frame_capture(cap, connections):
@@ -57,8 +53,9 @@ def frame_capture(cap, connections):
             # send frame to each of the connections in the connection list in vs_comm.py
             #vs_comm.send_frame(new_frame)
             vs_comm.send_frame(np.array(jpeg_bytes).tostring(), connections)
-        except:
+        except Exception as e:
             # most likely camera changed
+            print(e)
             pass
  
 def start_image_processing(connections):
