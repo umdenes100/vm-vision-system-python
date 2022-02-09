@@ -16,22 +16,27 @@ aruco_markers = {}
 
 def draw_on_frame(frame):
     arucoDict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_4X4_1000)
+    #print("arucoDict")
     arucoParams = cv2.aruco.DetectorParameters_create()
+    #print("arucoParams")
     (corners, ids, rejected) = cv2.aruco.detectMarkers(frame, arucoDict, parameters=arucoParams)
+    #print("detect_markers")
     frame = cv2.aruco.drawDetectedMarkers(frame,corners,ids)
     #print(f"drawing0 --- {ids}")
     #return frame
 
-    if ids:
+    if isinstance(ids, list):
         #print(f"drawing1 --- {ids}")
         marker_list = []
         for x in range(len(ids)):
             p1 = aruco_marker.Marker(ids[x],corners[x][0][0],corners[x][0][1],corners[x][0][2],corners[x][0][3])
             marker_list.append(p1)
         
+        #print("after for loop")
         H = arena.getHomographyMatrix(frame,marker_list)
+        #print("after H")
         frame_after = arena.processMarkers(frame,marker_list,H) 
-        #print("successful frame_after")
+        print("successful frame_after")
     else:
         frame_after = frame
 

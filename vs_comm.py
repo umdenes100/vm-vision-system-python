@@ -53,8 +53,8 @@ class Connections:
         if "brightness" in output.decode(): 
             self.video = cv2.VideoCapture(num)
             self.video.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G')) # depends on fourcc available camera
-            self.video.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            self.video.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            self.video.set(cv2.CAP_PROP_FRAME_WIDTH, 960)
+            self.video.set(cv2.CAP_PROP_FRAME_HEIGHT, 540)
 
 def udpthread(conn, connections):
     print("udp thread started")
@@ -137,7 +137,7 @@ def udpthread(conn, connections):
 
         conn.sendto(data_to_send, addr)
         connections.set_udp_conns(udp_connections)
-        #print(f'ip = {ip} --- data = {data} --- sec = {second}')
+        print(f'ip = {ip} --- data = {data} --- sec = {second}')
 
 # format for calling send_text()
 def send_message(msg, m_type, connections, ip):
