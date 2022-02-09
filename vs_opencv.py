@@ -21,7 +21,7 @@ def draw_on_frame(frame):
     frame = cv2.aruco.drawDetectedMarkers(frame,corners,ids)
     #print(f"drawing0 --- {ids}")
     #return frame
-    instruction = "01Aa" #NEED TO IMPLEMENT
+    instruction = "01A" #NEED TO IMPLEMENT
     if ids:
         #print(f"drawing1 --- {ids}")
         marker_list = []
