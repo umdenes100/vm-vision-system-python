@@ -8,43 +8,36 @@ import hashlib
 import base64
 from subprocess import Popen, PIPE
 from vs_mission import *
-from vs_opencv import aruco_markers
+from vs_opencv import *
 from vs_ws import *
 
 class Connections:
     def __init__(self):
-        self.team_connections = {}
         self.message_connections = []
         self.image_connections = []
         self.udp_connections = {}
         self.video = cv2.VideoCapture(0)
 
-    def get_team_conns(self):
-        return self.team_connections
+    #def get_msg_conns(self):
+    #    return self.message_connections
 
-    def get_msg_conns(self):
-        return self.message_connections
+    #def get_img_conns(self):
+    #    return self.image_connections
 
-    def get_img_conns(self):
-        return self.image_connections
+    #def get_udp_conns(self):
+    #    return self.udp_connections
 
-    def get_udp_conns(self):
-        return self.udp_connections
+    #def get_cam(self):
+    #    return self.video
 
-    def get_cam(self):
-        return self.video
-
-    def set_team_conns(self, tcs):
-        self.team_connections = tcs
-
-    def set_msg_conns(self, mcs):
-        self.message_connections = mcs
+    #def set_msg_conns(self, mcs):
+    #    self.message_connections = mcs
     
-    def set_img_conns(self, ics):
-        self.image_connections = ics
+    #def set_img_conns(self, ics):
+    #    self.image_connections = ics
 
-    def set_udp_conns(self, ucs):
-        self.udp_connections = ucs
+    #def set_udp_conns(self, ucs):
+    #    self.udp_connections = ucs
 
     def set_cam(self, num):
         self.video.release()
@@ -53,13 +46,14 @@ class Connections:
         if "brightness" in output.decode(): 
             self.video = cv2.VideoCapture(num)
             self.video.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G')) # depends on fourcc available camera
-            self.video.set(cv2.CAP_PROP_FRAME_WIDTH, 960)
-            self.video.set(cv2.CAP_PROP_FRAME_HEIGHT, 540)
+            self.video.set(cv2.CAP_PROP_FRAME_WIDTH, (1920*2)//4)
+            self.video.set(cv2.CAP_PROP_FRAME_HEIGHT, (1080*2)//4)
 
-def udpthread(conn, connections):
+def udpthread(conn, connections, dr_op):
     print("udp thread started")
     while 1:
-        udp_connections = connections.get_udp_conns()
+        #udp_connections = connections.get_udp_conns()
+        udp_connections = connections.udp_connections
         data, addr = conn.recvfrom(1024)
         ip, port = addr
         ip = str(ip)
@@ -136,7 +130,8 @@ def udpthread(conn, connections):
             print(f"Debug message = {msg}")
 
         conn.sendto(data_to_send, addr)
-        connections.set_udp_conns(udp_connections)
+        #connections.set_udp_conns(udp_connections)
+        connections.udp_connections = udp_connections
         print(f'ip = {ip} --- data = {data} --- sec = {second}')
 
 # format for calling send_text()
@@ -144,9 +139,9 @@ def send_message(msg, m_type, connections, ip):
     json_stuff = json.dumps({'TYPE': m_type, 'CONTENT': msg})
     #send_text(json_stuff, connections)
 
-    # TODO - only send to connections that have that UDP port open (aka. the team name selected)
     data = json_stuff
-    for d in connections.get_msg_conns():
+    #for d in connections.get_msg_conns():
+    for d in connections.message_connections:
         if ip == "ALL" or d['open'] == ip:
             send_text(data, d['conn'])
 
@@ -161,8 +156,8 @@ def rec_msg(conn, connections):
             continue
 
         #print(f"Data received as {data}")
-        team_connections = connections.get_team_conns()
-        msg_conns = connections.get_msg_conns()
+        #msg_conns = connections.get_msg_conns()
+        msg_conns = connections.message_connections
         
         # get index in msg_conns array for later use
         for i in range(len(msg_conns)):
@@ -182,7 +177,8 @@ def rec_msg(conn, connections):
             conn.sendall(to_send.encode())
             #print("sent")
             #send_text(json.dumps({"TYPE": "PORT_LIST", "CONTENT": connections.get_udp_conns()}), connections)
-            send_message(connections.get_udp_conns(), 'PORT_LIST', connections, "ALL") # sends new port list to each connection
+            #send_message(connections.get_udp_conns(), 'PORT_LIST', connections, "ALL") # sends new port list to each connection
+            send_message(connections.udp_connections, 'PORT_LIST', connections, "ALL") # sends new port list to each connection
             print("handshake complete")
         else:
             msg = read_next_message(data)
@@ -194,7 +190,6 @@ def rec_msg(conn, connections):
                 print("PONG RECEIVED")
                 continue
             elif msg == "CLOSE":
-                #team_connections[data['PORT']].remove(conn)
                 for mc in msg_conns:
                     if mc['conn'] == conn:
                         msg_conns.remove(mc)
@@ -208,34 +203,16 @@ def rec_msg(conn, connections):
             data = json.loads(msg)
 
             if data['TYPE'] == "OPEN":
-                #if len(team_connections[data['PORT']]) > 0:
-                #    team_connections[data['PORT']].append(conn)
-                #else:
-                #    team_connections[data['PORT']] = [conn]
                 msg_conns[i]['open'] = data['PORT']
-            
             elif data['TYPE'] == "SWITCH":
-                #new_port = data['NEW_PORT']
-                #team_connections[data['PORT']].remove(conn)
-                #if len(team_connections[new_port]) > 0:
-                #    team_connections[new_port].append(conn)
-                #else:
-                #    team_connections[new_port] = [conn]
                 msg_conns[i]['open'] = data['PORT']
-            
             elif data['TYPE'] == "HARD_CLOSE": # TODO - what to do for hard close?
-                #team_connections[data['PORT']].remove(conn)
                 msg_conns[i]['open'] = ''
-
             elif data['TYPE'] == "SOFT_CLOSE":
-                #if len(data['PORT']) > 0:
-                #    team_connections[data['PORT']].remove(conn)
                 msg_conns[i]['open'] = ''
 
-        connections.set_msg_conns(msg_conns)
-        connections.set_team_conns(team_connections)
-    
-    #print("message stuff here?")
+        #connections.set_msg_conns(msg_conns)
+        connections.message_connections = msg_conns
     conn.close()
 
 
@@ -243,7 +220,8 @@ def rec_msg(conn, connections):
 # TODO - figure out how to remove img connection on close client-side
 def send_frame(frame, connections):
     #print("sending image frame")
-    image_connections = connections.get_img_conns()
+    #image_connections = connections.get_img_conns()
+    image_connections = connections.image_connections
 
     # ONE WAY image service
     # on new frame, send JPEG byte array to each connection
@@ -263,7 +241,8 @@ def send_frame(frame, connections):
             image_connections = image_connections[0:i] + image_connections[i+1:] 
    
     #print("finished")
-    connections.set_img_conns(image_connections)
+    #connections.set_img_conns(image_connections)
+    connections.image_connections = image_connections
 
 
 # separate thread to accept incoming image connections and append to img_conns
@@ -271,19 +250,22 @@ def accept_image_conns(image_s, connections):
     while True:
         img_conn, addr = image_s.accept()
         
-        ics = connections.get_img_conns()
+        #ics = connections.get_img_conns()
+        ics = connections.image_connections
         ics.append({'conn': img_conn, 'addr': addr})
-        connections.set_img_conns(ics)
+        #connections.set_img_conns(ics)
+        connections.image_connections = ics
 
         img_conn.sendall(b'HTTP/1.1 200 OK\r\nContent-Type: multipart/x-mixed-replace; boundary=newframe\r\n\r\n')
         #print(f'image_conns = {ics}\n')
 
-def start_communication(connections):
+def start_communication(connections, dr_op):
     udp_s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     udp_s.bind(("", 7755))
-    start_new_thread(udpthread, (udp_s, connections, ))
+    start_new_thread(udpthread, (udp_s, connections, dr_op, ))
 
     message_s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    message_s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     message_s.bind(("", 9000))
     message_s.listen()
 
@@ -304,12 +286,14 @@ def start_communication(connections):
         msg_conn, addr = message_s.accept()
         ip, port = addr
 
-        message_connections = connections.get_msg_conns()
+        #message_connections = connections.get_msg_conns()
+        message_connections = connections.message_connections
         #ws = websocket.WebSocket()
         #ws = websocket.create_connection(f"ws://{ip}:{port}/")
         message_connections.append({'conn': msg_conn, 'addr': addr, 'open': ''})
         #message_connections.append({'conn': msg_conn, 'addr': addr})
-        connections.set_msg_conns(message_connections)
+        #connections.set_msg_conns(message_connections)
+        connections.message_connections = message_connections
         #print(f'message_conns = {message_connections}\n')
 
         # send initial json stuff and initial message to website
