@@ -21,7 +21,7 @@ def draw_on_frame(frame):
     frame = cv2.aruco.drawDetectedMarkers(frame,corners,ids)
     #print(f"drawing0 --- {ids}")
     #return frame
-
+    instruction = "01A" #NEED TO IMPLEMENT
     if ids:
         #print(f"drawing1 --- {ids}")
         marker_list = []
@@ -30,7 +30,7 @@ def draw_on_frame(frame):
             marker_list.append(p1)
         
         H = arena.getHomographyMatrix(frame,marker_list)
-        frame_after = arena.processMarkers(frame,marker_list,H) 
+        frame_after = arena.processMarkers(frame,marker_list,H,instruction) 
         #print("successful frame_after")
     else:
         frame_after = frame
