@@ -3,7 +3,7 @@ import processed_marker
 import numpy as np
 import cv2
 
-width = 4.0
+width = 4.0 #width and heignt of the arena in meters
 height = 2.0
 #m_list = []
 def getHomographyMatrix(frame,marker_list):
@@ -11,7 +11,7 @@ def getHomographyMatrix(frame,marker_list):
     pt00 = (50,430)
     pt02 = (50,50)
     pt40 = (590,430)
-    pt42 = (590, 50)
+    pt42 = (590, 50) #some dummy values
     for x in marker_list:
         #print(f'id {x.id} = {x.corner1}')
         if x.id == 0:  #finding all the corners of the arena
@@ -27,7 +27,7 @@ def getHomographyMatrix(frame,marker_list):
     src_pts = np.float32([pt00, pt40, pt02, pt42]) #pixel coordinates of the markers
     
     dst_pts = np.float32([[0.0, 0.0], [width, 0.0], [0.0, height], [width, height]]) #arena coordinates of markers
-    H = cv2.getPerspectiveTransform(src_pts, dst_pts)
+    H = cv2.getPerspectiveTransform(src_pts, dst_pts) #this gives us the H matrix of the arena
     #print(H.shape)
     #print("homography done")
     return H
@@ -38,29 +38,29 @@ def processMarkers(frame, marker_list, H, dr_op):
     for x in marker_list:
         if x.id > 3:
             n_marker = translate(x, H)
-            markers[f'{n_marker.id}'] = n_marker
+            markers[f'{n_marker.id}'] = n_marker #adding in the processed marker to a dictionary
             #print(x.id)
             #m_list.append(n_marker)
             
-            #Add a green arrowed line
+            #Add a green arrowed line to each aruco marker.
+            #Note, opencv does not give a way to change the id color
             frame = cv2.arrowedLine(frame,(int(x.corner1[0]), int(x.corner1[1])), (int(x.corner2[0]), 
                                     int(x.corner2[1])), (0, 255, 0), 2, tipLength=.4)
-            
+    #draw the obstacles if we want to        
     if dr_op.draw_obstacles:
         frame = createObstacles(frame,H,dr_op.randomization)
-   
+   #draw the mission if we want to
     if dr_op.draw_dest:
         frame = createMission(frame,H,dr_op.otv_start_dir,dr_op.mission_loc,dr_op.otv_start_loc)
-    
+    #returned the processed image frame and marker list
     return frame, markers
 
 def createMission(frame, H,theta, mission_loc, start_loc) :
-    y = [.55,1.45]
-    inverse_matrix = np.linalg.pinv(H)
-    
-    red = (25,25,215)
+    y = [.55,1.45] #possible y coordinates of the mission and otv
+    inverse_matrix = np.linalg.pinv(H) #find the inverse matrix of the homography matrix
+    red = (25,25,215) #Note, opencv does colors in (B,G,R)
     white = (255,255,255)
-    #"radius of square will be .25m"
+    
 
 
     #draws the mission site
@@ -68,11 +68,13 @@ def createMission(frame, H,theta, mission_loc, start_loc) :
     transformed_1 = cv2.perspectiveTransform(point1, inverse_matrix)
     frame = cv2.circle(frame,(int(transformed_1[0,0,0]),int(transformed_1[0,0,1])),20,red,2)
     
-    #finding the coordinates of two points of arrowed line
-    x_c = .25 * math.cos(theta) + 0.575
-    y_c = .25 * math.sin(theta) + y[start_loc]
     
-    x_s = .125 * math.cos(theta - math.pi) + 0.575
+    #finding the coordinates of two points of arrowed line
+    #the start of the arrow
+    x_c = .25 * math.cos(theta) + 0.575 #using 0.575 instead of 0.55 to accound for camera angle
+    y_c = .25 * math.sin(theta) + y[start_loc]
+    #the tip of the arrow
+    x_s = .125 * math.cos(theta - math.pi) + 0.575 
     y_s = .125 * math.sin(theta - math.pi) + y[start_loc]
     
     #drawing the arrowed line
@@ -82,13 +84,15 @@ def createMission(frame, H,theta, mission_loc, start_loc) :
     transformed_2 = cv2.perspectiveTransform(point2, inverse_matrix)
     frame = cv2.arrowedLine(frame,(int(transformed_1[0,0,0]),int(transformed_1[0,0,1])),
             (int(transformed_2[0,0,0]),int(transformed_2[0,0,1])),white,3)\
-    #drawing the otv box
-    point1 = np.float32(np.array([[[0.55 - 0.25, y[start_loc] - 0.25]]]))
-    point2 = np.float32(np.array([[[0.55 + 0.25, y[start_loc] + 0.25]]]))
+    
+    #drawing the otv box, x-coordinate will always be .55 as the center
+    point1 = np.float32(np.array([[[0.55 - 0.25, y[start_loc] - 0.25]]])) #bottom left corner of square
+    point2 = np.float32(np.array([[[0.55 + 0.25, y[start_loc] + 0.25]]])) #top right corner of square
     transformed_1 = cv2.perspectiveTransform(point1, inverse_matrix)
     transformed_2 = cv2.perspectiveTransform(point2, inverse_matrix)
     frame = cv2.rectangle(frame,(int(transformed_1[0,0,0]),int(transformed_1[0,0,1])),
             (int(transformed_2[0,0,0]),int(transformed_2[0,0,1])),white,3)
+
     return frame
 
 def createObstacles(frame,H, instruction):
@@ -104,11 +108,14 @@ def createObstacles(frame,H, instruction):
     #draw out the solid obstacles
     for x in range(2):
         placement = int(instruction[x])    
-        point1 = np.float32(np.array([[[possible_x[x], possible_y[placement]]]]))
-        point2 = np.float32(np.array([[[possible_x[x] + x_length, possible_y[placement] + y_length]]]))
-        point3 = np.float32(np.array([[[possible_x[x] + 0.05, possible_y[placement] + 0.25]]]))
-        rows.remove(placement)
-        transformed_1 = cv2.perspectiveTransform(point1, inverse_matrix)
+        point1 = np.float32(np.array([[[possible_x[x], possible_y[placement]]]])) #bottom left corner
+        point2 = np.float32(np.array([[[possible_x[x] + x_length, possible_y[placement] + y_length]]])) #top right corner
+        point3 = np.float32(np.array([[[possible_x[x] + 0.05, possible_y[placement] + 0.25]]])) #text poisition
+        
+        rows.remove(placement) #removed processed markers, probably a more efficient way to do this but it works
+        
+        #transforms arena coordinates to pixel coordinates
+        transformed_1 = cv2.perspectiveTransform(point1, inverse_matrix) 
         transformed_2 = cv2.perspectiveTransform(point2, inverse_matrix)
         text = cv2.perspectiveTransform(point3, inverse_matrix)
 
