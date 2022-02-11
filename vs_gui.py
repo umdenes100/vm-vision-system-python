@@ -76,23 +76,23 @@ class Ui(QtWidgets.QMainWindow):
         # obstacle randomization, then pass onto opencv
         #   - one rumbles
         #   - two solid objects
-        drawing_options['randomization'] = obstacle_presets[random.randrange(0,12)]
+        self.dr_op.randomization = obstacle_presets[random.randrange(0,12)]
         
         # otv start location and mission location
         start = random.randrange(0,2)
-        drawing_options['otv_start_loc'] = start
-        drawing_options['mission_loc'] = (start + 1) % 2 # opposite of OTV start
+        self.dr_op.otv_start_loc = start
+        self.dr_op.mission_loc = (start + 1) % 2 # opposite of OTV start
         
         # otv start direction (theta) (always facing away from mission site inn 180 deg span)
         if start == 0: # BOTTOM
-            drawing_options['otv_start_dir_theta'] = (random.randrange(0,180) * 2 * math.pi) / 360 
+            self.dr_op.otv_start_dir = (random.randrange(0,180) * 2 * math.pi) / 360 
         else:
-            drawing_options['otv_start_dir_theta'] = ((random.randrange(0,180) +180) * 2 * math.pi) / 360
+            self.dr_op.otv_start_dir = ((random.randrange(0,180) +180) * 2 * math.pi) / 360
 
         # Update whether we need to draw destination, obstacles, and/or coordinates
-        drawing_options['draw_dest'] = self.showdest.isChecked()
-        drawing_options['draw_obstacles'] = self.showobst.isChecked()
-        drawing_options['draw_coord'] = self.showcoord.isChecked()
+        self.dr_op.draw_dest = self.showdest.isChecked()
+        self.dr_op.draw_obstacles = self.showobst.isChecked()
+        self.dr_op.draw_coordinate = self.showcoord.isChecked()
 
     def brightness(self):
         #print(f"brightness is now {self.brightslider.value()}")

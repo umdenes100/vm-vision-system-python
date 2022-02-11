@@ -75,7 +75,6 @@ def udpthread(conn, connections, dr_op):
             print(f"UDP_CONNECTIONS = {udp_connections}")
             send_message(str(int(time.time())), 'START', connections, ip) # send start command to msg server
 
-            # TODO - return the mission destination - OpenCV
             if dr_op.mission_loc: # mission location is on bottom
                 #print("returning (0.55,0.55)")
                 data_to_send = b'\x03' + struct.pack('>f', 0.55) + struct.pack('>f', 0.55) + struct.pack('>f', 0.00)
@@ -87,7 +86,6 @@ def udpthread(conn, connections, dr_op):
         elif second == 4:
             markerId = data[2] | (data[3] << 8)
             
-            # TODO - get marker location - OpenCV
             print(f'markerId {markerId} in {dr_op.aruco_markers.keys()} = ?')
             if f'{markerId}' in dr_op.aruco_markers.keys(): # found aruco marker
                 marker = dr_op.aruco_markers[f'{markerId}']
@@ -195,7 +193,6 @@ def rec_msg(conn, connections):
 
 
 # send new image frame to each of the connections in img_conns
-# TODO - figure out how to remove img connection on close client-side
 def send_frame(frame, connections):
     #print("sending image frame")
     image_connections = connections.image_connections

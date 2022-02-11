@@ -32,7 +32,7 @@ def getHomographyMatrix(frame,marker_list):
     #print("homography done")
     return H
 
-def processMarkers(frame, marker_list, H):
+def processMarkers(frame, marker_list, H, dr_op):
     #print("processing markers")
     markers = {}
     for x in marker_list:
@@ -48,8 +48,10 @@ def processMarkers(frame, marker_list, H):
             
     if dr_op.draw_obstacles:
         frame = createObstacles(frame,H,dr_op.randomization)
+   
     if dr_op.draw_dest:
         frame = createMission(frame,H,dr_op.otv_start_dir,dr_op.mission_loc,dr_op.otv_start_loc)
+    
     return frame, markers
 
 def createMission(frame, H,theta, mission_loc, start_loc) :
