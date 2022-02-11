@@ -19,7 +19,7 @@ def draw_on_frame(frame, dr_op):
     #print(f"drawing0 --- {ids} --- {type(ids)}")
     #return frame
 
-    instruction = "01A" #NEED TO IMPLEMENT
+    
     if isinstance(ids, list) or isinstance(ids, np.ndarray): # sometimes the "ids" array can be NoneType
         #print(f"drawing1 --- {ids}")
         marker_list = []
