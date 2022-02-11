@@ -9,7 +9,8 @@ import threading
 from _thread import *
 import time
 
-
+H = 'a'
+first  = True
 def draw_on_frame(frame, dr_op):
     arucoDict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_4X4_1000)
     arucoParams = cv2.aruco.DetectorParameters_create()
@@ -25,8 +26,9 @@ def draw_on_frame(frame, dr_op):
         for x in range(len(ids)):
             p1 = aruco_marker.Marker(ids[x],corners[x][0][0],corners[x][0][1],corners[x][0][2],corners[x][0][3])
             marker_list.append(p1)
-        
-        H = arena.getHomographyMatrix(frame,marker_list)
+        if first:
+            H = arena.getHomographyMatrix(frame,marker_list)
+            first = False
         frame_after, dr_op.aruco_markers = arena.processMarkers(frame,marker_list,H,dr_op) 
         print(f"successful frame_after --- {dr_op.aruco_markers}")
     else:

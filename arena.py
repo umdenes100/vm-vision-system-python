@@ -83,8 +83,8 @@ def createMission(frame, H,theta, mission_loc, start_loc) :
     frame = cv2.arrowedLine(frame,(int(transformed_1[0,0,0]),int(transformed_1[0,0,1])),
             (int(transformed_2[0,0,0]),int(transformed_2[0,0,1])),white,3)\
     #drawing the otv box
-    point1 = np.float32(np.array([[[y[start_loc] - 0.25, y[start_loc] - 0.25]]]))
-    point2 = np.float32(np.array([[[y[start_loc] + 0.25, y[start_loc] + 0.25]]]))
+    point1 = np.float32(np.array([[[0.55 - 0.25, y[start_loc] - 0.25]]]))
+    point2 = np.float32(np.array([[[0.55 + 0.25, y[start_loc] + 0.25]]]))
     transformed_1 = cv2.perspectiveTransform(point1, inverse_matrix)
     transformed_2 = cv2.perspectiveTransform(point2, inverse_matrix)
     frame = cv2.rectangle(frame,(int(transformed_1[0,0,0]),int(transformed_1[0,0,1])),
