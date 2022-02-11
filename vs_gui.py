@@ -10,7 +10,7 @@ from _thread import *
 obstacle_presets = ['01A', '01B', '02A', '02B', '10A', '10B', '12A', '12B', '20A', '20B', '21A', '21B']
 
 class Ui(QtWidgets.QMainWindow):
-    def __init__(self, connections):
+    def __init__(self, connections, dr_op):
         super(Ui, self).__init__()
         uic.loadUi('mainwindow.ui', self)
        
@@ -51,6 +51,7 @@ class Ui(QtWidgets.QMainWindow):
 
         self.show()
         self.connections = connections
+        self.dr_op = dr_op
 
     #def apply_camera_settings(self): # apply buttom may be removed
     #    # change camera settings using camera number and picture settings
@@ -108,8 +109,8 @@ class Ui(QtWidgets.QMainWindow):
         command = f'v4l2-ctl -d /dev/video{self.camnum.value()} -c contrast={self.contrastslider.value()}'
         os.system(command)
 
-def start_gui(connections):
+def start_gui(connections, dr_op):
     app = QtWidgets.QApplication(sys.argv)
-    window = Ui(connections)
+    window = Ui(connections, dr_op)
     app.exec_()
 
