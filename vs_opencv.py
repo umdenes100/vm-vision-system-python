@@ -9,12 +9,12 @@ import threading
 from _thread import *
 import time
 
-drawing_options = {'draw_dest': False, 'draw_obstacles': False, 'draw_coord': False, 
-                   'otv_start_loc': 0, 'otv_start_dir_theta': 0, 'mission_loc': 1,
-                   'randomization': {}}
-aruco_markers = {}
+# drawing_options = {'draw_dest': False, 'draw_obstacles': False, 'draw_coord': False, 
+#                    'otv_start_loc': 0, 'otv_start_dir_theta': 0, 'mission_loc': 1,
+#                    'randomization': {}}
+# aruco_markers = {}
 
-def draw_on_frame(frame):
+def draw_on_frame(frame,dr_op):
     arucoDict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_4X4_1000)
     arucoParams = cv2.aruco.DetectorParameters_create()
     (corners, ids, rejected) = cv2.aruco.detectMarkers(frame, arucoDict, parameters=arucoParams)
@@ -30,7 +30,7 @@ def draw_on_frame(frame):
             marker_list.append(p1)
         
         H = arena.getHomographyMatrix(frame,marker_list)
-        frame_after = arena.processMarkers(frame,marker_list,H,instruction) 
+        frame_after = arena.processMarkers(frame,marker_list,H,dr_op) 
         #print("successful frame_after")
     else:
         frame_after = frame

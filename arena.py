@@ -31,7 +31,7 @@ def getHomographyMatrix(frame,marker_list):
     return H
 
 
-def processMarkers(frame, marker_list, H, instruction):
+def processMarkers(frame, marker_list, H, dr_op):
     for x in marker_list:
         if x.id > 3:
             n_marker = translate(x, H)
@@ -41,9 +41,49 @@ def processMarkers(frame, marker_list, H, instruction):
             #Add a green arrowed line
             frame = cv2.arrowedLine(frame,(int(x.corner1[0]), int(x.corner1[1])),(int(x.corner2[0]), 
             int(x.corner2[1])),(0, 255, 0),2,tipLength= .4)
-    frame = createObstacles(frame,H,instruction)
+    if dr_op.draw_obstacles:
+        frame = createObstacles(frame,H,dr_op.randomization)
+    if dr_op.draw_dest:
+        frame = createMission(frame,H,dr_op.otv_start_dir,dr_op.mission_loc,dr_op.otv_start_loc)
     return frame
     
+def createMission(frame, H,theta, mission_loc, start_loc) :
+    y = [.55,1.45]
+    inverse_matrix = np.linalg.pinv(H)
+    
+    red = (25,25,215)
+    white = (255,255,255)
+    #"radius of square will be .25m"
+
+
+    #draws the mission site
+    point1 = np.float32(np.array([[[0.575, y[mission_loc]]]]))
+    transformed_1 = cv2.perspectiveTransform(point1, inverse_matrix)
+    frame = cv2.circle(frame,(int(transformed_1[0,0,0]),int(transformed_1[0,0,1])),20,red,2)
+    
+    #finding the coordinates of two points of arrowed line
+    x_c = .25 * math.cos(theta) + 0.575
+    y_c = .25 * math.sin(theta) + y[start_loc]
+    
+    x_s = .125 * math.cos(theta - math.pi) + 0.575
+    y_s = .125 * math.sin(theta - math.pi) + y[start_loc]
+    
+    #drawing the arrowed line
+    point1 = np.float32(np.array([[[x_s,y_s]]]))
+    point2 = np.float32(np.array([[[x_c, y_c]]]))
+    transformed_1 = cv2.perspectiveTransform(point1, inverse_matrix)
+    transformed_2 = cv2.perspectiveTransform(point2, inverse_matrix)
+    frame = cv2.arrowedLine(frame,(int(transformed_1[0,0,0]),int(transformed_1[0,0,1])),
+            (int(transformed_2[0,0,0]),int(transformed_2[0,0,1])),white,3)\
+    #drawing the otv box
+    point1 = np.float32(np.array([[[y[start_loc] - 0.25, y[start_loc] - 0.25]]]))
+    point2 = np.float32(np.array([[[y[start_loc] + 0.25, y[start_loc] + 0.25]]]))
+    transformed_1 = cv2.perspectiveTransform(point1, inverse_matrix)
+    transformed_2 = cv2.perspectiveTransform(point2, inverse_matrix)
+    frame = cv2.rectangle(frame,(int(transformed_1[0,0,0]),int(transformed_1[0,0,1])),
+            (int(transformed_2[0,0,0]),int(transformed_2[0,0,1])),white,3)
+    return frame
+
 def createObstacles(frame,H, instruction):
     possible_x = [1.5, 2.3] # possible x-coords of obstacles
     possible_y = [1.25,0.75,0.25] # possible y-coords of obstacles, in decreasing order due to randomization
