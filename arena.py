@@ -32,7 +32,7 @@ def getHomographyMatrix(frame,marker_list):
     #print("homography done")
     return H
 
-def processMarkers(frame, marker_list, H, dr_op):
+def processMarkers(frame, marker_list, H,inverse_matrix, dr_op):
     #print("processing markers")
     markers = {}
     for x in marker_list:
@@ -48,16 +48,16 @@ def processMarkers(frame, marker_list, H, dr_op):
                                     int(x.corner2[1])), (0, 255, 0), 2, tipLength=.4)
     #draw the obstacles if we want to        
     if dr_op.draw_obstacles:
-        frame = createObstacles(frame,H,dr_op.randomization)
+        frame = createObstacles(frame,inverse_matrix,dr_op.randomization)
    #draw the mission if we want to
     if dr_op.draw_dest:
-        frame = createMission(frame,H,dr_op.otv_start_dir,dr_op.mission_loc,dr_op.otv_start_loc)
+        frame = createMission(frame,inverse_matrix,dr_op.otv_start_dir,dr_op.mission_loc,dr_op.otv_start_loc)
     #returned the processed image frame and marker list
     return frame, markers
 
-def createMission(frame, H,theta, mission_loc, start_loc) :
+def createMission(frame, inverse_matrix,theta, mission_loc, start_loc) :
     y = [.55,1.45] #possible y coordinates of the mission and otv
-    inverse_matrix = np.linalg.pinv(H) #find the inverse matrix of the homography matrix
+    #inverse_matrix = np.linalg.pinv(H) #find the inverse matrix of the homography matrix
     red = (25,25,215) #Note, opencv does colors in (B,G,R)
     white = (255,255,255)
     
@@ -95,7 +95,7 @@ def createMission(frame, H,theta, mission_loc, start_loc) :
 
     return frame
 
-def createObstacles(frame,H, instruction):
+def createObstacles(frame,inverse_matrix, instruction):
     possible_x = [1.5, 2.3] # possible x-coords of obstacles
     possible_y = [1.25,0.75,0.25] # possible y-coords of obstacles, in decreasing order due to randomization
     rows = [0,1,2] #keeps track of which rows have obstacles filled by removing that row from the list
@@ -103,7 +103,7 @@ def createObstacles(frame,H, instruction):
     y_length = 0.5 # equiv to 50cm 
     blue = (185,146,68) # color of solid obstacle
     gold = (25,177,215) # color of traversable obstacle
-    inverse_matrix = np.linalg.pinv(H) # inverts the homography matrix so we can convert arena coords to pixel coords
+    #inverse_matrix = np.linalg.pinv(H) # inverts the homography matrix so we can convert arena coords to pixel coords
     
     #draw out the solid obstacles
     for x in range(2):
