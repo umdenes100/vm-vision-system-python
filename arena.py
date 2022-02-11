@@ -13,7 +13,7 @@ def getHomographyMatrix(frame,marker_list):
     pt40 = (590,430)
     pt42 = (590, 50)
     for x in marker_list:
-        print(f'id {x.id} = {x.corner1}')
+        #print(f'id {x.id} = {x.corner1}')
         if x.id == 0:  #finding all the corners of the arena
             pt00 = x.corner1
         elif x.id == 1:
@@ -35,17 +35,19 @@ def getHomographyMatrix(frame,marker_list):
 
 def processMarkers(frame, marker_list, H):
     #print("processing markers")
+    markers = {}
     for x in marker_list:
         if x.id > 3:
             n_marker = translate(x, H)
+            markers[f'{n_marker.id}'] = n_marker
             #print(x.id)
             #m_list.append(n_marker)
             
             #Add a green arrowed line
             frame = cv2.arrowedLine(frame,(int(x.corner1[0]), int(x.corner1[1])),(int(x.corner2[0]), 
-            int(x.corner2[1])),(0, 255, 0),2,tipLength= .4)
+                                    int(x.corner2[1])), (0, 255, 0), 2, tipLength= .4)
     #print("processing done")
-    return frame
+    return frame, markers
     
 
 def translate(marker, H):

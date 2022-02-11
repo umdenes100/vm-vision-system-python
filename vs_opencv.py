@@ -19,10 +19,10 @@ def draw_on_frame(frame, dr_op):
     arucoParams = cv2.aruco.DetectorParameters_create()
     (corners, ids, rejected) = cv2.aruco.detectMarkers(frame, arucoDict, parameters=arucoParams)
     frame = cv2.aruco.drawDetectedMarkers(frame,corners,ids)
-    #print(f"drawing0 --- {ids}")
+    #print(f"drawing0 --- {ids} --- {type(ids)}")
     #return frame
 
-    if isinstance(ids, list): # sometimes the "ids" array can be NoneType
+    if isinstance(ids, list) or isinstance(ids, np.ndarray): # sometimes the "ids" array can be NoneType
         #print(f"drawing1 --- {ids}")
         marker_list = []
         for x in range(len(ids)):
@@ -30,8 +30,8 @@ def draw_on_frame(frame, dr_op):
             marker_list.append(p1)
         
         H = arena.getHomographyMatrix(frame,marker_list)
-        frame_after = arena.processMarkers(frame,marker_list,H) 
-        print("successful frame_after")
+        frame_after, dr_op.aruco_markers = arena.processMarkers(frame,marker_list,H) 
+        print(f"successful frame_after --- {dr_op.aruco_markers}")
     else:
         frame_after = frame
 

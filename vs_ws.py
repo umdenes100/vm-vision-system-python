@@ -19,7 +19,7 @@ CLOSE_STATUS_NORMAL = 1000
 # send to websocket
 def send_text(data, conn, opcode=OPCODE_TEXT):
     header  = bytearray()
-    payload = data.encode()
+    payload = str(data).encode()
     payload_length = len(payload)
 
     # Normal payload
@@ -43,7 +43,9 @@ def send_text(data, conn, opcode=OPCODE_TEXT):
         raise Exception("Message is too big. Consider breaking it into chunks.")
         return
 
-    conn.sendall(header + payload)
+    print(f'header = {header}\npayload = {payload}\n')
+    header.extend(payload)
+    conn.sendall(header)
 
 # Decode the websocket packet and send actual message & opcode back
 def read_next_message(message_in):
