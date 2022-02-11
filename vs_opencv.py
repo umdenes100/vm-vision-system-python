@@ -9,10 +9,6 @@ import threading
 from _thread import *
 import time
 
-#drawing_options = {'draw_dest': False, 'draw_obstacles': False, 'draw_coord': False, 
-#                   'otv_start_loc': 0, 'otv_start_dir_theta': 0, 'mission_loc': 1,
-#                   'randomization': {}}
-#aruco_markers = {}
 
 def draw_on_frame(frame, dr_op):
     arucoDict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_4X4_1000)
@@ -22,6 +18,7 @@ def draw_on_frame(frame, dr_op):
     #print(f"drawing0 --- {ids} --- {type(ids)}")
     #return frame
 
+    instruction = "01A" #NEED TO IMPLEMENT
     if isinstance(ids, list) or isinstance(ids, np.ndarray): # sometimes the "ids" array can be NoneType
         #print(f"drawing1 --- {ids}")
         marker_list = []
@@ -30,7 +27,7 @@ def draw_on_frame(frame, dr_op):
             marker_list.append(p1)
         
         H = arena.getHomographyMatrix(frame,marker_list)
-        frame_after, dr_op.aruco_markers = arena.processMarkers(frame,marker_list,H) 
+        frame_after, dr_op.aruco_markers = arena.processMarkers(frame,marker_list,H,dr_op) 
         print(f"successful frame_after --- {dr_op.aruco_markers}")
     else:
         frame_after = frame
