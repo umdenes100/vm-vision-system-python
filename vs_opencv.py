@@ -28,7 +28,7 @@ def draw_on_frame(frame, dr_op):
         
         H = arena.getHomographyMatrix(frame,marker_list)
         frame_after, dr_op.aruco_markers = arena.processMarkers(frame,marker_list,H,dr_op) 
-        print(f"successful frame_after --- {dr_op.aruco_markers}")
+        #print(f"successful frame_after --- {dr_op.aruco_markers}")
     else:
         frame_after = frame
 

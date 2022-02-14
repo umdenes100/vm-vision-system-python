@@ -44,6 +44,7 @@ def udpthread(conn, connections, dr_op):
         if not (ip in udp_connections.keys()):
             udp_connections[ip] = {}
 
+        seq = data[0]
         second = data[1]
         
         # PING
@@ -89,8 +90,8 @@ def udpthread(conn, connections, dr_op):
             print(f'markerId {markerId} in {dr_op.aruco_markers.keys()} = ?')
             if f'{markerId}' in dr_op.aruco_markers.keys(): # found aruco marker
                 marker = dr_op.aruco_markers[f'{markerId}']
-                data_to_send = b'\x05' + struct.pack('>f', marker.x) + struct.pack('>f', marker.y) + struct.pack('>f', marker.theta)
-                print(f'sending {data_to_send}')
+                data_to_send = b'\x05' + struct.pack('>f', round(marker.x, 2))[::-1] + struct.pack('>f', round(marker.y, 2))[::-1] + struct.pack('>f', round(marker.theta, 2))[::-1]
+                print(f'sending {data_to_send} --- x = {round(marker.x, 2)}, y = {round(marker.y, 2)}, theta = {round(marker.theta, 2)}')
             else:
                 data_to_send = b'\x09'
             
@@ -111,7 +112,7 @@ def udpthread(conn, connections, dr_op):
             send_message(msg, 'DEBUG', connections, ip) # send debug message to msg server
             print(f"Debug message = {msg}")
 
-        conn.sendto(data_to_send, addr)
+        conn.sendto(seq.to_bytes(1,'big')+data_to_send, addr)
         connections.udp_connections = udp_connections
         print(f'ip = {ip} --- data = {data} --- sec = {second}')
 
