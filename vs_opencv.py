@@ -27,11 +27,12 @@ def draw_on_frame(frame, dr_op):
         for x in range(len(ids)):
             p1 = aruco_marker.Marker(ids[x],corners[x][0][0],corners[x][0][1],corners[x][0][2],corners[x][0][3])
             marker_list.append(p1)
+        
         if first:
             (H,first) = arena.getHomographyMatrix(frame,marker_list)
             inverse_matrix = np.linalg.pinv(H)
         frame_after, dr_op.aruco_markers = arena.processMarkers(frame,marker_list,H,inverse_matrix,dr_op) 
-        print(f"successful frame_after --- {dr_op.aruco_markers}")
+        #print(f"successful frame_after --- {dr_op.aruco_markers}")
     else:
         frame_after = frame
 
