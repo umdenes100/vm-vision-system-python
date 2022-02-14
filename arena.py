@@ -8,10 +8,11 @@ height = 2.0
 #m_list = []
 def getHomographyMatrix(frame,marker_list):
     #print("doing homogrphy")
-    pt00 = (50,430)
-    pt02 = (50,50)
-    pt40 = (590,430)
-    pt42 = (590, 50) #some dummy values
+    pt00 = (-1,1)
+    pt02 = (-1,1)
+    pt40 = (-1,1)
+    pt42 = (-1,1) #some dummy values
+    first = False
     for x in marker_list:
         #print(f'id {x.id} = {x.corner1}')
         if x.id == 0:  #finding all the corners of the arena
@@ -24,13 +25,15 @@ def getHomographyMatrix(frame,marker_list):
             pt42 = x.corner1
     
     #print('\n')
+    if -1 in pt00 or -1 in pt02 or -1 in pt40 or -1 in pt42:
+        first = True
     src_pts = np.float32([pt00, pt40, pt02, pt42]) #pixel coordinates of the markers
     
     dst_pts = np.float32([[0.0, 0.0], [width, 0.0], [0.0, height], [width, height]]) #arena coordinates of markers
     H = cv2.getPerspectiveTransform(src_pts, dst_pts) #this gives us the H matrix of the arena
     #print(H.shape)
     #print("homography done")
-    return H
+    return H, first
 
 def processMarkers(frame, marker_list, H,inverse_matrix, dr_op):
     #print("processing markers")
