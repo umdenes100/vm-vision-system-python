@@ -99,7 +99,7 @@ def createMission(frame, inverse_matrix,theta, mission_loc, start_loc) :
     return frame
 
 def createObstacles(frame,inverse_matrix, instruction):
-    possible_x = [1.5, 2.3] # possible x-coords of obstacles
+    possible_x = [1.35, 2.2] # possible x-coords of obstacles
     possible_y = [1.25,0.75,0.25] # possible y-coords of obstacles, in decreasing order due to randomization
     rows = [0,1,2] #keeps track of which rows have obstacles filled by removing that row from the list
     x_length = 0.2 # equiv to 20cm
