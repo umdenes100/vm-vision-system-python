@@ -12,11 +12,14 @@ class DrawingOptions:
         self.otv_start_loc = 0
         self.mission_loc = 1
         self.randomization = self.obstacle_presets[random.randrange(0,12)]
-        self.otv_start_dir = (math.pi / 2) * 3
+        self.otv_start_dir = -(math.pi / 2)
         self.draw_dest = False
         self.draw_obstacles = False
         self.draw_coordinate = False
         self.aruco_markers = {}
+        self.first = True
+        self.H = []
+        self.inverse_matrix = []
 
 def main():
     dr_op = DrawingOptions()

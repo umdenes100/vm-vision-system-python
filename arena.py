@@ -85,8 +85,8 @@ def createMission(frame, inverse_matrix,theta, mission_loc, start_loc) :
     point2 = np.float32(np.array([[[x_c, y_c]]]))
     transformed_1 = cv2.perspectiveTransform(point1, inverse_matrix)
     transformed_2 = cv2.perspectiveTransform(point2, inverse_matrix)
-    frame = cv2.arrowedLine(frame,(int(transformed_1[0,0,0]),int(transformed_1[0,0,1])),
-            (int(transformed_2[0,0,0]),int(transformed_2[0,0,1])),white,3)\
+    frame = cv2.arrowedLine(frame,(int(transformed_2[0,0,0]),int(transformed_2[0,0,1])),
+            (int(transformed_1[0,0,0]),int(transformed_1[0,0,1])),white,3)\
     
     #drawing the otv box, x-coordinate will always be .55 as the center
     point1 = np.float32(np.array([[[0.55 - 0.25, y[start_loc] - 0.25]]])) #bottom left corner of square
@@ -99,7 +99,7 @@ def createMission(frame, inverse_matrix,theta, mission_loc, start_loc) :
     return frame
 
 def createObstacles(frame,inverse_matrix, instruction):
-    possible_x = [1.35, 2.2] # possible x-coords of obstacles
+    possible_x = [1.40, 2.23] # possible x-coords of obstacles
     possible_y = [1.25,0.75,0.25] # possible y-coords of obstacles, in decreasing order due to randomization
     rows = [0,1,2] #keeps track of which rows have obstacles filled by removing that row from the list
     x_length = 0.2 # equiv to 20cm

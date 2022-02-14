@@ -9,9 +9,9 @@ import threading
 from _thread import *
 import time
 
-H = []
-inverse_matrix = []
-first  = True
+#H = []
+#inverse_matrix = []
+#first  = True
 def draw_on_frame(frame, dr_op):
     arucoDict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_4X4_1000)
     arucoParams = cv2.aruco.DetectorParameters_create()
@@ -28,15 +28,14 @@ def draw_on_frame(frame, dr_op):
             p1 = aruco_marker.Marker(ids[x],corners[x][0][0],corners[x][0][1],corners[x][0][2],corners[x][0][3])
             marker_list.append(p1)
         
-        if first:
-            (H,first) = arena.getHomographyMatrix(frame,marker_list)
-            inverse_matrix = np.linalg.pinv(H)
-        frame_after, dr_op.aruco_markers = arena.processMarkers(frame,marker_list,H,inverse_matrix,dr_op) 
+        if dr_op.first:
+            (dr_op.H, dr_op.first) = arena.getHomographyMatrix(frame,marker_list)
+            dr_op.inverse_matrix = np.linalg.pinv(dr_op.H)
+        frame_after, dr_op.aruco_markers = arena.processMarkers(frame, marker_list, dr_op.H, dr_op.inverse_matrix, dr_op) 
         #print(f"successful frame_after --- {dr_op.aruco_markers}")
     else:
         frame_after = frame
 
-    # TODO - draw arena
     return frame_after
 
 def frame_capture(cap, connections, dr_op):
