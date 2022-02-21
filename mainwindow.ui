@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>240</width>
-    <height>558</height>
+    <height>503</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -18,9 +18,9 @@
     <property name="geometry">
      <rect>
       <x>10</x>
-      <y>0</y>
+      <y>10</y>
       <width>211</width>
-      <height>201</height>
+      <height>131</height>
      </rect>
     </property>
     <property name="title">
@@ -65,83 +65,12 @@
       <string>Show Obstacles</string>
      </property>
     </widget>
-    <widget class="QCheckBox" name="showcoord">
-     <property name="geometry">
-      <rect>
-       <x>10</x>
-       <y>130</y>
-       <width>151</width>
-       <height>20</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Show Coordinate:</string>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label">
-     <property name="geometry">
-      <rect>
-       <x>10</x>
-       <y>160</y>
-       <width>21</width>
-       <height>30</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>X:</string>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_2">
-     <property name="geometry">
-      <rect>
-       <x>110</x>
-       <y>160</y>
-       <width>21</width>
-       <height>30</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Y:</string>
-     </property>
-    </widget>
-    <widget class="QDoubleSpinBox" name="xval">
-     <property name="geometry">
-      <rect>
-       <x>30</x>
-       <y>160</y>
-       <width>61</width>
-       <height>30</height>
-      </rect>
-     </property>
-     <property name="maximum">
-      <double>4.000000000000000</double>
-     </property>
-     <property name="singleStep">
-      <double>0.010000000000000</double>
-     </property>
-    </widget>
-    <widget class="QDoubleSpinBox" name="yval">
-     <property name="geometry">
-      <rect>
-       <x>130</x>
-       <y>160</y>
-       <width>61</width>
-       <height>30</height>
-      </rect>
-     </property>
-     <property name="maximum">
-      <double>2.000000000000000</double>
-     </property>
-     <property name="singleStep">
-      <double>0.010000000000000</double>
-     </property>
-    </widget>
    </widget>
    <widget class="QGroupBox" name="groupBox_2">
     <property name="geometry">
      <rect>
       <x>10</x>
-      <y>210</y>
+      <y>160</y>
       <width>211</width>
       <height>291</height>
      </rect>

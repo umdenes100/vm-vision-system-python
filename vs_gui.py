@@ -15,10 +15,6 @@ class Ui(QtWidgets.QMainWindow):
         super(Ui, self).__init__()
         uic.loadUi('mainwindow.ui', self)
        
-        # Apply Button
-        #self.applybutton = self.findChild(QtWidgets.QPushButton, 'applybutton')
-        #self.applybutton.clicked.connect(self.apply_camera_settings)
-
         # Randomize Button
         self.randomizebutton = self.findChild(QtWidgets.QPushButton, 'randomizebutton')
         self.randomizebutton.clicked.connect(self.randomize)
@@ -54,12 +50,14 @@ class Ui(QtWidgets.QMainWindow):
 
         # Checkboxes
         self.showdest = self.findChild(QtWidgets.QCheckBox, 'showdest')
+        self.showdest.stateChanged.connect(self.show_dest)
         self.showobst = self.findChild(QtWidgets.QCheckBox, 'showobst')
-        self.showcoord = self.findChild(QtWidgets.QCheckBox, 'showcoord')
+        self.showobst.stateChanged.connect(self.show_obst)
+        #self.showcoord = self.findChild(QtWidgets.QCheckBox, 'showcoord')
         
         # Spin Boxes
-        self.xcoord = self.findChild(QtWidgets.QDoubleSpinBox, 'xval')
-        self.ycoord = self.findChild(QtWidgets.QDoubleSpinBox, 'yval')
+        #self.xcoord = self.findChild(QtWidgets.QDoubleSpinBox, 'xval')
+        #self.ycoord = self.findChild(QtWidgets.QDoubleSpinBox, 'yval')
         self.camnum = self.findChild(QtWidgets.QSpinBox, 'camnum')
         self.camnum.valueChanged.connect(self.camera_change)
 
@@ -104,9 +102,15 @@ class Ui(QtWidgets.QMainWindow):
             self.dr_op.otv_start_dir = ((random.randrange(0,180) +180) * 2 * math.pi) / 360
 
         # Update whether we need to draw destination, obstacles, and/or coordinates
+        #self.dr_op.draw_dest = self.showdest.isChecked()
+        #self.dr_op.draw_obstacles = self.showobst.isChecked()
+        #self.dr_op.draw_coordinate = self.showcoord.isChecked()
+
+    def show_dest(self):
         self.dr_op.draw_dest = self.showdest.isChecked()
+
+    def show_obst(self):
         self.dr_op.draw_obstacles = self.showobst.isChecked()
-        self.dr_op.draw_coordinate = self.showcoord.isChecked()
 
     def brightness(self):
         #print(f"brightness is now {self.brightslider.value()}")
@@ -125,7 +129,7 @@ class Ui(QtWidgets.QMainWindow):
 
 def start_gui(connections, dr_op):
     app = QtWidgets.QApplication(sys.argv)
-    app.setWindowIcon(QtGui.QIcon('/var/lib/app-info/icons/ubuntu-focal-universe/64x64/gnome-video-arcade_gnome-video-arcade.png'))
+    app.setWindowIcon(QtGui.QIcon('/snap/gtk-common-themes/1519/share/icons/elementary-xfce/categories/48/applications-arcade.png'))
     window = Ui(connections, dr_op)
     app.exec_()
 
