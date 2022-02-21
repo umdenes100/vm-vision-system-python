@@ -6,7 +6,7 @@ import time
 import cv2
 import hashlib
 import base64
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE, STDOUT
 from vs_mission import *
 from vs_opencv import *
 from vs_ws import *
@@ -17,7 +17,9 @@ class Connections:
         self.message_connections = []
         self.image_connections = []
         self.udp_connections = {}
-        self.video = cv2.VideoCapture(0)
+        p = Popen('ls -1 /dev/video*', stdout = PIPE, stderr = STDOUT, shell = True)
+        camnum = p.communicate()[0].decode().split('\n')[0][-1]
+        self.video = cv2.VideoCapture(int(camnum))
 
     def set_cam(self, num):
         self.video.release()
@@ -42,7 +44,7 @@ def udpthread(conn, connections, dr_op):
         # add ip to udp connections for future use
         data_to_send = b''
         if not (ip in udp_connections.keys()):
-            udp_connections[ip] = {}
+            udp_connections[ip] = {'MISSION': "", 'NAME': ''}
 
         seq = data[0]
         second = data[1]
@@ -123,7 +125,9 @@ def send_message(msg, m_type, connections, ip):
 
     data = json_stuff
     for d in connections.message_connections:
+        print(d)
         if ip == "ALL" or d['open'] == ip:
+            print("sending")
             send_text(data, d['conn'])
 
         

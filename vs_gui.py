@@ -125,7 +125,7 @@ class Ui(QtWidgets.QMainWindow):
 
 def start_gui(connections, dr_op):
     app = QtWidgets.QApplication(sys.argv)
-    app.setWindowIcon(QtGui.QIcon("/snap/gtk-common-themes/1519/share/icons/elementary-xfce/categories/48/applications-arcade.png"))
+    app.setWindowIcon(QtGui.QIcon('/var/lib/app-info/icons/ubuntu-focal-universe/64x64/gnome-video-arcade_gnome-video-arcade.png'))
     window = Ui(connections, dr_op)
     app.exec_()
 

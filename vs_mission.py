@@ -41,7 +41,7 @@ def get_mission_message(mission_type, mission, msg):
         elif mission_type == 2: # HEIGHT
             ret_msg += f"The height of the side with abnormality is {msg}mm."
         else:
-            ret_msg += "Too many mission() calls"
+            ret_msg += "Not a valid mission type!"
     
     elif mission == 1: # Data
         if mission_type == 0: # DUTY CYCLE
@@ -56,7 +56,7 @@ def get_mission_message(mission_type, mission, msg):
                 ret_msg += "?????"
             ret_msg += "."
         else:
-            ret_msg += "Too many mission() calls"
+            ret_msg += "Not a valid mission type!"
 
     elif mission == 2: # Material
         if mission_type == 0: # WEIGHT
@@ -80,7 +80,7 @@ def get_mission_message(mission_type, mission, msg):
                 ret_msg += "?????"
             ret_msg += "."
         else:
-            ret_msg += "Too many mission() calls"
+            ret_msg += "Not a valid mission type!"
 
     elif mission == 3: # Fire
         if mission_type == 0: # NUM_CANDLES
@@ -96,7 +96,7 @@ def get_mission_message(mission_type, mission, msg):
             else:
                 ret_msg += "?????"
         else:
-            ret_msg += "Too many mission() calls"
+            ret_msg += "Not a valid mission type!"
 
     elif mission == 4: # Water
         if mission_type == 0: # DEPTH
@@ -114,7 +114,7 @@ def get_mission_message(mission_type, mission, msg):
             else:
                 ret_msg += "?????"
         else:
-            ret_msg += "Too many mission() calls"
+            ret_msg += "Not a valid mission type!"
     
     else:
         ret_msg = f"ERROR - invalid mission type ({mission})"
