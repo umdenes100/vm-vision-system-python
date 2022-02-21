@@ -29,7 +29,7 @@ class Connections:
             self.video.set(cv2.CAP_PROP_FRAME_WIDTH, 1280) # supported widths: 1920, 1280, 960
             self.video.set(cv2.CAP_PROP_FRAME_HEIGHT, 720) # supported heights: 1080, 720, 540
             #self.video.set(cv2.CAP_PROP_FPS, 1.0) # supported FPS: 30, 15
-            print(self.video.get(cv2.CAP_PROP_FPS))
+            #print(self.video.get(cv2.CAP_PROP_FPS))
 
 def udpthread(conn, connections, dr_op):
     print("udp thread started")

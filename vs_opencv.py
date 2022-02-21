@@ -17,6 +17,7 @@ def draw_on_frame(frame, dr_op):
     arucoParams = cv2.aruco.DetectorParameters_create()
     (corners, ids, rejected) = cv2.aruco.detectMarkers(frame, arucoDict, parameters=arucoParams)
     frame = cv2.aruco.drawDetectedMarkers(frame,corners,ids)
+
     #print(f"drawing0 --- {ids} --- {type(ids)}")
     #return frame
 

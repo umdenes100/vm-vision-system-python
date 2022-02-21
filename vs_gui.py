@@ -1,4 +1,4 @@
-from PyQt5 import QtWidgets, uic
+from PyQt5 import QtWidgets, QtGui, uic
 import sys
 import os
 import math
@@ -6,6 +6,7 @@ from vs_opencv import *
 import random
 import time
 from _thread import *
+import subprocess
 
 obstacle_presets = ['01A', '01B', '02A', '02B', '10A', '10B', '12A', '12B', '20A', '20B', '21A', '21B']
 
@@ -25,6 +26,19 @@ class Ui(QtWidgets.QMainWindow):
         # Reset Camera Button
         self.resetbutton = self.findChild(QtWidgets.QPushButton, 'resetbutton')
         self.resetbutton.clicked.connect(self.reset_camera)
+
+        # Text box for camera
+        self.camlist = self.findChild(QtWidgets.QListWidget, 'camList')
+        
+        # ... find valid camera numbers to display
+        cameras = os.listdir('/dev/')
+        cameras.sort()
+        for c in cameras:
+            if "video" in c:
+                process = subprocess.Popen(['v4l2-ctl', f'--device=/dev/{c}', '--all'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                out, err = process.communicate()
+                if b"Format Video Capture:" in out:
+                    self.camlist.addItem(c)
 
         # Brightness Slider
         self.brightslider = self.findChild(QtWidgets.QSlider, 'brightslider')
@@ -111,6 +125,7 @@ class Ui(QtWidgets.QMainWindow):
 
 def start_gui(connections, dr_op):
     app = QtWidgets.QApplication(sys.argv)
+    app.setWindowIcon(QtGui.QIcon("/snap/gtk-common-themes/1519/share/icons/elementary-xfce/categories/48/applications-arcade.png"))
     window = Ui(connections, dr_op)
     app.exec_()
 
