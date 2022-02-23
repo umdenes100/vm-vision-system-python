@@ -14,10 +14,10 @@ The Lab PCs that ran teh C++ version of the Vision System currently exist in the
 and contain Ubuntu 16.04 as its OS. The new PCs that are currently hanging up and used for
 this Python3 Vision System runs Ubuntu 20.04.
 
-#### v4l2-ctl
+### v4l2-ctl
 TODO - notes on v4l2-ctl stuff
 
-#### usb_reset.py
+### usb_reset.py
 This is a short program that can be ran from the Desktop on the Lab PCs that 
 refreshes the current cameras plugged in through USB. This has only been tested
 for the Besteker and Logitech cameras. Run this program (requires root password)
