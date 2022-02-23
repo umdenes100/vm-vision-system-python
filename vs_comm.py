@@ -29,8 +29,8 @@ class Connections:
         self.video.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
         #self.video.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('Y', 'U', 'Y', 'V'))
         self.video.set(cv2.CAP_PROP_FPS, 30.0)
-        self.video.set(cv2.CAP_PROP_FRAME_WIDTH, float(1280))
-        self.video.set(cv2.CAP_PROP_FRAME_HEIGHT, float(720))
+        self.video.set(cv2.CAP_PROP_FRAME_WIDTH, 1920.0)
+        self.video.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080.0)
 
     def set_cam(self, num):
         try:
@@ -42,8 +42,8 @@ class Connections:
                 #self.video.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('Y', 'U', 'Y', 'V'))
                 video.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G')) # depends on fourcc available camera
                 video.set(cv2.CAP_PROP_FPS, 30.0)
-                video.set(cv2.CAP_PROP_FRAME_WIDTH, 1280.0) # supported widths: 1920, 1280, 960
-                video.set(cv2.CAP_PROP_FRAME_HEIGHT, 720.0) # supported heights: 1080, 720, 540
+                video.set(cv2.CAP_PROP_FRAME_WIDTH, 1920.0) # supported widths: 1920, 1280, 960
+                video.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080.0) # supported heights: 1080, 720, 540
                 video.set(cv2.CAP_PROP_FPS, 30.0) # supported FPS: 30, 15
                 print(f'camera set to {num} in class')
                 self.video = video
