@@ -91,32 +91,6 @@
       <string>Reset Camera</string>
      </property>
     </widget>
-    <widget class="QSpinBox" name="camnum">
-     <property name="geometry">
-      <rect>
-       <x>10</x>
-       <y>60</y>
-       <width>71</width>
-       <height>30</height>
-      </rect>
-     </property>
-     <property name="maximum">
-      <number>10</number>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_3">
-     <property name="geometry">
-      <rect>
-       <x>10</x>
-       <y>30</y>
-       <width>71</width>
-       <height>30</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Camera #:</string>
-     </property>
-    </widget>
     <widget class="QSlider" name="brightslider">
      <property name="geometry">
       <rect>
@@ -217,10 +191,25 @@
      <property name="geometry">
       <rect>
        <x>100</x>
-       <y>40</y>
+       <y>30</y>
        <width>91</width>
-       <height>51</height>
+       <height>61</height>
       </rect>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_7">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>30</y>
+       <width>81</width>
+       <height>61</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Double
+click to
+select cam:</string>
      </property>
     </widget>
    </widget>

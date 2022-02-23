@@ -25,6 +25,7 @@ class Ui(QtWidgets.QMainWindow):
 
         # Text box for camera
         self.camlist = self.findChild(QtWidgets.QListWidget, 'camList')
+        self.camlist.itemDoubleClicked.connect(self.camera_change)
         
         # ... find valid camera numbers to display
         cameras = os.listdir('/dev/')
@@ -53,30 +54,17 @@ class Ui(QtWidgets.QMainWindow):
         self.showdest.stateChanged.connect(self.show_dest)
         self.showobst = self.findChild(QtWidgets.QCheckBox, 'showobst')
         self.showobst.stateChanged.connect(self.show_obst)
-        #self.showcoord = self.findChild(QtWidgets.QCheckBox, 'showcoord')
-        
-        # Spin Boxes
-        #self.xcoord = self.findChild(QtWidgets.QDoubleSpinBox, 'xval')
-        #self.ycoord = self.findChild(QtWidgets.QDoubleSpinBox, 'yval')
-        self.camnum = self.findChild(QtWidgets.QSpinBox, 'camnum')
-        self.camnum.valueChanged.connect(self.camera_change)
 
         self.show()
         self.connections = connections
         self.dr_op = dr_op
 
-    #def apply_camera_settings(self): # apply buttom may be removed
-    #    # change camera settings using camera number and picture settings
-    #    print("applying camera settings")
-    
-    def camera_change(self):
-        start = time.time() 
-        start_new_thread(self.connections.set_cam, (self.camnum.value(), ))
-        #print(f"\nthis took {time.time() - start} seconds")
-        print(f"camera changed to {self.camnum.value()}")
+    def camera_change(self, item):
+        camnum = int(str(item.text()).strip()[-1])
+        start_new_thread(self.connections.set_cam, (camnum, ))
+        #print(f"camera changed to {camnum}")
 
     def reset_camera(self):
-        #print("resetting camera")
         self.brightslider.setValue(127)
         self.sharpslider.setValue(127)
         self.contrastslider.setValue(127)
@@ -101,11 +89,6 @@ class Ui(QtWidgets.QMainWindow):
         else:
             self.dr_op.otv_start_dir = ((random.randrange(0,180) +180) * 2 * math.pi) / 360
 
-        # Update whether we need to draw destination, obstacles, and/or coordinates
-        #self.dr_op.draw_dest = self.showdest.isChecked()
-        #self.dr_op.draw_obstacles = self.showobst.isChecked()
-        #self.dr_op.draw_coordinate = self.showcoord.isChecked()
-
     def show_dest(self):
         self.dr_op.draw_dest = self.showdest.isChecked()
 
@@ -113,18 +96,15 @@ class Ui(QtWidgets.QMainWindow):
         self.dr_op.draw_obstacles = self.showobst.isChecked()
 
     def brightness(self):
-        #print(f"brightness is now {self.brightslider.value()}")
-        command = f'v4l2-ctl -d /dev/video{self.camnum.value()} -c brightness={self.brightslider.value()}'
+        command = f'v4l2-ctl -d /dev/video{self.connections.camnum} -c brightness={self.brightslider.value()}'
         os.system(command)
 
     def sharpness(self):
-        #print(f"sharpness is now {self.sharpslider.value()}")
-        command = f'v4l2-ctl -d /dev/video{self.camnum.value()} -c sharpness={self.sharpslider.value()}'
+        command = f'v4l2-ctl -d /dev/video{self.connections.camnum} -c sharpness={self.sharpslider.value()}'
         os.system(command)
 
     def contrast(self):
-        #print(f"contrast is now {self.contrastslider.value()}")
-        command = f'v4l2-ctl -d /dev/video{self.camnum.value()} -c contrast={self.contrastslider.value()}'
+        command = f'v4l2-ctl -d /dev/video{self.connections.camnum} -c contrast={self.contrastslider.value()}'
         os.system(command)
 
 def start_gui(connections, dr_op):
