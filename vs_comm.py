@@ -6,7 +6,7 @@ import time
 import cv2
 import hashlib
 import base64
-from subprocess import Popen, PIPE
+from subprocess import Popen, PIPE, STDOUT
 from vs_mission import *
 from vs_opencv import *
 from vs_ws import *
@@ -17,19 +17,40 @@ class Connections:
         self.message_connections = []
         self.image_connections = []
         self.udp_connections = {}
-        self.video = cv2.VideoCapture(0)
+
+        # grab an actual camera as initial camera
+        p = Popen('ls -1 /dev/video*', stdout = PIPE, stderr = STDOUT, shell = True)
+        self.camnum = p.communicate()[0].decode().split('\n')[0][-1]
+        try:
+            self.video = cv2.VideoCapture(int(self.camnum), cv2.CAP_V4L2)
+        except Exception as e:
+            print(e)
+        
+        self.video.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
+        #self.video.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('Y', 'U', 'Y', 'V'))
+        self.video.set(cv2.CAP_PROP_FPS, 30.0)
+        self.video.set(cv2.CAP_PROP_FRAME_WIDTH, 1920.0)
+        self.video.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080.0)
 
     def set_cam(self, num):
-        self.video.release()
-        p = Popen(["v4l2-ctl", f"--device=/dev/video{num}", "--all"], stdin=PIPE, stdout=PIPE, stderr=PIPE)
-        output, err = p.communicate()
-        if "brightness" in output.decode(): 
-            self.video = cv2.VideoCapture(num)
-            self.video.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G')) # depends on fourcc available camera
-            self.video.set(cv2.CAP_PROP_FRAME_WIDTH, 1280) # supported widths: 1920, 1280, 960
-            self.video.set(cv2.CAP_PROP_FRAME_HEIGHT, 720) # supported heights: 1080, 720, 540
-            #self.video.set(cv2.CAP_PROP_FPS, 1.0) # supported FPS: 30, 15
-            print(self.video.get(cv2.CAP_PROP_FPS))
+        try:
+            self.video.release()
+            p = Popen(["v4l2-ctl", f"--device=/dev/video{num}", "--all"], stdin=PIPE, stdout=PIPE, stderr=PIPE)
+            output, err = p.communicate()
+            if "brightness" in output.decode(): 
+                video = cv2.VideoCapture(num, cv2.CAP_V4L2)
+                #self.video.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('Y', 'U', 'Y', 'V'))
+                video.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G')) # depends on fourcc available camera
+                video.set(cv2.CAP_PROP_FPS, 30.0)
+                video.set(cv2.CAP_PROP_FRAME_WIDTH, 1920.0) # supported widths: 1920, 1280, 960
+                video.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080.0) # supported heights: 1080, 720, 540
+                video.set(cv2.CAP_PROP_FPS, 30.0) # supported FPS: 30, 15
+                print(f'camera set to {num} in class')
+                self.video = video
+                self.camnum = num
+        except Exception as e:
+            print(f'EXCEPTION: {e}')
+
 
 def udpthread(conn, connections, dr_op):
     print("udp thread started")
@@ -42,7 +63,7 @@ def udpthread(conn, connections, dr_op):
         # add ip to udp connections for future use
         data_to_send = b''
         if not (ip in udp_connections.keys()):
-            udp_connections[ip] = {}
+            udp_connections[ip] = {'MISSION': "", 'NAME': ''}
 
         seq = data[0]
         second = data[1]
@@ -123,7 +144,9 @@ def send_message(msg, m_type, connections, ip):
 
     data = json_stuff
     for d in connections.message_connections:
+        print(d)
         if ip == "ALL" or d['open'] == ip:
+            print("sending")
             send_text(data, d['conn'])
 
         
@@ -146,16 +169,12 @@ def rec_msg(conn, connections):
 
         if b"websocket" in data:
             data = data.decode()
-            #print(data)
             key = data.split('Sec-WebSocket-Key: ')[1].split('\r\n')[0]
             guid = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
-            #print(f"key = {key+guid}")
             accepted = base64.b64encode(hashlib.sha1((key+guid).encode()).digest()).strip().decode('ASCII')
-            #print(f"accepted = {accepted}")
             to_send = "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
             to_send += f"Sec-WebSocket-Accept: {accepted}\r\n\r\n" 
             conn.sendall(to_send.encode())
-            #print("sent")
             send_message(connections.udp_connections, 'PORT_LIST', connections, "ALL") # sends new port list to each connection
             print("handshake complete")
         else:
@@ -177,7 +196,7 @@ def rec_msg(conn, connections):
             elif msg == "CONTINUE":
                 continue
 
-            print(f"data received = {msg}")
+            #print(f"data received = {msg}")
             data = json.loads(msg)
 
             if data['TYPE'] == "OPEN":
@@ -193,29 +212,31 @@ def rec_msg(conn, connections):
     conn.close()
 
 
+def send_frame_helper(img_conns, data, i):
+    conn = img_conns[i]['conn']
+    try:
+        conn.sendall(data)
+    except:
+        print(f"image failed to send to {img_conns[i]['addr']}")
+        conn.close()
+        return img_conns[0:i] + img_conns[i+1:]
+
 # send new image frame to each of the connections in img_conns
 def send_frame(frame, connections):
-    #print("sending image frame")
     image_connections = connections.image_connections
 
     # ONE WAY image service
     # on new frame, send JPEG byte array to each connection
     data = b'--newframe\r\nContent-Type: image/jpeg\r\nContent-Length: ' + str(len(frame)).encode() + b'\r\n\r\n'
-    #print(f'frame = {frame}')
     data += frame
 
     new_img_conns = []
     for i in range(len(image_connections)):
         # send frame
-        conn = image_connections[i]['conn']
-        try:
-            conn.sendall(data)
-        except:
-            print(f"image failed to send to {image_connections[i]['addr']}")
-            conn.close()
-            new_img_conns = image_connections[0:i] + image_connections[i+1:] 
+        start = time.time()
+        start_new_thread(send_frame_helper, (image_connections, data, i, ))
+        #print(f'time to send image frame = {time.time() - start} seconds')
    
-    #print("finished")
     if len(new_img_conns) > 0:
         connections.image_connections = new_img_conns
 

@@ -2,7 +2,7 @@
 A new vision system written in Python. The devlopment of this Vision System is heavily based on
 the prior versions of the Vision System, which were written in C++.
 
-## Communcation
+## Communication
 This is the "server-side" application for the vision system that communicates with both the 
 [front-end application](https://github.com/umdenes100/VisionSystemRemoteClient) and the 
 [WiFi Modules (ESP8266)](https://github.com/umdenes100/WifiFirmware).
@@ -39,19 +39,38 @@ The structure of the packets are the following:
 *NOTE: the sequence numbers are not really used*
 
 ## Files
-The important files will be listed and summed up below.
+The important files will be listed and summed up below. Check out [NOTES.md](NOTES.md) for more information 
+and Gary's notes on everything about the Vision System (from the PC to OpenCV to Websocket connections).
 
 ### vs_main.py
+The entry point to the Vision System. If you are in terminal, go into the dev environment by running 
+`cd ~/dev/Vision-System-Python` and run `python3 vs_main.py` to start the program. Using the terminal 
+is the best way to debug as we can add print statements and all that jazz.
+
+If you just want to run the Vision System for normal use, there should be a desktop application 
+that runs this program. The application should have a little arcade icon and be called "Vision System". 
 
 ### vs_gui.py
-This program includes the functionality behind the GUI for the main window, using **mainwindow.ui**
-as tghe design file for the GUI. The changes on the gui are passed as system commands to change 
-camera settings or passed to a data structure for drawing settings for **vs_opencv.py** to use.
+This file includes functions for the functionality behind the GUI for the main window, using **mainwindow.ui**
+as the design file for the GUI. The changes on the gui (such as changing the camera settings) are 
+passed as system commands to change camera settings or passed to a data structure as drawing settings 
+for **vs_opencv.py** to use.
 
 ### vs_opencv.py
-This includes capturing camera frames and passing them to the image server. This is where
-the drawings for the video feed are updated using one data structure that **vs_gui.py** 
-writes to when switches on the GUI menu are changed.
+This file includes functions for capturing camera frames and passing them to the image server. 
+This is where the drawings for the video feed are updated using a data structure that **vs_gui.py** writes to 
+when switches on the GUI menu are changed. 
+
+This file depends on **arena.py**, **aruco_marker.py**, and **processed_marker.py**
+
+### vs_comm.py
+This is the biggest part of the Vision System code-wise. Connections to and from the Vision System via
+TCP ports 8080 and 9000 as well as UDP port 7755 are handled in the functions in this file. 
+
+### vs_ws.py 
+This file has functions for writing to and receiving from a websocket. I decided to separate these 
+functions from **vs_comm.py** becuase they are long and specific to the websocket server. More details
+and my notes are in [NOTES.md](NOTES.md) for websockets.
 
 ### vs_mission.py
 This contains one big function to return the correct response when a mission() call was called
@@ -67,7 +86,8 @@ To install **Qt 5 Designer**:
 $ sudo apt-get install qttools5-dev-tools
 $ sudo apt-get install qttools5-dev
 ```
-
+If you're wondering what Qt 5 Creator is, this is the same thing as Qt 5 Designer, but for C/C++ 
+programs using Qt5.
 
 ## Contributors
 
@@ -78,5 +98,5 @@ $ sudo apt-get install qttools5-dev
 ## Resources & References
 [TCP vs UDP](https://www.lifesize.com/en/blog/tcp-vs-udp/)
 https://github.com/Pithikos/python-websocket-server/blob/56af8aeed025465e70133f19f96db18113e50a91/websocket_server/websocket_server.py#L186
-https://github.com/ephan1068/CV-Testing
+https://github.com/arduino/ArduinoCore-sam/issues/88
 
