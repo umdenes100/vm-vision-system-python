@@ -38,9 +38,14 @@ def getHomographyMatrix(frame,marker_list):
 def processMarkers(frame, marker_list, H,inverse_matrix, dr_op):
     #print("processing markers")
     markers = {}
+    markers[f'{0}'] = processed_marker.processed_Marker(0, -1.0, -1.0, -1.0)
+    markers[f'{1}'] = processed_marker.processed_Marker(1, -1.0, -1.0, -1.0)
+    markers[f'{2}'] = processed_marker.processed_Marker(2, -1.0, -1.0, -1.0)
+    markers[f'{3}'] = processed_marker.processed_Marker(3, -1.0, -1.0, -1.0)
     for x in marker_list:
         if x.id > 3:
             n_marker = translate(x, H)
+            
             markers[f'{n_marker.id}'] = n_marker #adding in the processed marker to a dictionary
             #print(x.id)
             #m_list.append(n_marker)
