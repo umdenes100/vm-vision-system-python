@@ -1,4 +1,6 @@
 # Vision System Troubleshooting
+*password* = `umd`
+
 ## Starting the vision system.
 1. Click on `Vision System` arcade icon
 2. Go to `enes100.umd.edu` on Firefox
@@ -23,5 +25,3 @@ If the camera options still do not show up:
 - Try starting the Vision System again and see if the camera now shows up
 - If not, talk to a UTF/LTF/GTA
 
-
-*password* = `umd`
