@@ -1,5 +1,4 @@
-Password for the computer: “umd”
-
+# Vision System Troubleshooting
 ## Starting the vision system.
 1. Click on `Vision System` arcade icon
 2. Go to `enes100.umd.edu` on Firefox
@@ -7,8 +6,11 @@ Password for the computer: “umd”
 5. Use the bottom part of the application (Camera Options) to double-click on the proper camera and change video settings.
 
 
-## Troubleshooting
-### Camera options are not showing up
+## Camera troubles
+There is a default camera on the computers in both labs. Sometimes it is **video0** and sometimes it's a different value.
+If this is the only camera showing up, look at the following troubleshooting tips below.
+
+### Camera is not showing up
 - Click on Reset USB
 - Type in `umd` and hit *Enter*
 - Restart the vision system
@@ -20,3 +22,6 @@ If the camera options still do not show up:
 - Plug the usb cable for the camera back in
 - Try starting the Vision System again and see if the camera now shows up
 - If not, talk to a UTF/LTF/GTA
+
+
+*password* = `umd`
