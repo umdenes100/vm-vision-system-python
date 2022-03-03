@@ -8,13 +8,11 @@ password: `umd`
 5. Use the bottom part of the application (Camera Options) to double-click on the proper camera and change video settings.
 
 <br>
-
 ## Troubleshooting
 There is a default camera on the computers in both labs. Sometimes it is **video0** and sometimes it's a different value.
 If this is the only camera showing up, look at the following troubleshooting tips below.
 
 <br>
-
 ### Camera is not showing up
 - Click on Reset USB
 - Type in `umd` and hit *Enter*
