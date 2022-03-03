@@ -1,5 +1,5 @@
 # Vision System Usage Information
-*password* = `umd`
+password: `umd`
 
 ## Starting the vision system.
 1. Click on `Vision System` arcade icon
