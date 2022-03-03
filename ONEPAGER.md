@@ -27,6 +27,7 @@ If the camera options still do not show up:
 - Plug the usb cable for the camera back in
 - Try starting the Vision System again and see if the camera now shows up
 
+<br>
 
 ### My team isn't showing up on Firefox
 If this is happening, verify that you have correctly wired your ESP8266 (WiFi Module)
@@ -38,6 +39,8 @@ looks solid, here are some troubleshooting tips:
 - Wait a couple seconds
 - Start up the Vision System again
 - Start up Firefox and go to `enes100.umd.edu`
+
+<br>
 
 ### If nothing is working and all hope is lost
 Talk to a UTF/LTF/GTA! They have worked with the Vision System before and might be able to help
