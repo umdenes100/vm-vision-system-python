@@ -7,7 +7,7 @@ password: `umd`
 4. Use the top part of the application (Arena Options) to show and randomize arena properties.
 5. Use the bottom part of the application (Camera Options) to double-click on the proper camera and change video settings.
 
-![Desktop Icons](icons.png "icons")
+![Desktop Icons](icons/icons.png "icons")
 
 ## Troubleshooting
 There is a default camera on the computers in both labs. Sometimes it is **video0** and sometimes it's a different value.
