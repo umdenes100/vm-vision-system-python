@@ -81,14 +81,6 @@ This is the GUI interface file for the Vision System. The development of this GU
 done using **Qt 5 Designer**. One could write program to completely design the GUI interface instead 
 of using this nice utility, but the utility was very nice and useful.
 
-To install **Qt 5 Designer**:
-```
-$ sudo apt-get install qttools5-dev-tools
-$ sudo apt-get install qttools5-dev
-```
-If you're wondering what Qt 5 Creator is, this is the same thing as Qt 5 Designer, but for C/C++ 
-programs using Qt5.
-
 ## Contributors
 
 - [Gary](https://github.com/itsecgary)
