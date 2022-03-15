@@ -79,8 +79,8 @@ def createMission(frame, inverse_matrix,theta, mission_loc, start_loc) :
     
     #finding the coordinates of two points of arrowed line
     #the start of the arrow
-    x_c = .25 * math.cos(theta) + 0.575 #using 0.575 instead of 0.55 to accound for camera angle
-    y_c = .25 * math.sin(theta) + y[start_loc]
+    x_c = .175 * math.cos(theta) + 0.575 #using 0.575 instead of 0.55 to accound for camera angle
+    y_c = .175 * math.sin(theta) + y[start_loc]
     #the tip of the arrow
     x_s = .10 * math.cos(theta - math.pi) + 0.575 
     y_s = .10 * math.sin(theta - math.pi) + y[start_loc]
