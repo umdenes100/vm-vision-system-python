@@ -66,7 +66,7 @@ def processMarkers(frame, marker_list, H,inverse_matrix, dr_op):
 def createMission(frame, inverse_matrix,theta, mission_loc, start_loc) :
     y = [.55,1.45] #possible y coordinates of the mission and otv
     #inverse_matrix = np.linalg.pinv(H) #find the inverse matrix of the homography matrix
-    red = (25,25,215) #Note, opencv does colors in (B,G,R)
+    red = (142,80,233) #Note, opencv does colors in (B,G,R)
     white = (255,255,255)
     
 
@@ -74,7 +74,7 @@ def createMission(frame, inverse_matrix,theta, mission_loc, start_loc) :
     #draws the mission site
     point1 = np.float32(np.array([[[0.575, y[mission_loc]]]]))
     transformed_1 = cv2.perspectiveTransform(point1, inverse_matrix)
-    frame = cv2.circle(frame,(int(transformed_1[0,0,0]),int(transformed_1[0,0,1])),20,red,2)
+    frame = cv2.circle(frame,(int(transformed_1[0,0,0]),int(transformed_1[0,0,1])),40,red,2)
     
     
     #finding the coordinates of two points of arrowed line
@@ -82,8 +82,8 @@ def createMission(frame, inverse_matrix,theta, mission_loc, start_loc) :
     x_c = .25 * math.cos(theta) + 0.575 #using 0.575 instead of 0.55 to accound for camera angle
     y_c = .25 * math.sin(theta) + y[start_loc]
     #the tip of the arrow
-    x_s = .125 * math.cos(theta - math.pi) + 0.575 
-    y_s = .125 * math.sin(theta - math.pi) + y[start_loc]
+    x_s = .10 * math.cos(theta - math.pi) + 0.575 
+    y_s = .10 * math.sin(theta - math.pi) + y[start_loc]
     
     #drawing the arrowed line
     point1 = np.float32(np.array([[[x_s,y_s]]]))
@@ -94,8 +94,8 @@ def createMission(frame, inverse_matrix,theta, mission_loc, start_loc) :
             (int(transformed_1[0,0,0]),int(transformed_1[0,0,1])),white,3)\
     
     #drawing the otv box, x-coordinate will always be .55 as the center
-    point1 = np.float32(np.array([[[0.55 - 0.25, y[start_loc] - 0.25]]])) #bottom left corner of square
-    point2 = np.float32(np.array([[[0.55 + 0.25, y[start_loc] + 0.25]]])) #top right corner of square
+    point1 = np.float32(np.array([[[0.55 - 0.20, y[start_loc] - 0.20]]])) #bottom left corner of square
+    point2 = np.float32(np.array([[[0.55 + 0.20, y[start_loc] + 0.20]]])) #top right corner of square
     transformed_1 = cv2.perspectiveTransform(point1, inverse_matrix)
     transformed_2 = cv2.perspectiveTransform(point2, inverse_matrix)
     frame = cv2.rectangle(frame,(int(transformed_1[0,0,0]),int(transformed_1[0,0,1])),
