@@ -79,7 +79,12 @@ class Ui(QtWidgets.QMainWindow):
         self.dr_op.randomization = obstacle_presets[random.randrange(0,12)]
         
         # otv start location and mission location
-        start = random.randrange(0,2)
+        if self.dr_op.randomization[:2] == '01' or self.dr_op.randomization[:2] == '10':
+            start = 1
+        elif self.dr_op.randomization[:2] == '21' or self.dr_op.randomization[:2] == '12':
+            start = 0
+        else:
+            start = random.randrange(0,2)
         self.dr_op.otv_start_loc = start
         self.dr_op.mission_loc = (start + 1) % 2 # opposite of OTV start
         

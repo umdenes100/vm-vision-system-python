@@ -91,10 +91,10 @@ def udpthread(conn, connections, dr_op):
             else:
                 udp_connections[ip]['MISSION'] = "unknown"
 
-            print(f"\nTeam Name: {teamname}\nMission: {mission}\n")
+            #print(f"\nTeam Name: {teamname}\nMission: {mission}\n")
             
             send_message(udp_connections, 'PORT_LIST', connections, "ALL") # sends new port list to each connection
-            print(f"UDP_CONNECTIONS = {udp_connections}")
+            #print(f"UDP_CONNECTIONS = {udp_connections}")
             send_message(str(int(time.time())), 'START', connections, ip) # send start command to msg server
 
             if dr_op.mission_loc: # mission location is on bottom
@@ -108,15 +108,15 @@ def udpthread(conn, connections, dr_op):
         elif second == 4:
             markerId = data[2] | (data[3] << 8)
             
-            print(f'markerId {markerId} in {dr_op.aruco_markers.keys()} = ?')
+            #print(f'markerId {markerId} in {dr_op.aruco_markers.keys()} = ?')
             if f'{markerId}' in dr_op.aruco_markers.keys(): # found aruco marker
                 marker = dr_op.aruco_markers[f'{markerId}']
                 data_to_send = b'\x05' + struct.pack('>f', round(marker.x, 2))[::-1] + struct.pack('>f', round(marker.y, 2))[::-1] + struct.pack('>f', round(marker.theta, 2))[::-1]
-                print(f'sending {data_to_send} --- x = {round(marker.x, 2)}, y = {round(marker.y, 2)}, theta = {round(marker.theta, 2)}')
+                #print(f'sending {data_to_send} --- x = {round(marker.x, 2)}, y = {round(marker.y, 2)}, theta = {round(marker.theta, 2)}')
             else:
                 data_to_send = b'\x09'
             
-            print(f'markerId = {markerId}')
+            #print(f'markerId = {markerId}')
         
         # MISSION
         elif second == 6:
@@ -131,11 +131,11 @@ def udpthread(conn, connections, dr_op):
         elif second == 8:
             msg = data[2:].decode()
             send_message(msg, 'DEBUG', connections, ip) # send debug message to msg server
-            print(f"Debug message = {msg}")
+            #print(f"Debug message = {msg}")
 
         conn.sendto(seq.to_bytes(1,'big')+data_to_send, addr)
         connections.udp_connections = udp_connections
-        print(f'ip = {ip} --- data = {data} --- sec = {second}')
+        #print(f'ip = {ip} --- data = {data} --- sec = {second}')
 
 # format for calling send_text()
 def send_message(msg, m_type, connections, ip):
@@ -176,7 +176,8 @@ def rec_msg(conn, connections):
             to_send += f"Sec-WebSocket-Accept: {accepted}\r\n\r\n" 
             conn.sendall(to_send.encode())
             send_message(connections.udp_connections, 'PORT_LIST', connections, "ALL") # sends new port list to each connection
-            print("handshake complete")
+            #print("handshake complete")
+            #print(f'udp_conns = {connections.udp_connections}')
         else:
             msg = read_next_message(data)
 
@@ -199,6 +200,7 @@ def rec_msg(conn, connections):
             #print(f"data received = {msg}")
             data = json.loads(msg)
 
+            print(f"data type = {data['TYPE']}")
             if data['TYPE'] == "OPEN":
                 msg_conns[i]['open'] = data['PORT']
             elif data['TYPE'] == "SWITCH":
@@ -212,14 +214,15 @@ def rec_msg(conn, connections):
     conn.close()
 
 
-def send_frame_helper(img_conns, data, i):
+def send_frame_helper(conns, data, i):
+    img_conns = conns.image_connections
     conn = img_conns[i]['conn']
     try:
         conn.sendall(data)
     except:
         print(f"image failed to send to {img_conns[i]['addr']}")
         conn.close()
-        return img_conns[0:i] + img_conns[i+1:]
+        conns.image_connections = img_conns[0:i] + img_conns[i+1:]
 
 # send new image frame to each of the connections in img_conns
 def send_frame(frame, connections):
@@ -234,12 +237,8 @@ def send_frame(frame, connections):
     for i in range(len(image_connections)):
         # send frame
         start = time.time()
-        start_new_thread(send_frame_helper, (image_connections, data, i, ))
+        start_new_thread(send_frame_helper, (connections, data, i, ))
         #print(f'time to send image frame = {time.time() - start} seconds')
-   
-    if len(new_img_conns) > 0:
-        connections.image_connections = new_img_conns
-
 
 # separate thread to accept incoming image connections and append to img_conns
 def accept_image_conns(image_s, connections):
