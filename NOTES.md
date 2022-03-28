@@ -1,10 +1,18 @@
 # Vision System Notes
 
 ## OpenCV
+```
+$ sudo apt-get install python3-opencv
+```
 The OpenCV portion of the Vision system relies on matrix transformations in order to convert between the pixel coordinates and our arena coordinates.
 The transformations is
+
 PH = A
-where P = Pixel Matrix
+
+P = Pixel Matrix
+
+
+
 
 cv2.getPerspectiveTransform()
 Returns the H Matrix of the arena
