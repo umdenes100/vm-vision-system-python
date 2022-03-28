@@ -1,7 +1,13 @@
 # Vision System Notes
 
 ## OpenCV
-TODO - notes on OpenCV 
+The OpenCV portion of the Vision system relies on matrix transformations in order to convert between the pixel coordinates and our arena coordinates.
+The transformations is
+PH = A
+where P = Pixel Matrix
+
+cv2.getPerspectiveTransform()
+Returns the H Matrix of the arena
 
 ## Websockets
 TODO - notes on python3 websockets
