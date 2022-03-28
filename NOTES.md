@@ -1,8 +1,13 @@
 # Vision System Notes
 
 ## OpenCV
+To install **OpenCV**:
 ```
 $ sudo apt-get install python3-opencv
+```
+OpenCv also needs **Numpy** as a dependency for many of its functions.
+```
+$ sudo apt install python3-numpy
 ```
 The OpenCV portion of the Vision system relies on matrix transformations in order to convert between the pixel coordinates and our arena coordinates.
 The transformations is
