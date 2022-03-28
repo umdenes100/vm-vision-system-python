@@ -10,17 +10,11 @@ OpenCv also needs **Numpy** as a dependency for many of its functions.
 $ sudo apt install python3-numpy
 ```
 The OpenCV portion of the Vision system relies on matrix transformations in order to convert between the pixel coordinates and our arena coordinates.
-The transformations is
-
-PH = A
-
-P = Pixel Matrix
-
-
-
 
 cv2.getPerspectiveTransform()
 Returns the H Matrix of the arena
+
+cv2.perspectiveTransform()
 
 ## Websockets
 TODO - notes on python3 websockets
