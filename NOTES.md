@@ -9,7 +9,9 @@ OpenCv also needs **Numpy** as a dependency for many of its functions.
 ```
 $ sudo apt install python3-numpy
 ```
+### Arena Transformation
 The OpenCV portion of the Vision system relies on matrix transformations in order to convert between the pixel coordinates and our arena coordinates. The functions shown below are used to convert pixel coordinates to arena coordinates and vice versa. 
+
 ```python
 cv2.getPerspectiveTransform(src_pts, dst_pts)
 ```
