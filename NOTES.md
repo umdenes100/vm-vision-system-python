@@ -17,7 +17,7 @@ arucoParams = cv2.aruco.DetectorParameters_create()
 (corners, ids, rejected) = cv2.aruco.detectMarkers(frame, arucoDict, parameters=arucoParams)
 frame = cv2.aruco.drawDetectedMarkers(frame,corners,ids)
 ```
-Note, ```python a```
+Note, ```python cv2.aruco.DICT_4X4_1000``` can be replaced with any type of ArUco Marker dictionary
 ### Arena Transformation
 The OpenCV portion of the Vision system relies on matrix transformations in order to convert between the pixel coordinates and our arena coordinates. The functions shown below are used to convert pixel coordinates to arena coordinates and vice versa. 
 
