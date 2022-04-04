@@ -46,20 +46,28 @@ There are some common parameters we will see across various functions. They are:
 - thickness: Integer which controls how thick the shape will be in pixels. 
   - Setting thickness to ```-1``` will fill in the shape which is drawn
 
-```python cv2.arrowedLine(frame,start_point, end_point, color, thickness, tipLength)```
+```python 
+cv2.arrowedLine(frame,start_point, end_point, color, thickness, tipLength)
+```
 - start_point: An integer tuple of the form (x,y) which is where the arrowed line will start
 - end_point: An integer tuple of the form(x,y) which is where the "tip" of the arrow will be
 - tipLength: Can be a float. Controls how long the ends of the arrow will be
 
 
-```python cv2.rectangle(frame,start_point, end_point,color,thickness)```
+```python 
+cv2.rectangle(frame,start_point, end_point,color,thickness)
+```
 - start_point: An integer tuple of the form (x,y) which is the bottom left corner of the rectangle
 - end_point: An integer tuple of the form(x,y) which is where the "tip" of the arrow will be
 
-```python cv2.circle(frame,center,radius,color,thickness)```
+```python 
+cv2.circle(frame,center,radius,color,thickness)
+```
 - center: An integer tuple of the form (x,y) which is the center point of the circle
 - radius: An integer which represents the radius of the circle
-```python cv2.putText(frame, 'T', start_point, font, 1, color, thickness, cv2.LINE_AA) ```
+```python 
+cv2.putText(frame, 'T', start_point, font, 1, color, thickness, cv2.LINE_AA) 
+```
               
 [RGB Color Picker](https://www.rapidtables.com/web/color/RGB_Color.html)
 
