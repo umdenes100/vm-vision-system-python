@@ -9,6 +9,13 @@ OpenCv also needs **Numpy** as a dependency for many of its functions.
 ```
 $ sudo apt install python3-numpy
 ```
+### Capturing Images and Capturing ArUco Markers
+```python
+arucoDict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_4X4_1000)
+arucoParams = cv2.aruco.DetectorParameters_create()
+(corners, ids, rejected) = cv2.aruco.detectMarkers(frame, arucoDict, parameters=arucoParams)
+frame = cv2.aruco.drawDetectedMarkers(frame,corners,ids)
+```
 ### Arena Transformation
 The OpenCV portion of the Vision system relies on matrix transformations in order to convert between the pixel coordinates and our arena coordinates. The functions shown below are used to convert pixel coordinates to arena coordinates and vice versa. 
 
@@ -28,7 +35,7 @@ cv2.perspectiveTransform(point1, matrix)
   - Use the inverse of the H matrix to convert arena coordinates to pixel coordinates
 - **point1**: A numpy 3-D array which will contain the coordinates we want to convert
 
-
+### Drawing Functions
 ## Websockets
 TODO - notes on python3 websockets
 
