@@ -72,7 +72,7 @@ cv2.putText(frame, text, start_point, font, 1, color, thickness, cv2.LINE_AA)
 - start_point: An integer tuple of the form (x,y) which is the bottom left corner of where the text will be drawn
 - font: Font type for the text. We use 
 ```python 
--cv2.FONT_HERSHEY_SIMPLEX
+cv2.FONT_HERSHEY_SIMPLEX
 ```
               
 [RGB Color Picker](https://www.rapidtables.com/web/color/RGB_Color.html)
