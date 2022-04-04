@@ -13,13 +13,9 @@ The OpenCV portion of the Vision system relies on matrix transformations in orde
 
 cv2.getPerspectiveTransform(src_pts, dst_pts)
 Returns the H Matrix of the arena
-
-**src_pts** and **dst_pts** are Numpy float arrays containing the respective coordinates.
-
-**src_pts** will contain the pixel coordinates of each corner of the Aruco Markers 0-3
-
-
-**dst_pts** will contain the arena coordinates that we define
+- **src_pts** and **dst_pts** are Numpy float arrays containing the respective coordinates.
+- **src_pts** will contain the pixel coordinates of each corner of the Aruco Markers 0-3
+- **dst_pts** will contain the arena coordinates that we define
 
 The function will return a 3-D Numpy Array, which will be used later to convert between pixel coordinates and our customized coordinates
 
