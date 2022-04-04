@@ -70,7 +70,8 @@ cv2.putText(frame, text, start_point, font, 1, color, thickness, cv2.LINE_AA)
 ```
 - text: String which contains the text to be put on the string
 - start_point: An integer tuple of the form (x,y) which is the bottom left corner of where the text will be drawn
-- font: Font type for the text. We use ```python 
+- font: Font type for the text. We use 
+```python 
 -cv2.FONT_HERSHEY_SIMPLEX
 ```
               
