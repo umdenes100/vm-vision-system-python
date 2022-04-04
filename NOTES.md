@@ -41,6 +41,9 @@ cv2.perspectiveTransform(point1, matrix)
 Documentation for drawing shapes can be found [here](https://docs.opencv.org/4.x/dc/da5/tutorial_py_drawing_functions.html)
 
 Note: Colors are a tuple with the form (Green, Blue, Red)
+
+``cv2.arrowedLine(frame,start_point, end_point, color, thickness, tipLength)``
+
 ## Websockets
 TODO - notes on python3 websockets
 
