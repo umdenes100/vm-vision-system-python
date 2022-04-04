@@ -73,6 +73,7 @@ cv2.putText(frame, text, start_point, font, 1, color, thickness, cv2.LINE_AA)
 - font: Font type for the text. We use ```cv2.FONT_HERSHEY_SIMPLEX```
               
 [RGB Color Picker](https://www.rapidtables.com/web/color/RGB_Color.html)
+
 [Some Font Types](https://codeyarns.com/tech/2015-03-11-fonts-in-opencv.html)
 ## Websockets
 TODO - notes on python3 websockets
