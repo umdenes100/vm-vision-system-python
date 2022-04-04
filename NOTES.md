@@ -10,6 +10,7 @@ OpenCv also needs **Numpy** as a dependency for many of its functions.
 $ sudo apt install python3-numpy
 ```
 ### Capturing Images and Capturing ArUco Markers
+The below code is used to capture, process, and draw ArUco Markers
 ```python
 arucoDict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_4X4_1000)
 arucoParams = cv2.aruco.DetectorParameters_create()
