@@ -9,23 +9,23 @@ OpenCv also needs **Numpy** as a dependency for many of its functions.
 ```
 $ sudo apt install python3-numpy
 ```
-The OpenCV portion of the Vision system relies on matrix transformations in order to convert between the pixel coordinates and our arena coordinates.
+The OpenCV portion of the Vision system relies on matrix transformations in order to convert between the pixel coordinates and our arena coordinates. The functions shown below are used to convert pixel coordinates to arena coordinates and vice versa. 
 
 cv2.getPerspectiveTransform(src_pts, dst_pts)
-Returns the H Matrix of the arena
 - **src_pts** and **dst_pts** are Numpy float arrays containing the respective coordinates.
 - **src_pts** will contain the pixel coordinates of each corner of the Aruco Markers 0-3
 - **dst_pts** will contain the arena coordinates that we define
-
-The function will return a 3-D Numpy Array, which will be used later to convert between pixel coordinates and our customized coordinates
+- The function will return a 3-D Numpy Array, which will be used later to convert between pixel coordinates and our customized coordinates
 
 
 cv2.perspectiveTransform(point1, matrix)
 
-matrix: This will either be the H matrix or the inverse of the H matrix depending on what we want to do. 
-- Use the H matrix to convert pixel coordinates to arena coordinates 
+- **matrix**: This will either be the H matrix or the inverse of the H matrix depending on what we want to do. 
+  - Use the H matrix to convert pixel coordinates to arena coordinates 
+  - Use the inverse of the H matrix to convert arena coordinates to pixel coordinates
+- **point1**: A numpy 3-D array which will contain the coordinates we want to convert
 
-Takes in an H matrix and a 3-D Numpy Array
+
 ## Websockets
 TODO - notes on python3 websockets
 
