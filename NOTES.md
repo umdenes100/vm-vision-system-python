@@ -66,11 +66,16 @@ cv2.circle(frame,center,radius,color,thickness)
 - center: An integer tuple of the form (x,y) which is the center point of the circle
 - radius: An integer which represents the radius of the circle
 ```python 
-cv2.putText(frame, 'T', start_point, font, 1, color, thickness, cv2.LINE_AA) 
+cv2.putText(frame, text, start_point, font, 1, color, thickness, cv2.LINE_AA) 
+```
+- text: String which contains the text to be put on the string
+- start_point: An integer tuple of the form (x,y) which is the bottom left corner of where the text will be drawn
+- font: Font type for the text. We use ```python 
+-cv2.FONT_HERSHEY_SIMPLEX
 ```
               
 [RGB Color Picker](https://www.rapidtables.com/web/color/RGB_Color.html)
-
+https://codeyarns.com/tech/2015-03-11-fonts-in-opencv.html
 ## Websockets
 TODO - notes on python3 websockets
 
