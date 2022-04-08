@@ -1,8 +1,80 @@
 # Vision System Notes
 
 ## OpenCV
-TODO - notes on OpenCV 
+To install **OpenCV**:
+```
+$ sudo apt-get install python3-opencv
+```
+OpenCv also needs **Numpy** as a dependency for many of its functions.
+```
+$ sudo apt install python3-numpy
+```
+### Capturing Images and Capturing ArUco Markers
+The below code is used to capture, process, and draw ArUco Markers
+```python
+arucoDict = cv2.aruco.Dictionary_get(cv2.aruco.DICT_4X4_1000)
+arucoParams = cv2.aruco.DetectorParameters_create()
+(corners, ids, rejected) = cv2.aruco.detectMarkers(frame, arucoDict, parameters=arucoParams)
+frame = cv2.aruco.drawDetectedMarkers(frame,corners,ids)
+```
+- ```python cv2.aruco.DICT_4X4_1000``` can be replaced with any type of ArUco Marker dictionary
+### Arena Transformation
+The OpenCV portion of the Vision system relies on matrix transformations in order to convert between the pixel coordinates and our arena coordinates. The functions shown below are used to convert pixel coordinates to arena coordinates and vice versa. 
 
+```python
+cv2.getPerspectiveTransform(src_pts, dst_pts)
+```
+- **src_pts** and **dst_pts** are Numpy float arrays containing the respective coordinates.
+- **src_pts** will contain the pixel coordinates of each corner of the Aruco Markers 0-3
+- **dst_pts** will contain the arena coordinates that we define
+- The function will return a 3-D Numpy Array, which will be used later to convert between pixel coordinates and our customized coordinates
+
+```python
+cv2.perspectiveTransform(point1, matrix)
+```
+- **matrix**: This will either be the H matrix or the inverse of the H matrix depending on what we want to do. 
+  - Use the H matrix to convert pixel coordinates to arena coordinates 
+  - Use the inverse of the H matrix to convert arena coordinates to pixel coordinates
+- **point1**: A numpy 3-D array which will contain the coordinates we want to convert
+
+### Drawing Functions
+
+The following functions will be used in order to draw out various shapes, and put text on the image 
+
+There are some common parameters we will see across various functions. They are:
+- color: An integer tuple with the form (Green, Blue, Red)
+- thickness: Integer which controls how thick the shape will be in pixels. 
+  - Setting thickness to ```-1``` will fill in the shape which is drawn
+
+```python 
+cv2.arrowedLine(frame,start_point, end_point, color, thickness, tipLength)
+```
+- start_point: An integer tuple of the form (x,y) which is where the arrowed line will start
+- end_point: An integer tuple of the form(x,y) which is where the "tip" of the arrow will be
+- tipLength: Can be a float. Controls how long the ends of the arrow will be
+
+
+```python 
+cv2.rectangle(frame,start_point, end_point,color,thickness)
+```
+- start_point: An integer tuple of the form (x,y) which is the bottom left corner of the rectangle
+- end_point: An integer tuple of the form(x,y) which is where the "tip" of the arrow will be
+
+```python 
+cv2.circle(frame,center,radius,color,thickness)
+```
+- center: An integer tuple of the form (x,y) which is the center point of the circle
+- radius: An integer which represents the radius of the circle
+```python 
+cv2.putText(frame, text, start_point, font, 1, color, thickness, cv2.LINE_AA) 
+```
+- text: String which contains the text to be put on the string
+- start_point: An integer tuple of the form (x,y) which is the bottom left corner of where the text will be drawn
+- font: Font type for the text. We use ```cv2.FONT_HERSHEY_SIMPLEX```
+              
+[RGB Color Picker](https://www.rapidtables.com/web/color/RGB_Color.html)
+
+[Some Font Types](https://codeyarns.com/tech/2015-03-11-fonts-in-opencv.html)
 ## Websockets
 TODO - notes on python3 websockets
 
