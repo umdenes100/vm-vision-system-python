@@ -2,11 +2,7 @@
 A new vision system written in Python. The devlopment of this Vision System is heavily based on
 the prior versions of the Vision System, which were written in C++.
 
-<object data="https://github.com/umdenes100/Vision-System-Python/images/VisionSystemDiagram.pdf" type="application/pdf" width="700px" height="700px">
-    <embed src="https://github.com/umdenes100/Vision-System-Python/images/VisionSystemDiagram.pdf">
-        <p>This browser does not support PDFs. Please download the PDF to view it: <a href="https://github.com/umdenes100/Vision-System-Python/images/VisionSystemDiagram.pdf">Download PDF</a>.</p>
-    </embed>
-</object>
+![Vision System Icon](images/VisionSystemDiagram.pdf "Vision System Diagram PDF")
 
 ## Communication
 This is the "server-side" application for the vision system that communicates with both the 
