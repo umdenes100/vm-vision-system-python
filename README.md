@@ -2,8 +2,7 @@
 A new vision system written in Python. The devlopment of this Vision System is heavily based on
 the prior versions of the Vision System, which were written in C++.
 
-<object data="/blog/images/VisionSystemDiagram.pdf" type="application/pdf" width="100%"> 
-</object>
+![Vision System Diagram](images/VisionSystemDiagram.PNG "Vision System Diagram")
 
 ## Communication
 This is the "server-side" application for the vision system that communicates with both the 
