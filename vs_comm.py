@@ -11,12 +11,18 @@ from vs_mission import *
 from vs_opencv import *
 from vs_ws import *
 import struct
+import pickle
 
 class Connections:
     def __init__(self):
         self.message_connections = []
         self.image_connections = []
         self.udp_connections = {}
+        try:
+            with open('teams.txt', 'rb') as fh:
+                self.udp_connections = pickle.load(fh)
+        except:
+            pass
 
         # grab an actual camera as initial camera
         p = Popen('ls -1 /dev/video*', stdout = PIPE, stderr = STDOUT, shell = True)
@@ -60,14 +66,10 @@ def udpthread(conn, connections, dr_op):
         ip, port = addr
         ip = str(ip)
 
-        # add ip to udp connections for future use
+        # add new udp connection if ip not in file. If begin() called, reset listing for ip
         data_to_send = b''
-        if not (ip in udp_connections.keys()):
-            if data[1] == 2: # only instantiate on Enes100.begin()
-                udp_connections[ip] = {'MISSION': "", 'NAME': ''}
-            elif data[1] in [4,6,8]:
-                send_message("please instantiate a connection to the Vision System using Enes100.begin()", 'MISSION', connections, ip)
-                return
+        if not (ip in udp_connections.keys()) or data[1] == 2:
+            udp_connections[ip] = {'MISSION': "", 'NAME': ''}
 
         seq = data[0]
         second = data[1]
@@ -147,6 +149,8 @@ def udpthread(conn, connections, dr_op):
 
         conn.sendto(seq.to_bytes(1,'big')+data_to_send, addr)
         connections.udp_connections = udp_connections
+        with open('teams.txt', 'wb') as fh:
+            pickle.dump(udp_connections, fh)
         #print(f'ip = {ip} --- data = {data} --- sec = {second}')
 
 # format for calling send_text()

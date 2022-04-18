@@ -1,8 +1,7 @@
 # importing the necessary libraries
 import cv2
 import numpy as np
-import aruco_marker
-import arena
+import vs_arena
 import vs_comm 
 import vs_gui
 import threading
@@ -20,13 +19,13 @@ def draw_on_frame(frame, dr_op):
             #print(f"drawing1 --- {ids}")
             marker_list = []
             for x in range(len(ids)):
-                p1 = aruco_marker.Marker(ids[x],corners[x][0][0],corners[x][0][1],corners[x][0][2],corners[x][0][3])
+                p1 = Marker(ids[x],corners[x][0][0],corners[x][0][1],corners[x][0][2],corners[x][0][3])
                 marker_list.append(p1)
         
             if dr_op.first:
-                (dr_op.H, dr_op.first) = arena.getHomographyMatrix(frame,marker_list)
+                (dr_op.H, dr_op.first) = vs_arena.getHomographyMatrix(frame,marker_list)
                 dr_op.inverse_matrix = np.linalg.pinv(dr_op.H)
-            frame_after, dr_op.aruco_markers = arena.processMarkers(frame, marker_list, dr_op.H, dr_op.inverse_matrix, dr_op) 
+            frame_after, dr_op.aruco_markers = vs_arena.processMarkers(frame, marker_list, dr_op.H, dr_op.inverse_matrix, dr_op) 
             #print(f"successful frame_after --- {dr_op.aruco_markers}")
         else:
             frame_after = frame
