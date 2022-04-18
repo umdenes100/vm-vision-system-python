@@ -4,6 +4,7 @@ import numpy as np
 import vs_arena
 import vs_comm 
 import vs_gui
+from vs_main import Marker
 import threading
 from _thread import *
 import time

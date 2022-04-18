@@ -1,6 +1,7 @@
 import math
 import numpy as np
 import cv2
+from vs_main import processed_Marker, Marker
 
 width = 4.0 #width and heignt of the arena in meters
 height = 2.0

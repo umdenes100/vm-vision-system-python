@@ -62,7 +62,7 @@ class Ui(QtWidgets.QMainWindow):
     def camera_change(self, item):
         camnum = int(str(item.text()).strip()[-1])
         start_new_thread(self.connections.set_cam, (camnum, ))
-        #print(f"camera changed to {camnum}")
+        print(f"camera changed to {camnum}")
 
     def reset_camera(self):
         self.brightslider.setValue(127)
