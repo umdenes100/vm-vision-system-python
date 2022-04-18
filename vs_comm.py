@@ -63,11 +63,15 @@ def udpthread(conn, connections, dr_op):
         # add ip to udp connections for future use
         data_to_send = b''
         if not (ip in udp_connections.keys()):
-            udp_connections[ip] = {'MISSION': "", 'NAME': ''}
+            if data[1] == 2: # only instantiate on Enes100.begin()
+                udp_connections[ip] = {'MISSION': "", 'NAME': ''}
+            elif data[1] in [4,6,8]:
+                send_message("please instantiate a connection to the Vision System using Enes100.begin()", 'MISSION', connections, ip)
+                return
 
         seq = data[0]
         second = data[1]
-        
+       
         # PING
         if second == 0:
             data_to_send = b'\x01' # ping back hehe
@@ -77,9 +81,12 @@ def udpthread(conn, connections, dr_op):
             mission = data[2]
             teamname = data[3:].decode()
             udp_connections[ip]['NAME'] = teamname
+            udp_connections[ip]['MISSON_CALLS'] = 0
+            udp_connections[ip]['MAX_MISSION_CALLS'] = 2
 
             if mission == 0:
                 udp_connections[ip]['MISSION'] = "CRASH_SITE"
+                udp_connections[ip]['MAX_MISSION_CALLS'] = 3
             elif mission == 1:
                 udp_connections[ip]['MISSION'] = "DATA"
             elif mission == 2:
@@ -124,8 +131,13 @@ def udpthread(conn, connections, dr_op):
             curr = data[2]
 
             # send message to message server
-            send_message(get_mission_message(curr, udp_connections[ip]['MISSION'], message), 'MISSION', connections, ip)
+            if udp_connections[ip]['MISSION_CALLS'] < udp_connections[ip]['MAX_MISSION_CALLS']:
+                send_message(get_mission_message(curr, udp_connections[ip]['MISSION'], message), 'MISSION', connections, ip)
+            else:
+                send_message("Too many mission() calls", 'MISSION', connections, ip)
+            
             data_to_send = b'\x07'
+            udp_connections[ip]['MISSION_CALLS'] += 1
         
         # DEBUG
         elif second == 8:
