@@ -58,7 +58,11 @@ def start_image_processing(connections, dr_op):
         cap = connections.video
         if (cap.isOpened()):
             start = time.time()
-            frame_capture(cap, connections, dr_op)
+            try:
+                frame_capture(cap, connections, dr_op)
+            except Exception as e:
+                print(e)
+                pass
             #print(f'time for frame capture = {(time.time() - start)} seconds')
 
     cap.release()
