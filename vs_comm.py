@@ -83,7 +83,7 @@ def udpthread(conn, connections, dr_op):
             mission = data[2]
             teamname = data[3:].decode()
             udp_connections[ip]['NAME'] = teamname
-            udp_connections[ip]['MISSON_CALLS'] = 0
+            udp_connections[ip]['MISSION_CALLS'] = 0
             udp_connections[ip]['MAX_MISSION_CALLS'] = 2
 
             if mission == 0:
