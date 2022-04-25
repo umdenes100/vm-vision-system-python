@@ -12,6 +12,7 @@ from vs_opencv import *
 from vs_ws import *
 import struct
 import pickle
+import ssl
 
 class Connections:
     def __init__(self):
@@ -149,8 +150,8 @@ def udpthread(conn, connections, dr_op):
 
         conn.sendto(seq.to_bytes(1,'big')+data_to_send, addr)
         connections.udp_connections = udp_connections
-        with open('teams.txt', 'wb') as fh:
-            pickle.dump(udp_connections, fh)
+        #with open('teams.txt', 'wb') as fh:
+        #    pickle.dump(udp_connections, fh)
         #print(f'ip = {ip} --- data = {data} --- sec = {second}')
 
 # format for calling send_text()
@@ -275,6 +276,7 @@ def start_communication(connections, dr_op):
 
     message_s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     message_s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    message_s = ssl.wrap_socket(message_s, keyfile="./cert/private.key", certfile="./cert/cert.crt")
     message_s.bind(("", 9000))
     message_s.listen()
 
