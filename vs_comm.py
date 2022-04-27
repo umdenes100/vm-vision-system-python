@@ -19,11 +19,11 @@ class Connections:
         self.message_connections = []
         self.image_connections = []
         self.udp_connections = {}
-        try:
-            with open('teams.txt', 'rb') as fh:
-                self.udp_connections = pickle.load(fh)
-        except:
-            pass
+        #try:
+        #    with open('teams.txt', 'rb') as fh:
+        #        self.udp_connections = pickle.load(fh)
+        #except:
+        #    pass
 
         # grab an actual camera as initial camera
         p = Popen('ls -1 /dev/video*', stdout = PIPE, stderr = STDOUT, shell = True)
@@ -164,7 +164,10 @@ def send_message(msg, m_type, connections, ip):
         print(d)
         if ip == "ALL" or d['open'] == ip:
             print("sending")
-            send_text(data, d['conn'])
+            try:
+                send_text(data, d['conn'])
+            except Exception as e:
+                print(f'send_text failed with: {e}')
 
         
 # The front-end will send messages back depending on which clients are choosing to
@@ -276,7 +279,7 @@ def start_communication(connections, dr_op):
 
     message_s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     message_s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    message_s = ssl.wrap_socket(message_s, keyfile="./cert/private.key", certfile="./cert/cert.crt")
+    #message_s = ssl.wrap_socket(message_s, keyfile="./cert/private.key", certfile="./cert/cert.crt")
     message_s.bind(("", 9000))
     message_s.listen()
 

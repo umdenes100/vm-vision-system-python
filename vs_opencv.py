@@ -49,7 +49,6 @@ def frame_capture(cap, connections, dr_op):
         except Exception as e:
             # most likely camera changed
             print(e)
-            pass
         
  
 def start_image_processing(connections, dr_op):
@@ -62,7 +61,6 @@ def start_image_processing(connections, dr_op):
                 frame_capture(cap, connections, dr_op)
             except Exception as e:
                 print(e)
-                pass
             #print(f'time for frame capture = {(time.time() - start)} seconds')
 
     cap.release()
