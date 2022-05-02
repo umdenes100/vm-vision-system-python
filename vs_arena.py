@@ -53,7 +53,10 @@ def processMarkers(frame, marker_list, H,inverse_matrix, dr_op):
         if dr_op.draw_dest:
             frame = createMission(frame,inverse_matrix,dr_op.otv_start_dir,dr_op.mission_loc,dr_op.otv_start_loc)
     except Exception as e:
-        print(f'EXCEPTION (processMarkers): {e}')
+        exception_str = "EXCEPTION (processMarkers): " + str(e) + "\n"
+        print(exception_str)
+        with open('errors.txt', 'w') as f:
+            f.write(exception_str)
         return frame, markers
     #returned the processed image frame and marker list
     return frame, markers
@@ -95,7 +98,10 @@ def createMission(frame, inverse_matrix,theta, mission_loc, start_loc) :
         frame = cv2.rectangle(frame,(int(transformed_1[0,0,0]),int(transformed_1[0,0,1])),
                 (int(transformed_2[0,0,0]),int(transformed_2[0,0,1])),white,3)
     except Exception as e:
-        print(f'EXCEPTION (createMission): {e}')
+        exception_str = "EXCEPTION (createMission): " + str(e) + "\n"
+        print(exception_str)
+        with open('errors.txt', 'w') as f:
+            f.write(exception_str)
         return frame
     return frame
 
@@ -151,7 +157,10 @@ def createObstacles(frame,inverse_matrix, instruction):
         frame = cv2.putText(frame, 'T', (int(text[0,0,0]),int(text[0,0,1])), cv2.FONT_HERSHEY_SIMPLEX, 
                     1, (255,0,0), 2, cv2.LINE_AA)
     except Exception as e:
-        print(f'EXCEPTION (createObstacles): {e}')
+        exception_str = "EXCEPTION (createObstacles): " + str(e) + "\n"
+        print(exception_str)
+        with open('errors.txt', 'w') as f:
+            f.write(exception_str)
         return frame
     return frame  
 
@@ -169,6 +178,8 @@ def translate(marker, H):
     corner2_coords_m = cv2.perspectiveTransform(np.float32(np.array([[marker.corner2]])), H)
     marker_theta = math.atan2(corner2_coords_m[0, 0, 1] - corner1_coords_m[0, 0, 1], corner2_coords_m[0, 0, 0] - corner1_coords_m[0, 0, 0])
     n_marker = processed_Marker(marker.id, marker_coords_m[0,0], marker_coords_m[0,1], marker_theta)
-
+    txt = "({},{},{})".format(corner1_coords_m, corner2_coords_m,marker_theta)
+    frame = cv2.putText(frame, txt , (marker.corner1[0],marker.corner1[1]), cv2.FONT_HERSHEY_SIMPLEX, 
+                    1, (255,0,0), 2, cv2.LINE_AA)
     return n_marker
 
