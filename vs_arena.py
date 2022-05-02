@@ -38,7 +38,7 @@ def processMarkers(frame, marker_list, H,inverse_matrix, dr_op):
     try:
         for x in marker_list:
             if x.id > 3:
-                n_marker = translate(x, H)
+                n_marker,frame = translate(x, H, frame)
                 markers[f'{n_marker.id}'] = n_marker #adding in the processed marker to a dictionary
                 
                 #Add a green arrowed line to each aruco marker.
@@ -164,7 +164,7 @@ def createObstacles(frame,inverse_matrix, instruction):
         return frame
     return frame  
 
-def translate(marker, H):
+def translate(marker, H,frame):
     # find the center of the marker in pixels
     marker_coords_px = np.float32(np.array([[[0.0, 0.0]]]))  # dont know why you need so many brakets, but this makes it work
     marker_coords_px[0, 0, 0] = (marker.corner1[0] + marker.corner2[0] + marker.corner3[0] + marker.corner4[0]) / 4
@@ -181,5 +181,5 @@ def translate(marker, H):
     txt = "({},{},{})".format(corner1_coords_m, corner2_coords_m,marker_theta)
     frame = cv2.putText(frame, txt , (marker.corner1[0],marker.corner1[1]), cv2.FONT_HERSHEY_SIMPLEX, 
                     1, (255,0,0), 2, cv2.LINE_AA)
-    return n_marker
+    return n_marker,frame
 
