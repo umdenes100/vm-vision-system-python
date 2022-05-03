@@ -178,8 +178,8 @@ def translate(marker, H,frame):
     corner2_coords_m = cv2.perspectiveTransform(np.float32(np.array([[marker.corner2]])), H)
     marker_theta = math.atan2(corner2_coords_m[0, 0, 1] - corner1_coords_m[0, 0, 1], corner2_coords_m[0, 0, 0] - corner1_coords_m[0, 0, 0])
     n_marker = processed_Marker(marker.id, marker_coords_m[0,0], marker_coords_m[0,1], marker_theta)
-    txt = "({},{},{})".format(corner1_coords_m, corner2_coords_m,marker_theta)
+    txt = "({},{},{})".format(marker_coords_px[0, 0, 0], marker_coords_px[0, 0, 1],marker_theta)
     frame = cv2.putText(frame, txt , (marker.corner1[0],marker.corner1[1]), cv2.FONT_HERSHEY_SIMPLEX, 
-                    1, (255,0,0), 2, cv2.LINE_AA)
+                    .5, (255,145,0), 1, cv2.LINE_AA)
     return n_marker,frame
 
