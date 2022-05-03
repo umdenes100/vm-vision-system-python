@@ -55,7 +55,7 @@ def processMarkers(frame, marker_list, H,inverse_matrix, dr_op):
     except Exception as e:
         exception_str = "EXCEPTION (processMarkers): " + str(e) + "\n"
         print(exception_str)
-        with open('errors.txt', 'w') as f:
+        with open('errors.txt', 'a') as f:
             f.write(exception_str)
         return frame, markers
     #returned the processed image frame and marker list
@@ -100,7 +100,7 @@ def createMission(frame, inverse_matrix,theta, mission_loc, start_loc) :
     except Exception as e:
         exception_str = "EXCEPTION (createMission): " + str(e) + "\n"
         print(exception_str)
-        with open('errors.txt', 'w') as f:
+        with open('errors.txt', 'a') as f:
             f.write(exception_str)
         return frame
     return frame
@@ -159,7 +159,7 @@ def createObstacles(frame,inverse_matrix, instruction):
     except Exception as e:
         exception_str = "EXCEPTION (createObstacles): " + str(e) + "\n"
         print(exception_str)
-        with open('errors.txt', 'w') as f:
+        with open('errors.txt', 'a') as f:
             f.write(exception_str)
         return frame
     return frame  
