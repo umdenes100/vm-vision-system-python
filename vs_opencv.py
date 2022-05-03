@@ -31,7 +31,10 @@ def draw_on_frame(frame, dr_op):
         else:
             frame_after = frame
     except Exception as e:
-        print(f'EXCEPTION (in draw_on_frame): {e}')
+        exception_str = "EXCEPTION (in draw_on_frame): " + str(e) + "\n"
+        print(exception_str)
+        with open('errors.txt', 'a') as f:
+            f.write(exception_str)
         return frame
 
     return frame_after
@@ -48,7 +51,11 @@ def frame_capture(cap, connections, dr_op):
                 vs_comm.send_frame(np.array(jpeg_bytes).tostring(), connections)
         except Exception as e:
             # most likely camera changed
-            print(e)
+            exception_str = "EXCEPTION (frame_capture): " + str(e) + "\n"
+            print(exception_str)
+            with open('errors.txt', 'a') as f:
+                f.write(exception_str)
+            
         
  
 def start_image_processing(connections, dr_op):
@@ -60,7 +67,10 @@ def start_image_processing(connections, dr_op):
             try:
                 frame_capture(cap, connections, dr_op)
             except Exception as e:
-                print(e)
+                exception_str = "EXCEPTION (start_image_processing): " + str(e) + "\n"
+                print(exception_str)
+                with open('errors.txt', 'a') as f:
+                    f.write(exception_str)
             #print(f'time for frame capture = {(time.time() - start)} seconds')
 
     cap.release()
