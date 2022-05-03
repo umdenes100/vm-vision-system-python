@@ -33,7 +33,7 @@ def draw_on_frame(frame, dr_op):
     except Exception as e:
         exception_str = "EXCEPTION (in draw_on_frame): " + str(e) + "\n"
         print(exception_str)
-        with open('errors.txt', 'w') as f:
+        with open('errors.txt', 'a') as f:
             f.write(exception_str)
         return frame
 
@@ -53,7 +53,7 @@ def frame_capture(cap, connections, dr_op):
             # most likely camera changed
             exception_str = "EXCEPTION (frame_capture): " + str(e) + "\n"
             print(exception_str)
-            with open('errors.txt', 'w') as f:
+            with open('errors.txt', 'a') as f:
                 f.write(exception_str)
             
         
@@ -69,7 +69,7 @@ def start_image_processing(connections, dr_op):
             except Exception as e:
                 exception_str = "EXCEPTION (start_image_processing): " + str(e) + "\n"
                 print(exception_str)
-                with open('errors.txt', 'w') as f:
+                with open('errors.txt', 'a') as f:
                     f.write(exception_str)
             #print(f'time for frame capture = {(time.time() - start)} seconds')
 
