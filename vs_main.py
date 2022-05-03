@@ -42,6 +42,8 @@ def main():
     dr_op = DrawingOptions()
     connections = Connections()
 
+    open('errors.txt', 'w').write('\n')
+    
     # start communication thread
     start_new_thread(start_communication, (connections, dr_op, ))
 
