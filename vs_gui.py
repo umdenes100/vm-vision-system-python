@@ -10,11 +10,12 @@ import subprocess
 
 obstacle_presets = ['01A', '01B', '02A', '02B', '10A', '10B', '12A', '12B', '20A', '20B', '21A', '21B']
 
+
 class Ui(QtWidgets.QMainWindow):
     def __init__(self, connections, dr_op):
         super(Ui, self).__init__()
         uic.loadUi('mainwindow.ui', self)
-       
+
         # Randomize Button
         self.randomizebutton = self.findChild(QtWidgets.QPushButton, 'randomizebutton')
         self.randomizebutton.clicked.connect(self.randomize)
@@ -26,13 +27,14 @@ class Ui(QtWidgets.QMainWindow):
         # Text box for camera
         self.camlist = self.findChild(QtWidgets.QListWidget, 'camList')
         self.camlist.itemDoubleClicked.connect(self.camera_change)
-        
+
         # ... find valid camera numbers to display
         cameras = os.listdir('/dev/')
         cameras.sort()
         for c in cameras:
             if "video" in c:
-                process = subprocess.Popen(['v4l2-ctl', f'--device=/dev/{c}', '--all'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                process = subprocess.Popen(['v4l2-ctl', f'--device=/dev/{c}', '--all'], stdout=subprocess.PIPE,
+                                           stderr=subprocess.PIPE)
                 out, err = process.communicate()
                 if b"Format Video Capture:" in out:
                     self.camlist.addItem(c)
@@ -61,7 +63,7 @@ class Ui(QtWidgets.QMainWindow):
 
     def camera_change(self, item):
         camnum = int(str(item.text()).strip()[-1])
-        start_new_thread(self.connections.set_cam, (camnum, ))
+        start_new_thread(self.connections.set_cam, (camnum,))
         print(f"camera changed to {camnum}")
 
     def reset_camera(self):
@@ -76,23 +78,23 @@ class Ui(QtWidgets.QMainWindow):
         # obstacle randomization, then pass onto opencv
         #   - one rumbles
         #   - two solid objects
-        self.dr_op.randomization = obstacle_presets[random.randrange(0,12)]
-        
+        self.dr_op.randomization = obstacle_presets[random.randrange(0, 12)]
+
         # otv start location and mission location
         if self.dr_op.randomization[:2] == '01' or self.dr_op.randomization[:2] == '10':
             start = 1
         elif self.dr_op.randomization[:2] == '21' or self.dr_op.randomization[:2] == '12':
             start = 0
         else:
-            start = random.randrange(0,2)
+            start = random.randrange(0, 2)
         self.dr_op.otv_start_loc = start
-        self.dr_op.mission_loc = (start + 1) % 2 # opposite of OTV start
-        
+        self.dr_op.mission_loc = (start + 1) % 2  # opposite of OTV start
+
         # otv start direction (theta) (always facing away from mission site inn 180 deg span)
-        if start == 0: # BOTTOM
-            self.dr_op.otv_start_dir = (random.randrange(0,180) * 2 * math.pi) / 360 
+        if start == 0:  # BOTTOM
+            self.dr_op.otv_start_dir = (random.randrange(0, 180) * 2 * math.pi) / 360
         else:
-            self.dr_op.otv_start_dir = ((random.randrange(0,180) +180) * 2 * math.pi) / 360
+            self.dr_op.otv_start_dir = ((random.randrange(0, 180) + 180) * 2 * math.pi) / 360
 
     def show_dest(self):
         self.dr_op.draw_dest = self.showdest.isChecked()
@@ -101,20 +103,21 @@ class Ui(QtWidgets.QMainWindow):
         self.dr_op.draw_obstacles = self.showobst.isChecked()
 
     def brightness(self):
-        command = f'v4l2-ctl -d /dev/video{self.connections.camnum} -c brightness={self.brightslider.value()}'
+        command = f'v4l2-ctl -d /dev/video{self.connections.camera_num} -c brightness={self.brightslider.value()}'
         os.system(command)
 
     def sharpness(self):
-        command = f'v4l2-ctl -d /dev/video{self.connections.camnum} -c sharpness={self.sharpslider.value()}'
+        command = f'v4l2-ctl -d /dev/video{self.connections.camera_num} -c sharpness={self.sharpslider.value()}'
         os.system(command)
 
     def contrast(self):
-        command = f'v4l2-ctl -d /dev/video{self.connections.camnum} -c contrast={self.contrastslider.value()}'
+        command = f'v4l2-ctl -d /dev/video{self.connections.camera_num} -c contrast={self.contrastslider.value()}'
         os.system(command)
+
 
 def start_gui(connections, dr_op):
     app = QtWidgets.QApplication(sys.argv)
-    app.setWindowIcon(QtGui.QIcon('/snap/gtk-common-themes/1519/share/icons/elementary-xfce/categories/48/applications-arcade.png'))
+    app.setWindowIcon(
+        QtGui.QIcon('/snap/gtk-common-themes/1519/share/icons/elementary-xfce/categories/48/applications-arcade.png'))
     window = Ui(connections, dr_op)
     app.exec_()
-

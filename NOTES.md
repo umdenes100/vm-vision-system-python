@@ -100,6 +100,7 @@ The window icon isn't required, but it's a nice touch so that we know which appl
 popping up in our dock. The dr_op is just a class of data that will be used in the UI class.
 
 Here is an example of the *Brightness Slider* used in the Vision System GUI:
+
 ```python
 # Brightness Slider
 self.brightslider = self.findChild(QtWidgets.QSlider, 'brightslider')
@@ -107,8 +108,9 @@ self.brightslider.sliderReleased.connect(self.brightness)
 
 ...
 
+
 def brightness(self):
-    command = f'v4l2-ctl -d /dev/video{self.connections.camnum} -c brightness={self.brightslider.value()}'
+    command = f'v4l2-ctl -d /dev/video{self.connections.camera_num} -c brightness={self.brightslider.value()}'
     os.system(command)
 ```
 

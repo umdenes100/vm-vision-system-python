@@ -16,9 +16,9 @@ OPCODE_PONG         = 0xA
 
 CLOSE_STATUS_NORMAL = 1000
 
-# send to websocket
+# send to udp socket
 def send_text(data, conn, opcode=OPCODE_TEXT):
-    header  = bytearray()
+    header = bytearray()
     payload = str(data).encode()
     payload_length = len(payload)
 
@@ -28,7 +28,7 @@ def send_text(data, conn, opcode=OPCODE_TEXT):
         header.append(payload_length)
 
     # Extended payload
-    elif payload_length >= 126 and payload_length <= 65535:
+    elif 126 <= payload_length <= 65535:
         header.append(FIN | opcode)
         header.append(PAYLOAD_LEN_EXT16)
         header.extend(struct.pack(">H", payload_length))
@@ -41,7 +41,6 @@ def send_text(data, conn, opcode=OPCODE_TEXT):
 
     else:
         raise Exception("Message is too big. Consider breaking it into chunks.")
-        return
 
     print(f'header = {header}\npayload = {payload}\n')
     header.extend(payload)
@@ -57,7 +56,7 @@ def read_next_message(message_in):
     payload_length = b2 & PAYLOAD_LEN
 
     if opcode == OPCODE_CLOSE_CONN:
-        print("Client asked to close connection.")
+        print("Client asked to close ws.")
         return "CLOSE"
     if not masked:
         print("Client must always be masked.")

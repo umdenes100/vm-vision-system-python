@@ -87,6 +87,7 @@ of using this nice utility, but the utility was very nice and useful.
 
 - [Gary](https://github.com/itsecgary)
 - [Eric](https://github.com/ephan1068)
+- (Pending my contributions to this branch) [Forrest](https://github.com/ForrestFire0)
 
 
 ## Resources & References
