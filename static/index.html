@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description"
+          content="This class webpage for UMD's ENES100 allows users to access the Vision System and Documentation for the class.">
+    <meta name="google-site-verification" content="4clMxUDhEpHHjak_ML03ekw8pFif-G4_l9lwBw8WfeM"/>
+
+    <title>ENES100 - Intro to Engineering Design</title>
+
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+          integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="header.css">
+    <link rel="stylesheet" href="index.css">
+</head>
+
+<body style="width: 100%; height: 100%">
+<nav class="navbar navbar-expand-lg umd">
+    <div class="container">
+
+        <!--Logo-->
+        <div id="brand">
+            <h1>
+                <a href="/static" id="logo" class="navbar-brand">
+                    ENES100
+                </a>
+            </h1>
+        </div>
+
+        <!--Hamburger Button-->
+        <button class="navbar-toggler float-right" type="button" data-toggle="collapse"
+                data-target="#collapsibleNavbar">
+            <span class="navbar-toggler-icon mt-3">☰</span>
+        </button>
+
+        <!--Collapsible Content-->
+        <div id="collapsibleNavbar" class="navbar-collapse collapse">
+            <ul class="navbar-nav ml-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="http://enes100.umd.edu/static">Vision System</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="http://enes100.umd.edu/libraries/">Libraries</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="http://enes100.umd.edu/simulatorweb">Simulator</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="http://enes100.umd.edu/examples">Examples</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="http://enes100.umd.edu/faq">FAQ</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<div class="container-fluid h-100">
+    <div class="row h-100">
+        <div id="communication-panel" class="col-3">
+
+            <div id="select-container" class="h-5 row">
+                <select id="port" class="select-styled h-100">
+                    <option>No Teams Found...</option>
+                </select>
+                <span id="info" style="padding: 5px"></span>
+            </div>
+
+            <div id="timer" class="row">
+                <div class="h-100 w-100 pt-3 pb-3">
+                    Timer:
+                    <span id="minutes">--</span>:<span id="seconds">--</span>
+                </div>
+            </div>
+
+
+            <textarea id="communication-window" style="height: 55%; width: 100%" readonly></textarea>
+
+
+            <div id="communication-window-options" class="row pt-3">
+                <div class="col-12 col-md-12 h-100">
+                    <div class="row option">
+                        <input id="debug-messages" type="checkbox" checked>
+                        <label for="debug-messages">Show Debug Messages</label>
+                    </div>
+                    <div class="row option">
+                        <input id="autoscroll" type="checkbox" checked>
+                        <label for="autoscroll">Autoscroll</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-md-9">
+            <div id="stream-container" class="embed-responsive embed-responsive-16by9 mt-1">
+                <img id="stream" class="embed-responsive-item img-fluid" src="">
+
+            </div>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
+
+<script>
+    const local = true;
+    const WEBSOCKET_ADDRESS = local ? 'ws://localhost:9000/' : 'ws://127.0.0.1:9000/'
+
+    if (local) {
+        document.getElementById('stream').src = 'https://i.giphy.com/media/xUNda1bG4sJKiKgRcA/giphy.webp'
+    } else {
+        document.getElementById('stream').src = 'http://192.168.1.2:8080/'
+    }
+
+    //This variable holds all the team data. It is completely overwritten every time new team data is received.
+    let allTeamData;
+    //This variable holds all the received prints. This is helpful because when the user selects a team, the prints are still there.
+    let cachedPrints = {};
+    //This is a string that represents the team name of the selected team.
+    let selectedTeam;
+    //Object that is just the result of allTeamData.find(td => td.name === selectedTeam)
+    let selectedTeamData;
+
+    //WebSocket connection, standard js object.
+    let ws;
+
+    //comm window stores the serial ports.
+    const comm_window = document.getElementById('communication-window')
+    const teamSelect = document.getElementById('port');
+    const infoSpan = document.getElementById('info');
+    const timerDiv = document.getElementById('timer');
+    timerDiv.hidden = true;
+
+    function changePort() {
+        selectedTeam = document.getElementById('port').value
+        if (selectedTeam === 'No Teams Found...') {
+            selectedTeam = allTeamData[0].name;
+        }
+        comm_window.value = cachedPrints[selectedTeam] ? cachedPrints[selectedTeam] : 'No prints yet...'
+        //If the user has autoscroll on, scroll to the bottom.
+        if (document.getElementById('autoscroll').checked)
+            comm_window.scrollTop = comm_window.scrollHeight;
+        selectedTeamData = allTeamData.find(td => td.name === selectedTeam);
+        //if selectedTeam Data Exists...
+        if (selectedTeamData)
+            infoSpan.innerHTML = `Mission: ${selectedTeamData.mission} <br> ArUco ID: ${selectedTeamData.aruco.num} <br>
+                                  ArUco Visible: ${selectedTeamData.aruco.visible}`
+    }
+
+    function handlePrints(team, message) {
+
+        //If the team is not in the cache, add it.
+        if (team in cachedPrints) {
+            cachedPrints[team] += message;
+            //Only keep the last 10k characters of the string. With 5 teams that is 50 kB. Way more than we will ever need, but at least its capped.
+            cachedPrints[team] = cachedPrints[team].slice(-10000);
+        } else
+            cachedPrints[team] = message;
+
+        //If the team is selected, update the communication window.
+        if (team === selectedTeam) {
+            comm_window.value = cachedPrints[team];
+            //If the user has autoscroll on, scroll to the bottom.
+            if (document.getElementById('autoscroll').checked)
+                comm_window.scrollTop = comm_window.scrollHeight;
+        }
+    }
+
+    window.onload = () => {
+        teamSelect.onchange = changePort;
+
+        ws = new WebSocket(WEBSOCKET_ADDRESS);
+
+        ws.onopen = () => {
+            console.log('Websocket Open')
+        }
+
+        ws.onerror = error => {
+            console.log('WebSocket Error:', error)
+        }
+
+        ws.onmessage = message => {
+            message = JSON.parse(message.data)
+
+            switch (message.type) {
+                case 'data':
+                    allTeamData = message.data
+                    changePort()
+                    const old_selection = teamSelect.value;
+                    teamSelect.options.length = 0;
+                    for (const team of message.data) {
+                        teamSelect.add(new Option(team.name, team.name, false, team.name === old_selection))
+                    }
+                    break
+                case 'print':
+                    handlePrints(message.team, message.data)
+                    break
+                case 'time':
+                    console.log('tbd')
+                    break
+            }
+
+        }
+        window.onunload = ws.close;
+
+    }
+</script>

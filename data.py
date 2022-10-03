@@ -1,8 +1,12 @@
-import cv2
+import os
+
+# If running windows
+if os.name != 'nt':
+    import cv2
 from subprocess import Popen, PIPE, STDOUT
 
 
-# Ok, so we need a way to store the connections from the esp server and the client server.
+# Ok, so we need a way to store the connections from the esp ws_server and the client ws_server.
 # It needs to be queryable.
 
 class CameraManager:
@@ -52,4 +56,4 @@ fake_esp_data = [
      'aruco': {'num': 4, 'visible': True}},
 ]
 
-camera: CameraManager = CameraManager()
+# camera: CameraManager = CameraManager()

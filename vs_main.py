@@ -1,22 +1,19 @@
 import logging
+#
+# logging.basicConfig(level=logging.INFO,
+#                     format='[%(relativeCreated)d][%(threadName)-16.16s][%(levelname)-5.5s] %(message)s')
 import threading
-from old import vs_comm
-import vs_gui
-import vs_opencv
 import random
 import math
 
-from communications import vs_ws_server, esp_server, client_server
+logging.basicConfig(format='[%(threadName)-16.16s]%(levelname)s:%(message)s', level=logging.DEBUG)
 
-logFormatter = logging.Formatter("[%(relativeCreated)d][%(threadName)-16.16s][%(levelname)-5.5s] %(message)s")
-consoleHandler = logging.StreamHandler()
-consoleHandler.setFormatter(logFormatter)
-consoleHandler.setLevel(logging.DEBUG)
-logger = logging.getLogger()
-logger.addHandler(consoleHandler)
+from communications import esp_server, client_server
 
-# processed_Marker class
-class processed_Marker:
+logging.info("Starting main thread\n")
+
+# ProcessedMarker class
+class ProcessedMarker:
     def __init__(self, idd, x, y, theta):
         self.id = idd
         self.x = x
@@ -51,21 +48,21 @@ class DrawingOptions:
 
 
 def main():
-    # Main drawing_options object. Shared between many threads.
-    drawing_options = DrawingOptions()
-    connections = vs_comm.Connections()
-
     logging.debug("Starting main thread")
-
+    # Main drawing_options object. Shared between many threads.
+    # drawing_options = DrawingOptions()
     # start communication servers
-    threading.Thread(name='ESP Server', target=esp_server.start_server).start()
-    threading.Thread(name='Client Server', target=client_server.start_server).start()
-    # start image processing
-    threading.Thread(name='image_processing', target=vs_opencv.start_image_processing, args=(connections, drawing_options))\
-        .start()
 
-    # main process will now continue to GUI
-    vs_gui.start_gui(connections, drawing_options)
+    threading.Thread(name='ESP Server', target=esp_server.start_server, daemon=True).start()
+    threading.Thread(name='Client Server', target=client_server.start_server, daemon=True).start()
+    client_server.start_server()  # Returns
+    # start image processing
+    # threading.Thread(name='image_processing', target=vs_opencv.start_image_processing, args=(connections, drawing_options))\
+    #     .start()
+    #
+    # # main process will now continue to GUI
+    # vs_gui.start_gui(connections, drawing_options)
+
 
 if __name__ == '__main__':
     main()

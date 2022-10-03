@@ -64,7 +64,7 @@ def start_otv_communication(conn, connections, drawing_options):
 
             send_message(udp_connections, 'PORT_LIST', connections, "ALL")  # sends new port list to each ws
             # print(f"UDP_CONNECTIONS = {udp_connections}")
-            send_message(str(int(time.time())), 'START', connections, ip)  # send start command to msg server
+            send_message(str(int(time.time())), 'START', connections, ip)  # send start command to msg ws_server
 
             if drawing_options.mission_loc:  # mission location is on bottom
                 # print("returning (0.55,0.55)")
@@ -96,7 +96,7 @@ def start_otv_communication(conn, connections, drawing_options):
             message = data[3:]
             curr = data[2]
 
-            # send message to message server
+            # send message to message ws_server
             if udp_connections[ip]['MISSION_CALLS'] < udp_connections[ip]['MAX_MISSION_CALLS']:
                 send_message(get_mission_message(curr, udp_connections[ip]['MISSION'], message), 'MISSION', connections,
                              ip)
@@ -109,7 +109,7 @@ def start_otv_communication(conn, connections, drawing_options):
         # DEBUG
         elif second == 8:
             msg = data[2:].decode()
-            send_message(msg, 'DEBUG', connections, ip)  # send debug message to msg server
+            send_message(msg, 'DEBUG', connections, ip)  # send debug message to msg ws_server
             # print(f"Debug message = {msg}")
 
         conn.sendto(seq.to_bytes(1, 'big') + data_to_send, addr)

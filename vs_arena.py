@@ -1,7 +1,7 @@
 import math
 import numpy as np
 import cv2
-from vs_main import processed_Marker, Marker
+from vs_main import ProcessedMarker, Marker
 
 width = 4.0  # width and heignt of the arena in meters
 height = 2.0
@@ -33,8 +33,8 @@ def getHomographyMatrix(frame, marker_list):
 
 
 def processMarkers(frame, marker_list, H, inverse_matrix, dr_op):
-    markers = {f'{0}': processed_Marker(0, -1.0, -1.0, -1.0), f'{1}': processed_Marker(1, -1.0, -1.0, -1.0),
-               f'{2}': processed_Marker(2, -1.0, -1.0, -1.0), f'{3}': processed_Marker(3, -1.0, -1.0, -1.0)}
+    markers = {f'{0}': ProcessedMarker(0, -1.0, -1.0, -1.0), f'{1}': ProcessedMarker(1, -1.0, -1.0, -1.0),
+               f'{2}': ProcessedMarker(2, -1.0, -1.0, -1.0), f'{3}': ProcessedMarker(3, -1.0, -1.0, -1.0)}
     try:
         for x in marker_list:
             if x.id > 3:
@@ -183,7 +183,7 @@ def translate(marker, H, frame):
     round1 = round(marker_coords_m[0, 0], 2)
     round2 = round(marker_coords_m[0, 1], 2)
     round3 = round(marker_theta, 2)
-    n_marker = processed_Marker(marker.id, marker_coords_m[0, 0], marker_coords_m[0, 1], marker_theta)
+    n_marker = ProcessedMarker(marker.id, marker_coords_m[0, 0], marker_coords_m[0, 1], marker_theta)
     txt = "({},{},{})".format(round1, round2, round3)
     frame = cv2.putText(frame, txt, (marker.corner1[0], marker.corner1[1]), cv2.FONT_HERSHEY_SIMPLEX,
                         .5, (0, 145, 255), 1, cv2.LINE_AA)
