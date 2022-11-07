@@ -27,10 +27,10 @@ def draw_on_frame(frame):
         corners = [c[0] for c in corners]
         ids = [i[0] for i in ids]
 
-        if not dr_op.H:
+        if dr_op.H is None:
             dr_op.H = getHomographyMatrix(zip(ids, corners))
             dr_op.inverse_matrix = np.linalg.pinv(dr_op.H)
-            if not dr_op.H:
+            if dr_op.H is None:
                 communications.client_server.send_error_message(
                     'At least one of the corner ArUco markers are not visible.')
                 time.sleep(1)
