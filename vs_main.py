@@ -1,67 +1,54 @@
+# todo timeout if no flush sequence recieved
+# todo error list of text.
+
+### Library Changes
+# todo remove need for 3 second delay in VisionSystemClient.cpp
+# todo remove mission site location.
+# todo change library from Software Serial to AltSoftwareSerial to allow for higher baud rates.
+# todo Upgrade baud rate to higher rate
+# todo add a "wait for Vision System"
+# todo instead of waiting for 3 seconds, just wait for a response from the ESP module.
+# todo remove need to define RX and TX ports. It should be automatic if you get them reversed.
 import logging
-#
-# logging.basicConfig(level=logging.INFO,
-#                     format='[%(relativeCreated)d][%(threadName)-16.16s][%(levelname)-5.5s] %(message)s')
+import sys
 import threading
-import random
-import math
+import time
+import webbrowser
+
+import vs_gui
 
 logging.basicConfig(format='[%(threadName)-16.16s]%(levelname)s:%(message)s', level=logging.DEBUG)
 
-from communications import esp_server, client_server
-
 logging.info("Starting main thread\n")
 
-# ProcessedMarker class
-class ProcessedMarker:
-    def __init__(self, idd, x, y, theta):
-        self.id = idd
-        self.x = x
-        self.y = y
-        self.theta = theta
+from communications import esp_server, client_server
 
+local = 'local' in sys.argv
 
-# arucomarker object, designed to keep track of the id and pixel coordinates of each marker
-class Marker:
-    def __init__(self, idd, corner1, corner2, corner3, corner4):
-        self.id = idd[0]
-        self.corner1 = corner1
-        self.corner2 = corner2
-        self.corner3 = corner3
-        self.corner4 = corner4
-
-
-class DrawingOptions:
-    def __init__(self):
-        self.obstacle_presets = ['01A', '01B', '02A', '02B', '10A', '10B', '12A', '12B', '20A', '20B', '21A', '21B']
-        self.otv_start_loc = 0
-        self.mission_loc = 1
-        self.randomization = self.obstacle_presets[random.randrange(0, 12)]
-        self.otv_start_dir = -(math.pi / 2)
-        self.draw_dest = False
-        self.draw_obstacles = False
-        self.draw_coordinate = False
-        self.aruco_markers = {}
-        self.first = True
-        self.H = []
-        self.inverse_matrix = []
+if not local:
+    import vs_opencv
 
 
 def main():
     logging.debug("Starting main thread")
     # Main drawing_options object. Shared between many threads.
-    # drawing_options = DrawingOptions()
     # start communication servers
-
     threading.Thread(name='ESP Server', target=esp_server.start_server, daemon=True).start()
     threading.Thread(name='Client Server', target=client_server.start_server, daemon=True).start()
-    client_server.start_server()  # Returns
     # start image processing
-    # threading.Thread(name='image_processing', target=vs_opencv.start_image_processing, args=(connections, drawing_options))\
-    #     .start()
-    #
+    if not local:
+        threading.Thread(name='image_processing', target=vs_opencv.start_image_processing, daemon=True).start()
+
+    webbrowser.open('http://192.168.1.2:8080')
+
     # # main process will now continue to GUI
-    # vs_gui.start_gui(connections, drawing_options)
+    vs_gui.start_gui()
+    while vs_gui.gui_is_running:
+        try:
+            time.sleep(1)
+        except KeyboardInterrupt:
+            break
+    logging.info("Exiting")
 
 
 if __name__ == '__main__':

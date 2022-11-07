@@ -103,15 +103,15 @@ Here is an example of the *Brightness Slider* used in the Vision System GUI:
 
 ```python
 # Brightness Slider
-self.brightslider = self.findChild(QtWidgets.QSlider, 'brightslider')
-self.brightslider.sliderReleased.connect(self.brightness)
+self.bright_slider = self.findChild(QtWidgets.QSlider, 'bright_slider')
+self.bright_slider.sliderReleased.connect(self.brightness)
 
 ...
 
 
 def brightness(self):
-    command = f'v4l2-ctl -d /dev/video{self.connections.camera_num} -c brightness={self.brightslider.value()}'
-    os.system(command)
+  command = f'v4l2-ctl -d /dev/video{self.connections.camera_num} -c brightness={self.bright_slider.value()}'
+  os.system(command)
 ```
 
 We create a slider object in the UI class and find it via it's name, which can be set in Qt 5 Designer by 

@@ -11,23 +11,23 @@
 
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
           integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
-    <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="header.css">
     <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="inputs.css">
 </head>
 
 <body style="width: 100%; height: 100%">
 <nav class="navbar navbar-expand-lg umd">
+    <div style="color: white; padding: 5px; margin-top: -15px; z-index: 1000;" class="umd">
+        Open this page on your computer! Connect to the Wi-Fi network "VisionSystem{Your room number}-2.4"
+        and go to "192.168.1.2:8080"
+    </div>
     <div class="container">
-
         <!--Logo-->
-        <div id="brand">
-            <h1>
-                <a href="/static" id="logo" class="navbar-brand">
-                    ENES100
-                </a>
-            </h1>
-        </div>
+        <h1 id="logo" class="navbar-brand">
+            ENES100 Vision System 2
+        </h1>
+
 
         <!--Hamburger Button-->
         <button class="navbar-toggler float-right" type="button" data-toggle="collapse"
@@ -57,14 +57,15 @@
         </div>
     </div>
 </nav>
-
+<!--The whole window-->
 <div class="container-fluid h-100">
+    <!--The main row for all the elements-->
     <div class="row h-100">
-        <div id="communication-panel" class="col-3">
-
-            <div id="select-container" class="h-5 row">
-                <select id="port" class="select-styled h-100">
-                    <option>No Teams Found...</option>
+        <!--The left column for the 'communication panel'-->
+        <div id="communication-panel" class="col-3 p-0">
+            <div id="select-container" class="h-5">
+                <select id="port" class="select-styled">
+                    <option>Waiting for connection...</option>
                 </select>
                 <span id="info" style="padding: 5px"></span>
             </div>
@@ -76,29 +77,37 @@
                 </div>
             </div>
 
-
             <textarea id="communication-window" style="height: 55%; width: 100%" readonly></textarea>
 
-
-            <div id="communication-window-options" class="row pt-3">
-                <div class="col-12 col-md-12 h-100">
-                    <div class="row option">
-                        <input id="debug-messages" type="checkbox" checked>
-                        <label for="debug-messages">Show Debug Messages</label>
-                    </div>
-                    <div class="row option">
+            <div id="communication-window-options" class="col-12">
+                    <label class="switch">
                         <input id="autoscroll" type="checkbox" checked>
-                        <label for="autoscroll">Autoscroll</label>
-                    </div>
-                </div>
+                        <span class="slider round"></span>
+                    </label>
+                    Autoscroll
+                    <br>
+                    <label class="switch">
+                        <input id="show-disconnected-teams" type="checkbox"
+                               onclick="updateOptionsList(); changePort()">
+                        <span class="slider round"></span>
+                    </label>
+                    Show disconnected teams
+                    <button class='sexy' onclick="cachedPrints = {}; comm_window.value = ''">Clear Selected Team
+                        Prints
+                    </button>
+                    <br>
+                    <button class='sexy' onclick="cachedPrints[selectedTeam] = ''; comm_window.value = ''">Clear All
+                        Prints
+                    </button>
             </div>
         </div>
 
         <div class="col-12 col-md-9">
-            <div id="stream-container" class="embed-responsive embed-responsive-16by9 mt-1">
-                <img id="stream" class="embed-responsive-item img-fluid" src="">
-
+            <div id="stream-container">
+                <img id="stream" class="img-fluid"
+                     alt="Failed to get image from Vision System. Not good." src="">
             </div>
+            <textarea id="console" style="width: 100%" readonly></textarea>
         </div>
     </div>
 </div>
@@ -107,13 +116,11 @@
 </html>
 
 <script>
-    const local = true;
-    const WEBSOCKET_ADDRESS = local ? 'ws://localhost:9000/' : 'ws://127.0.0.1:9000/'
+    const local = false;
+    const WEBSOCKET_ADDRESS = `ws://${location.host.split(':')[0]}:9000/`
 
     if (local) {
         document.getElementById('stream').src = 'https://i.giphy.com/media/xUNda1bG4sJKiKgRcA/giphy.webp'
-    } else {
-        document.getElementById('stream').src = 'http://192.168.1.2:8080/'
     }
 
     //This variable holds all the team data. It is completely overwritten every time new team data is received.
@@ -122,7 +129,7 @@
     let cachedPrints = {};
     //This is a string that represents the team name of the selected team.
     let selectedTeam;
-    //Object that is just the result of allTeamData.find(td => td.name === selectedTeam)
+    //Object that is just the result of allTeamData.find(td => td.teamName === selectedTeam)
     let selectedTeamData;
 
     //WebSocket connection, standard js object.
@@ -136,23 +143,46 @@
     timerDiv.hidden = true;
 
     function changePort() {
+        if (!allTeamData) return;
+        if (allTeamData.length === 0) {
+            comm_window.value = 'No prints yet...'
+            infoSpan.innerHTML = '';
+            return
+        }
         selectedTeam = document.getElementById('port').value
         if (selectedTeam === 'No Teams Found...') {
-            selectedTeam = allTeamData[0].name;
+            selectedTeam = allTeamData[0].teamName;
         }
         comm_window.value = cachedPrints[selectedTeam] ? cachedPrints[selectedTeam] : 'No prints yet...'
         //If the user has autoscroll on, scroll to the bottom.
         if (document.getElementById('autoscroll').checked)
             comm_window.scrollTop = comm_window.scrollHeight;
-        selectedTeamData = allTeamData.find(td => td.name === selectedTeam);
+        selectedTeamData = allTeamData.find(td => td.teamName === selectedTeam);
         //if selectedTeam Data Exists...
         if (selectedTeamData)
-            infoSpan.innerHTML = `Mission: ${selectedTeamData.mission} <br> ArUco ID: ${selectedTeamData.aruco.num} <br>
-                                  ArUco Visible: ${selectedTeamData.aruco.visible}`
+            infoSpan.innerHTML = `<table style="border: solid 1px black; border-collapse: collapse">
+            <tr>
+            <td>Mission</td>
+            <td>${selectedTeamData.teamType}</td>
+            <td>X</td>
+            <td>${selectedTeamData.aruco.x}</td>
+            </tr>
+            <tr>
+            <td>ArUco ID</td>
+            <td>${selectedTeamData.aruco.num}</td>
+            <td>Y</td>
+            <td>${selectedTeamData.aruco.y}</td>
+            </tr>
+            <tr>
+            <td>ArUco Visible</td>
+            <td>${selectedTeamData.aruco.visible}</td>
+            <td>∅</td>
+            <td>${selectedTeamData.aruco.theta}</td>
+            </tr>
+            </table>`
     }
 
     function handlePrints(team, message) {
-
         //If the team is not in the cache, add it.
         if (team in cachedPrints) {
             cachedPrints[team] += message;
@@ -170,6 +200,40 @@
         }
     }
 
+    function showDisconnectedTeamsCheckbox() {
+        return document.getElementById('show-disconnected-teams').checked;
+    }
+
+    function updateOptionsList() {
+        if (!allTeamData) return;
+        const old_selection = teamSelect.value;
+        teamSelect.options.length = 0;
+        for (const team of allTeamData) {
+            teamSelect.add(new Option(team.teamName, team.teamName, false, team.teamName === old_selection))
+        }
+        if (showDisconnectedTeamsCheckbox()) {
+            const exists_list = Array.from(teamSelect.options).map(option => option.value);
+            for (const teamName of Object.keys(cachedPrints)) {
+                //If the team is not in the teamSelect object, add it.
+                if (!exists_list.includes(teamName)) {
+                    teamSelect.add(new Option(teamName, teamName, false, teamName === old_selection))
+                    console.log('Added cached ' + teamName)
+                }
+            }
+        }
+        if (teamSelect.options.length === 0) {
+            teamSelect.innerHTML = '<option>No Teams Found...</option>'
+        }
+    }
+
+    let paused = false;
+
+    function errorLog(message) {
+        let console_window = document.getElementById('console');
+        console_window.value += '\n' + message.data
+        console_window.scrollTop = console_window.scrollHeight;
+    }
+
     window.onload = () => {
         teamSelect.onchange = changePort;
 
@@ -183,18 +247,34 @@
             console.log('WebSocket Error:', error)
         }
 
+        ws.onclose = () => {
+            errorLog({data: 'Was unable to connect to the Vision System. Please check that it is running then refresh this page.'})
+            teamSelect.innerHTML = '<option>Unable to connect!</option>'
+        }
+
         ws.onmessage = message => {
+            if (message.data instanceof Blob) {
+                // console.log(message.data)
+                if (paused) return;
+                // take the bytes in message.data and put them in the image
+                if (Math.random() > .99999) {
+                    paused = true;
+                    document.getElementById('stream').src = '/joe.jpeg'
+                    setTimeout(() => {
+                        paused = false;
+                    }, 2000)
+                } else {
+                    document.getElementById('stream').src = URL.createObjectURL(message.data)
+                }
+                return
+            }
             message = JSON.parse(message.data)
 
             switch (message.type) {
                 case 'data':
                     allTeamData = message.data
                     changePort()
-                    const old_selection = teamSelect.value;
-                    teamSelect.options.length = 0;
-                    for (const team of message.data) {
-                        teamSelect.add(new Option(team.name, team.name, false, team.name === old_selection))
-                    }
+                    updateOptionsList()
                     break
                 case 'print':
                     handlePrints(message.team, message.data)
@@ -202,10 +282,11 @@
                 case 'time':
                     console.log('tbd')
                     break
+                case 'error':
+                    errorLog(message);
+                    break
             }
-
         }
         window.onunload = ws.close;
-
     }
 </script>

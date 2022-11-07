@@ -1,66 +1,70 @@
+import logging
 import math
+# noinspection PyUnresolvedReferences
 import numpy as np
 import cv2
-from vs_main import ProcessedMarker, Marker
 
-width = 4.0  # width and heignt of the arena in meters
-height = 2.0
+from data import ProcessedMarker, dr_op
 
 
-def getHomographyMatrix(frame, marker_list):
-    pt00 = (-1, 1)
-    pt02 = (-1, 1)
-    pt40 = (-1, 1)
-    pt42 = (-1, 1)  # some dummy values
-    first = False
-    for x in marker_list:
-        if x.id == 0:  # finding all the corners of the arena
-            pt00 = x.corner1
-        elif x.id == 1:
-            pt40 = x.corner1
-        elif x.id == 2:
-            pt02 = x.corner1
-        elif x.id == 3:
-            pt42 = x.corner1
+def center(corners: list[tuple]):
+    """
+    :param corners: list of corners of the marker
+    :return: the center of the marker
+    """
+    x = 0
+    y = 0
+    for corner in corners:
+        x += corner[0]
+        y += corner[1]
+    x /= len(corners)
+    y /= len(corners)
+    return int(x), int(y)
 
-    if -1 in pt00 or -1 in pt02 or -1 in pt40 or -1 in pt42:
-        first = True
+
+def getHomographyMatrix(marker_list):
+    """
+    :param marker_list: list of markers
+    :return: the homography matrix or None if there are not enough markers
+    """
+    pt00 = None
+    pt02 = None
+    pt40 = None
+    pt42 = None
+    for aruco_id, corners in marker_list:
+        if aruco_id == 0:  # finding all the corners of the arena
+            pt00 = center(corners)
+        elif aruco_id == 1:
+            pt40 = center(corners)
+        elif aruco_id == 2:
+            pt02 = center(corners)
+        elif aruco_id == 3:
+            pt42 = center(corners)
+
+    if pt00 is None or pt02 is None or pt40 is None or pt42 is None:
+        logging.debug("One of the markers is blocked - cannot generate homography matrix")
+        return None
     src_pts = np.float32([pt00, pt40, pt02, pt42])  # pixel coordinates of the markers
+    dst_pts = np.float32([[0.0, 0.0], [4.0, 0.0], [0.0, 2.0], [4.0, 2.0]])  # arena coordinates of markers
+    homography_matrix = cv2.getPerspectiveTransform(src_pts, dst_pts)  # this gives us the homography matrix of the arena
+    logging.debug("Generated Homography Matrix!!!")
+    return homography_matrix
 
-    dst_pts = np.float32([[0.0, 0.0], [width, 0.0], [0.0, height], [width, height]])  # arena coordinates of markers
-    H = cv2.getPerspectiveTransform(src_pts, dst_pts)  # this gives us the H matrix of the arena
-    return H, first
 
-
-def processMarkers(frame, marker_list, H, inverse_matrix, dr_op):
-    markers = {f'{0}': ProcessedMarker(0, -1.0, -1.0, -1.0), f'{1}': ProcessedMarker(1, -1.0, -1.0, -1.0),
-               f'{2}': ProcessedMarker(2, -1.0, -1.0, -1.0), f'{3}': ProcessedMarker(3, -1.0, -1.0, -1.0)}
+def processMarkers(marker_list):
+    markers: dict[int: ProcessedMarker] = {0: ProcessedMarker(0, -1.0, -1.0, (-1, -1), -1.0),
+                                           1: ProcessedMarker(1, -1.0, -1.0, (-1, -1), -1.0),
+                                           2: ProcessedMarker(2, -1.0, -1.0, (-1, -1), -1.0),
+                                           3: ProcessedMarker(3, -1.0, -1.0, (-1, -1), -1.0)}
     try:
-        for x in marker_list:
-            if x.id > 3:
-                n_marker, frame = translate(x, H, frame)
-                markers[f'{n_marker.id}'] = n_marker  # adding in the processed marker to a dictionary
-
-                # Add a green arrowed line to each aruco marker.
-                # Note, opencv does not give a way to change the id color
-                frame = cv2.arrowedLine(frame, (int(x.corner1[0]), int(x.corner1[1])), (int(x.corner2[0]),
-                                                                                        int(x.corner2[1])), (0, 255, 0),
-                                        2, tipLength=.4)
-        # draw the obstacles if we want to
-        if dr_op.draw_obstacles:
-            frame = createObstacles(frame, inverse_matrix, dr_op.randomization)
-
-        # draw the mission if we want to
-        if dr_op.draw_dest:
-            frame = createMission(frame, inverse_matrix, dr_op.otv_start_dir, dr_op.mission_loc, dr_op.otv_start_loc)
+        for marker in marker_list:
+            if marker[0] > 3:
+                p_marker: ProcessedMarker = translate(marker[0], marker[1], dr_op.H)
+                markers[p_marker.id] = p_marker
     except Exception as e:
-        exception_str = "EXCEPTION (processMarkers): " + str(e) + "\n"
-        print(exception_str)
-        with open('errors.txt', 'a') as f:
-            f.write(exception_str)
-        return frame, markers
+        logging.debug(e)
     # returned the processed image frame and marker list
-    return frame, markers
+    return markers
 
 
 def createMission(frame, inverse_matrix, theta, mission_loc, start_loc):
@@ -165,28 +169,21 @@ def createObstacles(frame, inverse_matrix, instruction):
     return frame
 
 
-def translate(marker, H, frame):
-    # find the center of the marker in pixels
-    marker_coords_px = np.float32(
-        np.array([[[0.0, 0.0]]]))  # don't know why you need so many brackets, but this makes it work
-    marker_coords_px[0, 0, 0] = (marker.corner1[0] + marker.corner2[0] + marker.corner3[0] + marker.corner4[0]) / 4
-    marker_coords_px[0, 0, 1] = (marker.corner1[1] + marker.corner2[1] + marker.corner3[1] + marker.corner4[1]) / 4
+def translate(i, corners, H) -> ProcessedMarker:
+    # find the center of the marker in pixels # don't know why you need so many brackets, but this makes it work
+    marker_coords_px = np.float32(np.array([[[0.0, 0.0]]]))
+    marker_coords_px[0, 0, 0] = (corners[0][0] + corners[1][0] + corners[2][0] + corners[3][0]) / 4
+    marker_coords_px[0, 0, 1] = (corners[0][1] + corners[1][1] + corners[2][1] + corners[3][1]) / 4
+
+    # marker_coords_px = center(corners)
 
     # Use homography transformation matrix to convert marker coords in px to meters
     marker_coords_m = cv2.perspectiveTransform(marker_coords_px, H)[0]
 
     # Find theta of the marker
-    corner1_coords_m = cv2.perspectiveTransform(np.float32(np.array([[marker.corner1]])), H)
-    corner2_coords_m = cv2.perspectiveTransform(np.float32(np.array([[marker.corner2]])), H)
+    corner1_coords_m = cv2.perspectiveTransform(np.float32(np.array([[corners[0]]])), H)
+    corner2_coords_m = cv2.perspectiveTransform(np.float32(np.array([[corners[1]]])), H)
     marker_theta = math.atan2(corner2_coords_m[0, 0, 1] - corner1_coords_m[0, 0, 1],
                               corner2_coords_m[0, 0, 0] - corner1_coords_m[0, 0, 0])
-    round1 = round(marker_coords_m[0, 0], 2)
-    round2 = round(marker_coords_m[0, 1], 2)
-    round3 = round(marker_theta, 2)
-    n_marker = ProcessedMarker(marker.id, marker_coords_m[0, 0], marker_coords_m[0, 1], marker_theta)
-    txt = "({},{},{})".format(round1, round2, round3)
-    frame = cv2.putText(frame, txt, (marker.corner1[0], marker.corner1[1]), cv2.FONT_HERSHEY_SIMPLEX,
-                        .5, (0, 145, 255), 1, cv2.LINE_AA)
-    return n_marker, frame
-
-# For now, you need to decleare the software transmission ports for any other device before declaring any ENES 100 libarary pins(specifically tX and Rx for wifi module)
+    n_marker = ProcessedMarker(i, marker_coords_m[0, 0], marker_coords_m[0, 1], center(corners), marker_theta)
+    return n_marker

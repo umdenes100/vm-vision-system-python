@@ -1,7 +1,6 @@
 #logo {
     color: white;
-    font-family: 'Molle', cursive;
-    font-size: 42px;
+    font-size: 35px;
 }
 
 .umd {
@@ -15,9 +14,7 @@
 .nav-link {
     font-family: 'Roboto', sans-serif;
     font-size: 16px;
-
     text-decoration: none;
-
     margin-left: 5px;
     margin-right: 5px;
 }
@@ -26,13 +23,8 @@
 
     .nav-link {
         color: white;
-
-        padding-top: 10px;
-        padding-bottom: 10px;
-        padding-left: 20px;
-        padding-right: 20px;
-
-        border: 0px solid white;
+        padding: 10px 20px;
+        border: 0 solid white;
     }
 
     .nav-link:hover {

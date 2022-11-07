@@ -1,120 +1,110 @@
 # return the proper mission message based on mission type and curr index of mission value
-def get_mission_message(mission_type, mission, msg):
-    print(f'mission attributes: {mission_type} --- {mission} --- {msg}')
+import logging
+
+
+def get_mission_message(mission: str, mission_message_type: int, msg: str):
     try:
-        msg = int(msg.decode())
-    except:
-        return "ERROR - invalid mission call"
+        msg = int(msg)
+    except ValueError:
+        logging.debug(f'Invalid mission message: {msg}')
+        return None
 
-    if mission == "CRASH_SITE":
-        mission = 0
-    elif mission == "DATA":
-        mission = 1
-    elif mission == "MATERIAL":
-        mission = 2
-    elif mission == "FIRE":
-        mission = 3
-    elif mission == "WATER":
-        mission = 4
-    else:
-        mission = -1
-
-    ret_msg = ''
-    if mission == 0:  # Crash Site
-        if mission_type == 0:  # DIRECTION
-            ret_msg += "The direction of the abnormality is in the "
+    mission_string: str = ''
+    if mission == "CRASH_SITE":  # Crash Site
+        if mission_message_type == 0:  # DIRECTION
+            mission_string += "The direction of the abnormality is in the "
             if msg == 0:
-                ret_msg += "+x"
+                mission_string += "+x"
             elif msg == 1:
-                ret_msg += "-x"
+                mission_string += "-x"
             elif msg == 2:
-                ret_msg += "+y"
+                mission_string += "+y"
             elif msg == 3:
-                ret_msg += "-y"
+                mission_string += "-y"
             else:
-                ret_msg += "?????"
-            ret_msg += " direction."
-        elif mission_type == 1:  # LENGTH
-            ret_msg += f"The length of the side with abnormality is {msg}mm."
-        elif mission_type == 2:  # HEIGHT
-            ret_msg += f"The height of the side with abnormality is {msg}mm."
+                mission_string += "?????"
+            mission_string += " direction."
+        elif mission_message_type == 1:  # LENGTH
+            mission_string += f"The length of the side with abnormality is {msg}mm."
+        elif mission_message_type == 2:  # HEIGHT
+            mission_string += f"The height of the side with abnormality is {msg}mm."
         else:
-            ret_msg += "Not a valid mission type!"
+            mission_string += "Not a valid mission type!"
 
-    elif mission == 1:  # Data
-        if mission_type == 0:  # DUTY CYCLE
-            ret_msg += f'The duty cycle is {msg}%.'
-        elif mission_type == 1:  # MAGNETISM
-            ret_msg += "The disk is "
+    elif mission == "DATA":  # Data
+        if mission_message_type == 0:  # DUTY CYCLE
+            mission_string += f'The duty cycle is {msg}%.'
+        elif mission_message_type == 1:  # MAGNETISM
+            mission_string += "The disk is "
             if msg == 0:
-                ret_msg += "MAGNETIC"
+                mission_string += "MAGNETIC"
             elif msg == 1:
-                ret_msg += "NOT MAGNETIC"
+                mission_string += "NOT MAGNETIC"
             else:
-                ret_msg += "?????"
-            ret_msg += "."
+                mission_string += "?????"
+            mission_string += "."
         else:
-            ret_msg += "Not a valid mission type!"
+            mission_string += "Not a valid mission type!"
 
-    elif mission == 2:  # Material
-        if mission_type == 0:  # WEIGHT
-            ret_msg += "The weight of the material is "
+    elif mission == "MATERIAL":  # Material
+        if mission_message_type == 0:  # WEIGHT
+            mission_string += "The weight of the material is "
             if msg == 0:
-                ret_msg += "HEAVY"
+                mission_string += "HEAVY"
             elif msg == 1:
-                ret_msg += "MEDIUM"
+                mission_string += "MEDIUM"
             elif msg == 2:
-                ret_msg += "LIGHT"
+                mission_string += "LIGHT"
             else:
-                ret_msg += "?????"
-            ret_msg += "."
-        elif mission_type == 1:  # SQUISHABILITY
-            ret_msg += "The material is "
+                mission_string += "?????"
+            mission_string += "."
+        elif mission_message_type == 1:  # SQUISHABILITY
+            mission_string += "The material is "
             if msg == 0:
-                ret_msg += "SQUISHY"
+                mission_string += "SQUISHY"
             elif msg == 1:
-                ret_msg += "NOT SQUISHY"
+                mission_string += "NOT SQUISHY"
             else:
-                ret_msg += "?????"
-            ret_msg += "."
+                mission_string += "?????"
+            mission_string += "."
         else:
-            ret_msg += "Not a valid mission type!"
+            mission_string += "Not a valid mission type!"
 
-    elif mission == 3:  # Fire
-        if mission_type == 0:  # NUM_CANDLES
-            ret_msg += f"The number of candles alit is {msg}."
-        elif mission_type == 1:  # TOPOGRAPHY
-            ret_msg += "The topography of the fire mission is: "
+    elif mission == "FIRE":  # Fire
+        if mission_message_type == 0:  # NUM_CANDLES
+            mission_string += f"The number of candles alit is {msg}."
+        elif mission_message_type == 1:  # TOPOGRAPHY
+            mission_string += "The topography of the fire mission is: "
             if msg == 0:
-                ret_msg += "A"
+                mission_string += "A"
             elif msg == 1:
-                ret_msg += "B"
+                mission_string += "B"
             elif msg == 2:
-                ret_msg += "C"
+                mission_string += "C"
             else:
-                ret_msg += "?????"
+                mission_string += "?????"
         else:
-            ret_msg += "Not a valid mission type!"
+            mission_string += "Not a valid mission type!"
 
-    elif mission == 4:  # Water
-        if mission_type == 0:  # DEPTH
-            ret_msg += f"The depth of the water is {msg}mm."
-        elif mission_type == 1:  # WATER_TYPE
-            ret_msg += "The water is "
+    elif mission == "WATER":  # Water
+        if mission_message_type == 0:  # DEPTH
+            mission_string += f"The depth of the water is {msg}mm."
+        elif mission_message_type == 1:  # WATER_TYPE
+            mission_string += "The water is "
             if msg == 0:
-                ret_msg += "FRESH and UNPOLLUTED."
+                mission_string += "FRESH and UNPOLLUTED."
             elif msg == 1:
-                ret_msg += "FRESH and POLLUTED"
+                mission_string += "FRESH and POLLUTED"
             elif msg == 2:
-                ret_msg += "SALTY and UNPOLLUTED"
+                mission_string += "SALTY and UNPOLLUTED"
             elif msg == 3:
-                ret_msg += "SALTY and POLLUTED"
+                mission_string += "SALTY and POLLUTED"
             else:
-                ret_msg += "?????"
+                mission_string += "?????"
         else:
-            ret_msg += "Not a valid mission type!"
+            mission_string += "Not a valid mission type!"
 
     else:
-        ret_msg = f"ERROR - invalid mission type ({mission})"
+        mission_string = f"ERROR - invalid mission type ({mission})"
 
-    return ret_msg + '\n'
+    return 'MISSION MESSAGE: ' + mission_string + '\n'
