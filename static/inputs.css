@@ -102,3 +102,8 @@ textarea:focus {
     color: white;
     box-shadow: 0 0 5px #363636;
 }
+
+#select-container > select > option {
+    background-color: #363636;
+    color: white;
+}

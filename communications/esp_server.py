@@ -69,7 +69,7 @@ def message_received(client, server: WebsocketServer, message):
         return
     if message['op'] == 'begin':
         # Check to make sure the team name is unique
-        if message['teamName'] in [c['teamName'] for c in ws_server.clients if c != client]:
+        if message['teamName'] in [get_team_name(c) for c in ws_server.clients if c != client]:
             client_server.send_error_message(
                 f'Team name {message["teamName"]} is already in use. Please choose a different name.')
             return

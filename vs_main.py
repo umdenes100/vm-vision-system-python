@@ -9,6 +9,7 @@
 # todo add a "wait for Vision System"
 # todo instead of waiting for 3 seconds, just wait for a response from the ESP module.
 # todo remove need to define RX and TX ports. It should be automatic if you get them reversed.
+# todo if the port is not established, fail the requests like updateLocation
 import logging
 import sys
 import threading

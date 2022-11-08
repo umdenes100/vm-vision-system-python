@@ -24,7 +24,7 @@ def new_client(_, __):
 
 # Called for every client disconnecting
 def client_left(client, _):
-    print("Client(%d) disconnected" % client['id'])
+    print(f"WEB Client({client['id']:d}) disconnected")
 
 
 # Called when a client sends a message
