@@ -80,7 +80,7 @@ class DrawingOptions:
     draw_coordinate: bool = False
     aruco_markers: dict[int, ProcessedMarker] = field(default_factory=dict)
     first: bool = True
-    H: list = field(default_factory=list)
+    H = None
     inverse_matrix: list = field(default_factory=list)
 
     # self.randomization = self.obstacle_presets[random.randrange(0, 12)]

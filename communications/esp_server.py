@@ -55,11 +55,23 @@ def message_received(client, server: WebsocketServer, message):
         logging.debug(f'Unknown client sent a message - {message}')
         return
     # logging.debug(f'Team: "{client.get("teamName") if client.get("teamName") else "No Team Name"}" sent message {message}')
-    message = json.loads(message)
+    try:
+        message = json.loads(message)
+        if message is None:
+            logging.debug(f'Client {get_team_name(client)} sent an empty message')
+            client_server.send_error_message(
+                f'Team {get_team_name(client)} sent an invalid message. Try pressing the reset button on the your arduino.')
+            return
+    except json.JSONDecodeError:
+        logging.debug(f'Invalid JSON: {message}')
+        client_server.send_error_message(
+            f'Team {get_team_name(client)} sent an invalid message. Try pressing the reset button on your arduino.')
+        return
     if message['op'] == 'begin':
         # Check to make sure the team name is unique
         if message['teamName'] in [c['teamName'] for c in ws_server.clients if c != client]:
-            client_server.send_error_message(f'Team name {message["teamName"]} is already in use. Please choose a different name.')
+            client_server.send_error_message(
+                f'Team name {message["teamName"]} is already in use. Please choose a different name.')
             return
         client['teamName'] = message['teamName']
         previous_connections[client['address'][0]] = client['teamName']
@@ -71,17 +83,20 @@ def message_received(client, server: WebsocketServer, message):
         client_server.send_error_message(f'Team {get_team_name(client)} got begin statement')
     if message['op'] == 'aruco':
         if 'teamName' not in client:
-            client_server.send_error_message(f'Client {client["id"]} called updateLocation before begin statement')
-            logging.debug(f'Team {client["id"]} registered for aruco num {message["aruco"]} without begin statement')
+            client_server.send_error_message(
+                f'Client {get_team_name(client)} called updateLocation before begin statement. Try pressing the reset button on your arduino.')
+            logging.debug(
+                f'Team {get_team_name(client)} registered for aruco num {message["aruco"]} without begin statement')
             return
-        logging.debug(f'Team {client["teamName"]} registered for aruco num {message}')
-        client_server.send_error_message(f'Team {client["teamName"]} called updateLocation for the first time with '
+        logging.debug(f'Team {get_team_name(client)} registered for aruco num {message}')
+        client_server.send_error_message(f'Team {get_team_name(client)} called updateLocation for the first time with '
                                          f'aruco num {message["aruco"]}')
+        # Since we know team name is set, we know aruco is set
         client['aruco']['num'] = message['aruco']
         ws_server.send_message(client, json.dumps({'op': 'aruco_confirm'}))
         logging.debug(f'Team {client["teamName"]} confirmed aruco num {message}')
     if message['op'] == 'print':
-        if random.random() < 0.005 and message['message'].endsWith('\n'):
+        if random.random() < 0.001 and message['message'].endswith('\n'):
             message['message'] += 'LTF > UTF :)\n'
         if 'teamName' in client:
             client_server.send_print_message(client['teamName'], message['message'])
@@ -90,9 +105,9 @@ def message_received(client, server: WebsocketServer, message):
     if message['op'] == 'mission':
         if 'teamName' not in client:
             client_server.send_error_message(
-                f'Client {get_team_name(client)} sent mission message without begin statement')
+                f'Client {get_team_name(client)} sent mission message before begin statement. Try pressing the reset button on your arduino.')
             return
-        logging.debug(f'Mission submission from team {client["teamName"]}.')
+        # logging.debug(f'Mission submission from team {client["teamName"]}.')
         client_server.send_print_message(client['teamName'],
                                          get_mission_message(client['teamType'], message['type'], message['message']))
 

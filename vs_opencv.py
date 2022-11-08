@@ -29,12 +29,12 @@ def draw_on_frame(frame):
 
         if dr_op.H is None:
             dr_op.H = getHomographyMatrix(zip(ids, corners))
-            dr_op.inverse_matrix = np.linalg.pinv(dr_op.H)
             if dr_op.H is None:
                 communications.client_server.send_error_message(
                     'At least one of the corner ArUco markers are not visible.')
                 time.sleep(1)
                 return frame
+            dr_op.inverse_matrix = np.linalg.pinv(dr_op.H)
         dr_op.aruco_markers = processMarkers(zip(ids, corners))
 
         if dr_op.draw_obstacles:
@@ -67,6 +67,7 @@ def draw_on_frame(frame):
     except KeyboardInterrupt:
         exit()
     except Exception as e:
+        logging.debug(str(e))
         import traceback
         print(traceback.format_exc())
     return frame
@@ -103,6 +104,6 @@ def start_image_processing():
             time.sleep(sleep_time)
         last_sleep = time.perf_counter()
 
-        if time.perf_counter() - print_fps_time > 1:
+        if time.perf_counter() - print_fps_time > 10:
             print_fps_time = time.perf_counter()
             logging.debug(f'{1 / (time.perf_counter() - start):.2f} fps')  # print FPS
