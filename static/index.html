@@ -67,7 +67,7 @@
                 <select id="port">
                     <option>Waiting for connection...</option>
                 </select>
-                <span id="info" style="padding: 5px"></span>
+                <span id="info"></span>
             </div>
 
             <div id="timer" class="row">
@@ -80,25 +80,20 @@
             <textarea id="communication-window" style="height: 55%; width: 100%" readonly></textarea>
 
             <div id="communication-window-options" class="col-12">
-                    <label class="switch">
-                        <input id="autoscroll" type="checkbox" checked>
-                        <span class="slider round"></span>
-                    </label>
-                    Autoscroll
-                    <br>
-                    <label class="switch">
-                        <input id="show-disconnected-teams" type="checkbox"
-                               onclick="updateOptionsList(); changePort()">
-                        <span class="slider round"></span>
-                    </label>
-                    Show disconnected teams
-                    <button class='sexy' onclick="cachedPrints = {}; comm_window.value = ''">Clear Selected Team
-                        Prints
-                    </button>
-                    <br>
-                    <button class='sexy' onclick="cachedPrints[selectedTeam] = ''; comm_window.value = ''">Clear All
-                        Prints
-                    </button>
+                <label class="switch">
+                    <input id="autoscroll" type="checkbox" checked>
+                    <span class="slider round"></span>
+                </label>
+                Autoscroll
+                <br>
+                <label class="switch">
+                    <input id="show-disconnected-teams" type="checkbox"
+                           onclick="updateOptionsList(); changePort()">
+                    <span class="slider round"></span>
+                </label>
+                Show disconnected teams
+                <br>
+                <button class='sexy' onclick="cachedPrints = {}; comm_window.value = ''">Clear Prints</button>
             </div>
         </div>
 
@@ -146,7 +141,24 @@
         if (!allTeamData) return;
         if (allTeamData.length === 0) {
             comm_window.value = 'No prints yet...'
-            infoSpan.innerHTML = '';
+            infoSpan.innerHTML = `<table style="border: solid 1px black; border-collapse: collapse">
+    <thead>
+        <td>Mission Type</td>
+        <td>ArUco ID</td>
+        <td>ArUco Visible</td>
+        <td>X</td>
+        <td>Y</td>
+        <td>∅</td>
+    </thead>
+    <tr>
+        <td>---</td>
+        <td>---</td>
+        <td>---</td>
+        <td>---</td>
+        <td>---</td>
+        <td>---</td>
+    </tr>
+    <table/>`;
             return
         }
         selectedTeam = document.getElementById('port').value
@@ -159,27 +171,28 @@
             comm_window.scrollTop = comm_window.scrollHeight;
         selectedTeamData = allTeamData.find(td => td.teamName === selectedTeam);
         //if selectedTeam Data Exists...
-        if (selectedTeamData)
+        if (selectedTeamData) {
             infoSpan.innerHTML = `<table style="border: solid 1px black; border-collapse: collapse">
-            <tr>
-            <td>Mission</td>
-            <td>${selectedTeamData.teamType}</td>
-            <td>X</td>
-            <td>${selectedTeamData.aruco.x}</td>
-            </tr>
-            <tr>
-            <td>ArUco ID</td>
-            <td>${selectedTeamData.aruco.num}</td>
-            <td>Y</td>
-            <td>${selectedTeamData.aruco.y}</td>
-            </tr>
-            <tr>
-            <td>ArUco Visible</td>
-            <td>${selectedTeamData.aruco.visible}</td>
-            <td>∅</td>
-            <td>${selectedTeamData.aruco.theta}</td>
-            </tr>
-            </table>`
+    <thead>
+        <td>Mission Type</td>
+        <td>ArUco ID</td>
+        <td>ArUco Visible</td>
+        <td>X</td>
+        <td>Y</td>
+        <td>∅</td>
+    </thead>
+    <tr>
+        <td>${selectedTeamData.teamType}</td>
+        <td>${selectedTeamData.aruco.num}</td>
+        <td>${selectedTeamData.aruco.visible}</td>
+        <td>${selectedTeamData.aruco.x}</td>
+        <td>${selectedTeamData.aruco.y}</td>
+        <td>${selectedTeamData.aruco.theta}</td>
+    </tr>
+    <table/>`
+        } else {
+            infoSpan.innerHTML = '';
+        }
     }
 
     function handlePrints(team, message) {
@@ -241,6 +254,8 @@
 
         ws.onopen = () => {
             console.log('Websocket Open')
+        //    clear the console
+            document.getElementById('console').value = '';
         }
 
         ws.onerror = error => {

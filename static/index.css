@@ -42,4 +42,9 @@ td {
     border: 1px black solid;
     padding-right: 5px;
 }
-
+/*Make this div full height, but scrollable*/
+#communication-window-options {
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+}

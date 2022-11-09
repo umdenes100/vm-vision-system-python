@@ -96,7 +96,6 @@ textarea:focus {
     background-image: linear-gradient(to right, #f6d365 0%, #fda085 51%, #f6d365 100%);
     z-index: 1000;
     text-align: center;
-    text-transform: uppercase;
     transition: 0.5s;
     background-size: 200% auto;
     color: white;
