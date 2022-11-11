@@ -16,7 +16,12 @@ class CameraManager:
     def __init__(self):
         # grab an actual camera as initial camera
         p = Popen('ls -1 /dev/video*', stdout=PIPE, stderr=STDOUT, shell=True)
-        self.camera_num = p.communicate()[0].decode().split('\n')[2][-1]
+        results = p.communicate()[0].decode().split('\n')
+        results = [r for r in results if r != '']
+        if len(results) > 2:
+            self.camera_num = results[2][-1]
+        else:
+            self.camera_num = results[0][-1]
         try:
             self.video = cv2.VideoCapture(int(self.camera_num), cv2.CAP_V4L2)
         except Exception as e:

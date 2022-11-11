@@ -1,6 +1,7 @@
 import http.server
 import json
 import logging
+import os
 import struct
 import sys
 import threading
@@ -18,8 +19,14 @@ static_server: ThreadingHTTPServer
 
 
 # Called for every client connecting (after handshake)
-def new_client(_, __):
+def new_client(client, __):
     logging.debug("New WEB client connected.")
+    jpegs = []
+    for file in os.listdir('static'):
+        if file.endswith('.jpg') or file.endswith('.jpeg') or file.endswith('.png') or file.endswith('.gif'):
+            jpegs.append(file)
+    print(jpegs)
+    ws_server.send_message(client, json.dumps({'type': 'jpegs', 'data': jpegs}))
 
 
 # Called for every client disconnecting

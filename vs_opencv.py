@@ -34,6 +34,7 @@ def draw_on_frame(frame):
                     'At least one of the corner ArUco markers are not visible.')
                 time.sleep(1)
                 return frame
+            communications.client_server.send_error_message('Initialized Homography Matrix (All corners visible)')
             dr_op.inverse_matrix = np.linalg.pinv(dr_op.H)
         dr_op.aruco_markers = processMarkers(zip(ids, corners))
 
@@ -92,8 +93,7 @@ def start_image_processing():
                 if ret:
                     new_frame = draw_on_frame(frame)
                     threading.Thread(target=send_locations, name='Send Locations').start()
-                    jpeg_bytes = cv2.imencode('.jpg', new_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 30])[
-                        1]  # convert frame to jpeg
+                    jpeg_bytes = cv2.imencode('.jpg', new_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 30])[1]
                     # logging.log(f'Image size: {len(jpeg_bytes)} bytes')
                     send_frame(np.array(jpeg_bytes).tostring())  # send frame to web client
         except Exception as e:

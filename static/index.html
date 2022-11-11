@@ -18,9 +18,9 @@
 
 <body style="width: 100%; height: 100%">
 <nav class="navbar navbar-expand-lg umd">
-    <div style="color: white; padding: 5px; margin-top: -15px; z-index: 1000;" class="umd">
+    <div style="color: white; width: 40%" class="umd">
         Open this page on your computer! Connect to the VisionSystem Wi-Fi network (VisionSystem...)"
-        and go to "192.168.1.2:8080"
+        and go to "enes100.umd.edu" and click "Go to Vision System"
     </div>
     <div class="container">
         <!--Logo-->
@@ -34,12 +34,11 @@
                 data-target="#collapsibleNavbar">
             <span class="navbar-toggler-icon mt-3">☰</span>
         </button>
-
         <!--Collapsible Content-->
         <div id="collapsibleNavbar" class="navbar-collapse collapse">
             <ul class="navbar-nav ml-auto">
                 <li class="nav-item">
-                    <a class="nav-link" href="https://enes100.umd.edu/oldvisionsystem">Vision System</a>
+                    <a class="nav-link" href="https://enes100.umd.edu/oldvisionsystem">Old Vision System</a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link" href="https://enes100.umd.edu/libraries/">Libraries</a>
@@ -247,6 +246,8 @@
         console_window.scrollTop = console_window.scrollHeight;
     }
 
+    let images;
+
     window.onload = () => {
         teamSelect.onchange = changePort;
 
@@ -254,7 +255,7 @@
 
         ws.onopen = () => {
             console.log('Websocket Open')
-        //    clear the console
+            //    clear the console
             document.getElementById('console').value = '';
         }
 
@@ -274,7 +275,7 @@
                 // take the bytes in message.data and put them in the image
                 if (Math.random() > .99999) {
                     paused = true;
-                    document.getElementById('stream').src = '/joe.jpeg'
+                    document.getElementById('stream').src = images[Math.floor(Math.random() * images.length)];
                     setTimeout(() => {
                         paused = false;
                     }, 2000)
@@ -300,8 +301,25 @@
                 case 'error':
                     errorLog(message);
                     break
+                case 'jpegs':
+                    images = message.data;
+                    console.log('got images', images)
+                    break
             }
         }
         window.onunload = ws.close;
+    }
+    const keys = [];
+    window.onkeydown = e => {
+        keys.push(e.key);
+        console.log(keys)
+        if (JSON.stringify(keys) === JSON.stringify(['l', 't', 'f', 'Shift', '>', 'u', 't', 'f'])) {
+            paused = true;
+            document.getElementById('stream').src = images[Math.floor(Math.random() * images.length)];
+            setTimeout(() => {
+                paused = false;
+            }, 500)
+            keys.length = 0;
+        }
     }
 </script>
