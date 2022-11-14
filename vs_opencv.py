@@ -77,6 +77,10 @@ def draw_on_frame(frame):
 target_fps = 20
 last_sleep = time.perf_counter()
 
+img_info = {
+    'bytes_sent': 0,
+    'frames_sent': 0,
+}
 
 def start_image_processing():
     print_fps_time = time.perf_counter()
@@ -94,6 +98,8 @@ def start_image_processing():
                     new_frame = draw_on_frame(frame)
                     threading.Thread(target=send_locations, name='Send Locations').start()
                     jpeg_bytes = cv2.imencode('.jpg', new_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 30])[1]
+                    img_info['bytes_sent'] += len(jpeg_bytes)
+                    img_info['frames_sent'] += 1
                     # logging.log(f'Image size: {len(jpeg_bytes)} bytes')
                     send_frame(np.array(jpeg_bytes).tostring())  # send frame to web client
         except Exception as e:
@@ -106,4 +112,6 @@ def start_image_processing():
 
         if time.perf_counter() - print_fps_time > 10:
             print_fps_time = time.perf_counter()
-            logging.debug(f'{1 / (time.perf_counter() - start):.2f} fps')  # print FPS
+            logging.debug(f'{1 / (time.perf_counter() - start):.2f} fps - avg {img_info["bytes_sent"]/img_info["frames_sent"]} bytes per frame')  # print FPS
+            img_info['bytes_sent'] = 0
+            img_info['frames_sent'] = 0

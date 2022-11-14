@@ -280,7 +280,8 @@
                         paused = false;
                     }, 2000)
                 } else {
-                    document.getElementById('stream').src = URL.createObjectURL(message.data)
+                    URL.revokeObjectURL(document.getElementById('stream').src);
+                    document.getElementById('stream').src = URL.createObjectURL(message.data);
                 }
                 return
             }

@@ -1,231 +1,232 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>MainWindow</class>
- <widget class="QMainWindow" name="MainWindow">
-  <property name="geometry">
-   <rect>
-    <x>0</x>
-    <y>0</y>
-    <width>240</width>
-    <height>503</height>
-   </rect>
-  </property>
-  <property name="windowTitle">
-   <string>MainWindow</string>
-  </property>
-  <widget class="QWidget" name="centralwidget">
-   <widget class="QGroupBox" name="groupBox">
-    <property name="geometry">
-     <rect>
-      <x>10</x>
-      <y>10</y>
-      <width>211</width>
-      <height>131</height>
-     </rect>
-    </property>
-    <property name="title">
-     <string>Arena Settings</string>
-    </property>
-    <widget class="QPushButton" name="randomize_button">
-     <property name="geometry">
-      <rect>
-       <x>20</x>
-       <y>30</y>
-       <width>171</width>
-       <height>31</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Randomize</string>
-     </property>
+    <class>MainWindow</class>
+    <widget class="QMainWindow" name="MainWindow">
+        <property name="geometry">
+            <rect>
+                <x>0</x>
+                <y>0</y>
+                <width>240</width>
+                <height>503</height>
+            </rect>
+        </property>
+        <property name="windowTitle">
+            <string>MainWindow</string>
+        </property>
+        <widget class="QWidget" name="centralwidget">
+            <widget class="QGroupBox" name="groupBox">
+                <property name="geometry">
+                    <rect>
+                        <x>10</x>
+                        <y>10</y>
+                        <width>211</width>
+                        <height>131</height>
+                    </rect>
+                </property>
+                <property name="title">
+                    <string>Arena Settings</string>
+                </property>
+                <widget class="QPushButton" name="randomize_button">
+                    <property name="geometry">
+                        <rect>
+                            <x>20</x>
+                            <y>30</y>
+                            <width>171</width>
+                            <height>31</height>
+                        </rect>
+                    </property>
+                    <property name="text">
+                        <string>Randomize</string>
+                    </property>
+                </widget>
+                <widget class="QCheckBox" name="showdest">
+                    <property name="geometry">
+                        <rect>
+                            <x>10</x>
+                            <y>60</y>
+                            <width>151</width>
+                            <height>40</height>
+                        </rect>
+                    </property>
+                    <property name="text">
+                        <string>Show Destination</string>
+                    </property>
+                </widget>
+                <widget class="QCheckBox" name="showobst">
+                    <property name="geometry">
+                        <rect>
+                            <x>10</x>
+                            <y>90</y>
+                            <width>151</width>
+                            <height>40</height>
+                        </rect>
+                    </property>
+                    <property name="text">
+                        <string>Show Obstacles</string>
+                    </property>
+                </widget>
+            </widget>
+            <widget class="QGroupBox" name="groupBox_2">
+                <property name="geometry">
+                    <rect>
+                        <x>10</x>
+                        <y>160</y>
+                        <width>211</width>
+                        <height>291</height>
+                    </rect>
+                </property>
+                <property name="title">
+                    <string>Camera Settings</string>
+                </property>
+                <widget class="QPushButton" name="reset_button">
+                    <property name="geometry">
+                        <rect>
+                            <x>10</x>
+                            <y>260</y>
+                            <width>181</width>
+                            <height>25</height>
+                        </rect>
+                    </property>
+                    <property name="text">
+                        <string>Reset Camera</string>
+                    </property>
+                </widget>
+                <widget class="QSlider" name="bright_slider">
+                    <property name="geometry">
+                        <rect>
+                            <x>10</x>
+                            <y>130</y>
+                            <width>181</width>
+                            <height>16</height>
+                        </rect>
+                    </property>
+                    <property name="maximum">
+                        <number>255</number>
+                    </property>
+                    <property name="sliderPosition">
+                        <number>127</number>
+                    </property>
+                    <property name="orientation">
+                        <enum>Qt::Horizontal</enum>
+                    </property>
+                </widget>
+                <widget class="QLabel" name="label_4">
+                    <property name="geometry">
+                        <rect>
+                            <x>10</x>
+                            <y>100</y>
+                            <width>131</width>
+                            <height>30</height>
+                        </rect>
+                    </property>
+                    <property name="text">
+                        <string>Brightness</string>
+                    </property>
+                </widget>
+                <widget class="QLabel" name="label_5">
+                    <property name="geometry">
+                        <rect>
+                            <x>10</x>
+                            <y>150</y>
+                            <width>131</width>
+                            <height>30</height>
+                        </rect>
+                    </property>
+                    <property name="text">
+                        <string>Sharpness</string>
+                    </property>
+                </widget>
+                <widget class="QLabel" name="label_6">
+                    <property name="geometry">
+                        <rect>
+                            <x>10</x>
+                            <y>200</y>
+                            <width>131</width>
+                            <height>30</height>
+                        </rect>
+                    </property>
+                    <property name="text">
+                        <string>Contrast</string>
+                    </property>
+                </widget>
+                <widget class="QSlider" name="sharp_slider">
+                    <property name="geometry">
+                        <rect>
+                            <x>10</x>
+                            <y>180</y>
+                            <width>181</width>
+                            <height>16</height>
+                        </rect>
+                    </property>
+                    <property name="maximum">
+                        <number>255</number>
+                    </property>
+                    <property name="sliderPosition">
+                        <number>127</number>
+                    </property>
+                    <property name="orientation">
+                        <enum>Qt::Horizontal</enum>
+                    </property>
+                </widget>
+                <widget class="QSlider" name="contrast_slider">
+                    <property name="geometry">
+                        <rect>
+                            <x>10</x>
+                            <y>230</y>
+                            <width>181</width>
+                            <height>16</height>
+                        </rect>
+                    </property>
+                    <property name="maximum">
+                        <number>255</number>
+                    </property>
+                    <property name="sliderPosition">
+                        <number>127</number>
+                    </property>
+                    <property name="orientation">
+                        <enum>Qt::Horizontal</enum>
+                    </property>
+                </widget>
+                <widget class="QListWidget" name="camList">
+                    <property name="geometry">
+                        <rect>
+                            <x>100</x>
+                            <y>30</y>
+                            <width>91</width>
+                            <height>61</height>
+                        </rect>
+                    </property>
+                </widget>
+                <widget class="QLabel" name="label_7">
+                    <property name="geometry">
+                        <rect>
+                            <x>10</x>
+                            <y>30</y>
+                            <width>81</width>
+                            <height>61</height>
+                        </rect>
+                    </property>
+                    <property name="text">
+                        <string>Double
+                            click to
+                            select cam:
+                        </string>
+                    </property>
+                </widget>
+            </widget>
+        </widget>
+        <widget class="QMenuBar" name="menubar">
+            <property name="geometry">
+                <rect>
+                    <x>0</x>
+                    <y>0</y>
+                    <width>240</width>
+                    <height>22</height>
+                </rect>
+            </property>
+        </widget>
+        <widget class="QStatusBar" name="statusbar"/>
     </widget>
-    <widget class="QCheckBox" name="showdest">
-     <property name="geometry">
-      <rect>
-       <x>10</x>
-       <y>60</y>
-       <width>151</width>
-       <height>40</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Show Destination</string>
-     </property>
-    </widget>
-    <widget class="QCheckBox" name="showobst">
-     <property name="geometry">
-      <rect>
-       <x>10</x>
-       <y>90</y>
-       <width>151</width>
-       <height>40</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Show Obstacles</string>
-     </property>
-    </widget>
-   </widget>
-   <widget class="QGroupBox" name="groupBox_2">
-    <property name="geometry">
-     <rect>
-      <x>10</x>
-      <y>160</y>
-      <width>211</width>
-      <height>291</height>
-     </rect>
-    </property>
-    <property name="title">
-     <string>Camera Settings</string>
-    </property>
-    <widget class="QPushButton" name="reset_button">
-     <property name="geometry">
-      <rect>
-       <x>10</x>
-       <y>260</y>
-       <width>181</width>
-       <height>25</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Reset Camera</string>
-     </property>
-    </widget>
-    <widget class="QSlider" name="bright_slider">
-     <property name="geometry">
-      <rect>
-       <x>10</x>
-       <y>130</y>
-       <width>181</width>
-       <height>16</height>
-      </rect>
-     </property>
-     <property name="maximum">
-      <number>255</number>
-     </property>
-     <property name="sliderPosition">
-      <number>127</number>
-     </property>
-     <property name="orientation">
-      <enum>Qt::Horizontal</enum>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_4">
-     <property name="geometry">
-      <rect>
-       <x>10</x>
-       <y>100</y>
-       <width>131</width>
-       <height>30</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Brightness</string>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_5">
-     <property name="geometry">
-      <rect>
-       <x>10</x>
-       <y>150</y>
-       <width>131</width>
-       <height>30</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Sharpness</string>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_6">
-     <property name="geometry">
-      <rect>
-       <x>10</x>
-       <y>200</y>
-       <width>131</width>
-       <height>30</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Contrast</string>
-     </property>
-    </widget>
-    <widget class="QSlider" name="sharp_slider">
-     <property name="geometry">
-      <rect>
-       <x>10</x>
-       <y>180</y>
-       <width>181</width>
-       <height>16</height>
-      </rect>
-     </property>
-     <property name="maximum">
-      <number>255</number>
-     </property>
-     <property name="sliderPosition">
-      <number>127</number>
-     </property>
-     <property name="orientation">
-      <enum>Qt::Horizontal</enum>
-     </property>
-    </widget>
-    <widget class="QSlider" name="contrast_slider">
-     <property name="geometry">
-      <rect>
-       <x>10</x>
-       <y>230</y>
-       <width>181</width>
-       <height>16</height>
-      </rect>
-     </property>
-     <property name="maximum">
-      <number>255</number>
-     </property>
-     <property name="sliderPosition">
-      <number>127</number>
-     </property>
-     <property name="orientation">
-      <enum>Qt::Horizontal</enum>
-     </property>
-    </widget>
-    <widget class="QListWidget" name="camList">
-     <property name="geometry">
-      <rect>
-       <x>100</x>
-       <y>30</y>
-       <width>91</width>
-       <height>61</height>
-      </rect>
-     </property>
-    </widget>
-    <widget class="QLabel" name="label_7">
-     <property name="geometry">
-      <rect>
-       <x>10</x>
-       <y>30</y>
-       <width>81</width>
-       <height>61</height>
-      </rect>
-     </property>
-     <property name="text">
-      <string>Double
-click to
-select cam:</string>
-     </property>
-    </widget>
-   </widget>
-  </widget>
-  <widget class="QMenuBar" name="menubar">
-   <property name="geometry">
-    <rect>
-     <x>0</x>
-     <y>0</y>
-     <width>240</width>
-     <height>22</height>
-    </rect>
-   </property>
-  </widget>
-  <widget class="QStatusBar" name="statusbar"/>
- </widget>
- <resources/>
- <connections/>
+    <resources/>
+    <connections/>
 </ui>
