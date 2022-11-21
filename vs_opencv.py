@@ -33,6 +33,11 @@ def draw_on_frame(frame):
                 communications.client_server.send_error_message(
                     'At least one of the corner ArUco markers are not visible.')
                 time.sleep(1)
+                for y in range(50, frame.shape[0], 50):
+                    frame = cv2.putText(frame, 'One of the corners is not visible - cannot initialize', (50, y),
+                                        cv2.FONT_HERSHEY_TRIPLEX, 2,
+                                        (0, 0, 255))
+
                 return frame
             communications.client_server.send_error_message('Initialized Homography Matrix (All corners visible)')
             dr_op.inverse_matrix = np.linalg.pinv(dr_op.H)
@@ -50,7 +55,7 @@ def draw_on_frame(frame):
                 if marker.id not in range(3):
                     try:
                         frame = cv2.putText(frame, 'ID:' + str(marker.id), marker.pixels, cv2.FONT_HERSHEY_SIMPLEX, 1,
-                                            (0, 145, 255))
+                                            (0, 255, 0))
                     except Exception as e:
                         print('exception: ' + str(marker), str(marker.pixels))
                         import traceback
@@ -82,6 +87,7 @@ img_info = {
     'frames_sent': 0,
 }
 
+
 def start_image_processing():
     print_fps_time = time.perf_counter()
     while True:
@@ -112,6 +118,7 @@ def start_image_processing():
 
         if time.perf_counter() - print_fps_time > 10:
             print_fps_time = time.perf_counter()
-            logging.debug(f'{1 / (time.perf_counter() - start):.2f} fps - avg {img_info["bytes_sent"]/img_info["frames_sent"]/1000:.0f} kb per frame')  # print FPS
+            logging.debug(
+                f'{1 / (time.perf_counter() - start):.2f} fps - avg {img_info["bytes_sent"] / img_info["frames_sent"] / 1000:.0f} kb per frame')  # print FPS
             img_info['bytes_sent'] = 0
             img_info['frames_sent'] = 0
