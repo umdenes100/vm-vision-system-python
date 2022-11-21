@@ -112,6 +112,6 @@ def start_image_processing():
 
         if time.perf_counter() - print_fps_time > 10:
             print_fps_time = time.perf_counter()
-            logging.debug(f'{1 / (time.perf_counter() - start):.2f} fps - avg {img_info["bytes_sent"]/img_info["frames_sent"]} bytes per frame')  # print FPS
+            logging.debug(f'{1 / (time.perf_counter() - start):.2f} fps - avg {img_info["bytes_sent"]/img_info["frames_sent"]/1000:.0f} kb per frame')  # print FPS
             img_info['bytes_sent'] = 0
             img_info['frames_sent'] = 0

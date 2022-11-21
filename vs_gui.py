@@ -108,6 +108,7 @@ class Ui(QtWidgets.QMainWindow):
 
     def brightness(self):
         command = f'v4l2-ctl -d /dev/video{self.connections.camera_num} -c brightness={self.bright_slider.value()}'
+        logging.debug(command)
         os.system(command)
 
     def sharpness(self):
@@ -129,4 +130,3 @@ def start_gui():
     window.show()
     logging.debug("doing exec")
     sys.exit(app.exec())
-    logging.debug("exited exec")

@@ -61,7 +61,7 @@
     <!--The main row for all the elements-->
     <div class="row h-100">
         <!--The left column for the 'communication panel'-->
-        <div id="communication-panel" class="col-3 p-0">
+        <div id="communication-panel" class="col-3">
             <div id="select-container" class="h-5">
                 <select id="port">
                     <option>Waiting for connection...</option>
@@ -98,10 +98,10 @@
 
         <div class="col-12 col-md-9">
             <div id="stream-container">
-                <img id="stream" class="img-fluid"
-                     alt="Failed to get image from Vision System. Not good." src="">
+                <img id="stream"
+                     alt="Failed to get image from Vision System. Not good." src="forrestpankcake.jpg">
             </div>
-            <textarea id="console" style="width: 100%" readonly></textarea>
+            <textarea id="console" style="width: 100%; height: 125px" readonly></textarea>
         </div>
     </div>
 </div>
@@ -216,8 +216,11 @@
         return document.getElementById('show-disconnected-teams').checked;
     }
 
+    let lastAllTeamData = null;
     function updateOptionsList() {
         if (!allTeamData) return;
+        if (lastAllTeamData === JSON.stringify(allTeamData)) return;
+        lastAllTeamData = JSON.stringify(allTeamData);
         const old_selection = teamSelect.value;
         teamSelect.options.length = 0;
         for (const team of allTeamData) {
@@ -278,7 +281,7 @@
                     document.getElementById('stream').src = images[Math.floor(Math.random() * images.length)];
                     setTimeout(() => {
                         paused = false;
-                    }, 2000)
+                    }, 1000)
                 } else {
                     URL.revokeObjectURL(document.getElementById('stream').src);
                     document.getElementById('stream').src = URL.createObjectURL(message.data);
