@@ -17,6 +17,8 @@ local = 'local' in sys.argv
 ws_server: WebsocketServer
 static_server: ThreadingHTTPServer
 
+usb_results = None
+
 
 # Called for every client connecting (after handshake)
 def new_client(client, __):
@@ -27,6 +29,7 @@ def new_client(client, __):
             jpegs.append(file)
     print(jpegs)
     ws_server.send_message(client, json.dumps({'type': 'jpegs', 'data': jpegs}))
+    send_error_message(usb_results)
 
 
 # Called for every client disconnecting
@@ -58,7 +61,7 @@ def send_print_message(team_name, message):
     ws_server.send_message_to_all(json.dumps({'type': 'print', 'team': team_name, 'data': message}))
 
 
-def send_error_message(message):
+def send_error_message(message: str):
     """
     Sends an error message to the web client.
     """

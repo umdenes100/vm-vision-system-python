@@ -52,11 +52,15 @@ td {
 }
 
 #stream-container {
-    height: 600px;
+    height: 70vh;
     position: relative;
     display: inline-block;
     overflow: hidden;
     margin: 0;
+}
+
+#console {
+    height: 18vh;
 }
 
 #stream {

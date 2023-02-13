@@ -3,6 +3,10 @@
     font-size: 35px;
 }
 
+nav {
+    height: 11vh;
+}
+
 .umd {
     background-color: #e11e39;
 }

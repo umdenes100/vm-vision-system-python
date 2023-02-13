@@ -4,15 +4,14 @@ import random
 import sys
 import threading
 import time
-import platform
-import subprocess
 
 from websocket_server import WebsocketServer
 
 import data
-from communications import client_server
-from vs_mission import get_mission_message
+from communications import client_server, jetson_server
+from communications.ping import ping
 from data import team_types, dr_op
+from vs_mission import get_mission_message
 
 ws_server: WebsocketServer
 
@@ -20,6 +19,21 @@ local = 'local' in sys.argv
 
 # Previous connections allows us to record the name of a team so when a Wi-Fi module reconnects, we can inform the user whose module reconnects.
 previous_connections: dict[str, str] = {}  # {'ip': 'cached name'}
+
+
+def once():
+    # Get the line number and file where this function was called from
+    import inspect
+    frame = inspect.currentframe().f_back
+    lineno = frame.f_lineno
+    filename = frame.f_code.co_filename
+
+    if not hasattr(once, 'called'):
+        once.called = []
+    if (filename, lineno) in once.called:
+        return False
+    once.called.append((filename, lineno))
+    return True
 
 
 # Helper message to get the teams name to the best of our knowledge
@@ -67,6 +81,7 @@ def message_received(client, server: WebsocketServer, message):
         client_server.send_error_message(
             f'Team {get_team_name(client)} sent an invalid message. Try pressing the reset button on your arduino.')
         return
+
     if message['op'] == 'begin':
         # Check to make sure the team name is unique
         if message['teamName'] in [get_team_name(c) for c in ws_server.clients if c != client]:
@@ -83,8 +98,9 @@ def message_received(client, server: WebsocketServer, message):
         client_server.send_error_message(f'Team {get_team_name(client)} got begin statement')
     if message['op'] == 'aruco':
         if 'teamName' not in client:
-            client_server.send_error_message(
-                f'Client {get_team_name(client)} called updateLocation before begin statement. Try pressing the reset button on your arduino.')
+            if once():
+                client_server.send_error_message(
+                    f'Client {get_team_name(client)} called updateLocation before begin statement. Try pressing the reset button on your arduino.')
             logging.debug(
                 f'Team {get_team_name(client)} registered for aruco num {message["aruco"]} without begin statement')
             return
@@ -101,15 +117,27 @@ def message_received(client, server: WebsocketServer, message):
         if 'teamName' in client:
             client_server.send_print_message(client['teamName'], message['message'])
         else:
-            logging.debug('An unknown team said' + message['message'])
+            # logging.debug('An unknown team said' + message['message'])
+            pass
     if message['op'] == 'mission':
         if 'teamName' not in client:
-            client_server.send_error_message(
-                f'Client {get_team_name(client)} sent mission message before begin statement. Try pressing the reset button on your arduino.')
+            if once():
+                client_server.send_error_message(
+                    f'Client {get_team_name(client)} sent mission message before begin statement. Try pressing the reset button on your arduino.')
             return
         # logging.debug(f'Mission submission from team {client["teamName"]}.')
         client_server.send_print_message(client['teamName'],
                                          get_mission_message(client['teamType'], message['type'], message['message']))
+
+    if message['op'] == 'prediction_request':
+        if 'teamName' not in client:
+            if once():
+                client_server.send_error_message(
+                    f'Client {get_team_name(client)} called prediction_request before begin statement. Try pressing the reset button on your arduino.')
+            logging.debug(
+                f'Team {get_team_name(client)} tried to get a prediction_request without a team name.')
+            return
+        jetson_server.request_prediction(client['teamName'], message['image'])
 
 
 def send_locations():
@@ -125,6 +153,18 @@ def send_locations():
                 client['aruco']['visible'] = False
                 client['aruco'].update({'visible': False, 'x': None, 'y': None, 'theta': None})
             ws_server.send_message(client, json.dumps({'op': 'aruco', 'aruco': client['aruco']}))
+
+
+# esp_server.send_prediction(client['teamName'], message['prediction'])
+def send_prediction(team_name, prediction):
+    if prediction is None:
+        return
+    for client in ws_server.clients:
+        if client and client.get('teamName') == team_name:
+            ws_server.send_message(client, json.dumps({'op': 'prediction', 'prediction': prediction}))
+            return
+    client_server.send_error_message(
+        f'Could not find team {team_name} to send prediction to from jetson with team name {team_name}')
 
 
 # noinspection PyTypeChecker
@@ -162,19 +202,3 @@ def start_server():
 
     threading.Thread(target=check_connection, daemon=True).start()
 
-
-def ping(host):
-    """
-    Returns True if host (str) responds to a ping request.
-    Remember that a host may not respond to a ping (ICMP) request even if the host name is valid.
-    """
-    timeout = 3.0  # in seconds
-
-    # Option for the number of packets as a function of
-    param = '-n' if platform.system().lower() == 'windows' else '-c'
-    param2 = '-w' if platform.system().lower() == 'windows' else '-W'
-    timeout = f'{timeout * 1000}' if platform.system().lower() == 'windows' else f'{timeout}'
-    # Building the command. Ex: "ping -c 1 google.com"
-    command = ['ping', param, '1', param2, timeout, host]
-
-    return subprocess.call(command, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT) == 0

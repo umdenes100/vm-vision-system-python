@@ -17,6 +17,7 @@ import time
 import webbrowser
 
 import vs_gui
+from usb_reset import reset_usb
 
 logging.basicConfig(format='[%(threadName)-16.16s]%(levelname)s:%(message)s', level=logging.DEBUG)
 
@@ -31,6 +32,8 @@ if not local:
 
 
 def main():
+    client_server.usb_results = reset_usb()
+    time.sleep(1)
     logging.debug("Starting main thread")
     # Main drawing_options object. Shared between many threads.
     # start communication servers
