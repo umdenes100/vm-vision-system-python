@@ -1,5 +1,7 @@
+import logging
 import math
 import os
+import subprocess
 import sys
 from dataclasses import dataclass, field
 
@@ -14,23 +16,7 @@ from subprocess import Popen, PIPE, STDOUT
 
 class CameraManager:
     def __init__(self):
-        # grab an actual camera as initial camera
-        p = Popen('ls -1 /dev/video*', stdout=PIPE, stderr=STDOUT, shell=True)
-        results = p.communicate()[0].decode().split('\n')
-        results = [r for r in results if r != '']
-        if len(results) > 2:
-            self.camera_num = results[2][-1]
-        else:
-            self.camera_num = results[0][-1]
-        try:
-            self.video = cv2.VideoCapture(int(self.camera_num), cv2.CAP_V4L2)
-        except Exception as e:
-            print(e)
-
-        self.video.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
-        self.video.set(cv2.CAP_PROP_FPS, 30.0)
-        self.video.set(cv2.CAP_PROP_FRAME_WIDTH, 1920.0)
-        self.video.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080.0)
+        self.camera_num = None
 
     def set_cam(self, num):
         try:
@@ -55,6 +41,38 @@ class CameraManager:
 
     def get_camera(self):
         return self.video
+
+
+
+    def begin(self):
+        logging.debug("Camera Manager initialized")
+        legit_cameras = []
+        cameras = os.listdir('/dev/')
+        cameras.sort()
+        for c in cameras:
+            if "video" in c:
+                process = subprocess.Popen(['v4l2-ctl', f'--device=/dev/{c}', '--all'], stdout=subprocess.PIPE,
+                                           stderr=subprocess.PIPE)
+                out, err = process.communicate()
+                if b"Format Video Capture:" in out:
+                    legit_cameras.append(c)
+                    logging.debug(f'Found legit camera: {c}')
+
+        if len(legit_cameras) == 2:
+            logging.debug(f'length of legit_cameras is 2, picking {legit_cameras[1]}')
+            self.camera_num = int(legit_cameras[1][-1])  # It is probably the second camera
+        elif len(legit_cameras) == 1:
+            logging.debug(f'length of legit_cameras is 1, picking {legit_cameras[1]}')
+            self.camera_num = int(legit_cameras[0][-1])  # otherwise pick the first one
+        try:
+            self.video = cv2.VideoCapture(int(self.camera_num), cv2.CAP_V4L2)
+        except Exception as e:
+            print(e)
+
+        self.video.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
+        self.video.set(cv2.CAP_PROP_FPS, 30.0)
+        self.video.set(cv2.CAP_PROP_FRAME_WIDTH, 1920.0)
+        self.video.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080.0)
 
 
 # ProcessedMarker class
@@ -111,6 +129,8 @@ fake_esp_data: list = [
 ]
 
 esp_data: list = []
+
+print('here')
 
 local = 'local' in sys.argv
 if not local:

@@ -99,11 +99,11 @@ def start_server():
     ws_server.set_fn_client_left(client_left)
     ws_server.set_fn_message_received(message_received)
     logging.debug(f'Starting client ws_server on port {ws_server.port:d}')
-    threading.Thread(target=ws_server.run_forever, daemon=True).start()
+    threading.Thread(target=ws_server.run_forever, daemon=True, name='Web WS Server').start()
 
     static_server = ThreadingHTTPServer((host, 8080), MyHttpRequestHandler)
     logging.debug(f'Starting client static_server on port http://{host}:{static_server.server_port:d}')
-    threading.Thread(target=static_server.serve_forever, daemon=True).start()
+    threading.Thread(target=static_server.serve_forever, daemon=True, name='Web Static Server').start()
 
     while True:
         time.sleep(0.25)

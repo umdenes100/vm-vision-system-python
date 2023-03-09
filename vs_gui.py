@@ -107,16 +107,16 @@ class Ui(QtWidgets.QMainWindow):
         dr_op.draw_obstacles = self.showobst.isChecked()
 
     def brightness(self):
-        command = f'v4l2-ctl -d /dev/video{self.connections.camera_num} -c brightness={self.bright_slider.value()}'
+        command = f'v4l2-ctl -d /dev/video{camera.camera_num} -c brightness={self.bright_slider.value()}'
         logging.debug(command)
         os.system(command)
 
     def sharpness(self):
-        command = f'v4l2-ctl -d /dev/video{self.connections.camera_num} -c sharpness={self.sharp_slider.value()}'
+        command = f'v4l2-ctl -d /dev/video{camera.camera_num} -c sharpness={self.sharp_slider.value()}'
         os.system(command)
 
     def contrast(self):
-        command = f'v4l2-ctl -d /dev/video{self.connections.camera_num} -c contrast={self.contrast_slider.value()}'
+        command = f'v4l2-ctl -d /dev/video{camera.camera_num} -c contrast={self.contrast_slider.value()}'
         os.system(command)
 
 

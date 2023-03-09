@@ -19,7 +19,8 @@ local = 'local' in sys.argv
 
 # Previous connections allows us to record the name of a team so when a Wi-Fi module reconnects, we can inform the user whose module reconnects.
 previous_connections: dict[str, str] = {}  # {'ip': 'cached name'}
-
+# List of IPs that we have forcibly disconnected. We don't want to send an error message for these.
+ignorable_disconnects: set[str] = set()
 
 def once():
     # Get the line number and file where this function was called from
@@ -59,8 +60,10 @@ def new_client(client, server: WebsocketServer):
 def client_left(client, _):
     if client is not None:
         client_server.send_error_message(f'Team {get_team_name(client)} disconnected...')
-    else:
+    elif client['address'][0] not in ignorable_disconnects:
         logging.debug("Unknown Client disconnected... mysterious")
+        client_server.send_error_message(f'Unknown ESP disconnected... mysterious')
+    ignorable_disconnects.discard(client['address'][0])
 
 
 # Called when a Wi-Fi client sends a message
@@ -68,7 +71,9 @@ def message_received(client, server: WebsocketServer, message):
     if client is None:
         logging.debug(f'Unknown client sent a message - {message}')
         return
-    # logging.debug(f'Team: "{client.get("teamName") if client.get("teamName") else "No Team Name"}" sent message {message}')
+    import vs_main
+    if vs_main.log_requests['esp']:
+        logging.debug(f'Team: "{client.get("teamName") if client.get("teamName") else "No Team Name"}" sent message {message}')
     try:
         message = json.loads(message)
         if message is None:
@@ -93,8 +98,10 @@ def message_received(client, server: WebsocketServer, message):
         client['teamType'] = team_types[message['teamType']]
         # Optional aruco argument. If not provided, it will be None.
         client['aruco'] = {'num': message.get('aruco'), 'visible': False, 'x': None, 'y': None, 'theta': None}
+        client['image']: dict[int: str] = {}
         ws_server.send_message(client,
                                json.dumps({'op': 'info', 'mission_loc': 'bottom' if dr_op.mission_loc else 'top'}))
+        ignorable_disconnects.discard(client['address'][0])  # This client is now valid.
         client_server.send_error_message(f'Team {get_team_name(client)} got begin statement')
     if message['op'] == 'aruco':
         if 'teamName' not in client:
@@ -128,16 +135,49 @@ def message_received(client, server: WebsocketServer, message):
         # logging.debug(f'Mission submission from team {client["teamName"]}.')
         client_server.send_print_message(client['teamName'],
                                          get_mission_message(client['teamType'], message['type'], message['message']))
+    if message['op'] == 'image_reset':
+        if 'teamName' not in client:
+            client_server.send_error_message(
+                f'Client {get_team_name(client)} sent image_reset message before begin statement. Try pressing the reset button on your arduino.')
+            return
+        client['image'] = {}
+    if message['op'] == 'image_chunk':
+        if 'teamName' not in client:
+            client_server.send_error_message(
+                f'Client {get_team_name(client)} sent image_chunk message before begin statement. Try pressing the reset button on your arduino.')
+            return
+        if 'chunk' not in message or 'index' not in message:
+            client_server.send_error_message(f'Client {get_team_name(client)} sent an invalid image message.')
+            return
+        client['image'][message['index']] = message['chunk']
+    if message['op'] == 'image_failure':
+        client_server.send_error_message(f'Team {get_team_name(client)} - ESP failed to capture an image.')
 
     if message['op'] == 'prediction_request':
         if 'teamName' not in client:
-            if once():
-                client_server.send_error_message(
-                    f'Client {get_team_name(client)} called prediction_request before begin statement. Try pressing the reset button on your arduino.')
-            logging.debug(
-                f'Team {get_team_name(client)} tried to get a prediction_request without a team name.')
-            return
-        jetson_server.request_prediction(client['teamName'], message['image'])
+            client_server.send_error_message(
+                f'Client {get_team_name(client)} called prediction_request before begin statement. Try pressing the reset button on your arduino.')
+            logging.debug(f'Team {get_team_name(client)} tried to get a prediction_request without a team name.')
+        # assemble the data in client['image'] into a single string
+        image = ''.join([client['image'][i] for i in range(len(client['image']))])
+        logging.debug(f'Team {get_team_name(client)} requested a prediction with an image of length {len(image)/2} bytes')
+        # send the image to the prediction server
+        if not jetson_server.request_prediction(client['teamName'], image):
+            logging.debug(f'Team {get_team_name(client)} requested a prediction but no jetson could be found.')
+            client_server.send_error_message(f'Team {get_team_name(client)} requested a prediction but no jetson could be found.')
+
+    if message['op'] == 'image_capture':
+        if 'teamName' not in client:
+            client_server.send_error_message(
+                f'Client {get_team_name(client)} called image_capture before begin statement. Try pressing the reset button on your arduino.')
+            logging.debug(f'Team {get_team_name(client)} tried to get a image_capture without a team name.')
+        # assemble the data in client['image'] into a single string
+        image = ''.join([client['image'][i] for i in range(len(client['image']))])
+        logging.debug(f'Team {get_team_name(client)} requested a prediction with an image of length {len(image)/2} bytes')
+        if not jetson_server.image_capture(client['teamName'], image, message['category']):
+            logging.debug(f'Team {get_team_name(client)} requested to capture an image but no Jetson could be found.')
+            client_server.send_error_message(f'Team {get_team_name(client)} requested to capture an image but no Jetson could be found.')
+
 
 
 def send_locations():
@@ -187,7 +227,7 @@ def start_server():
     ws_server.set_fn_client_left(client_left)
     ws_server.set_fn_message_received(message_received)
     logging.debug(f'Starting client ws_server on port {ws_server.port:d}')
-    threading.Thread(target=ws_server.run_forever).start()
+    threading.Thread(target=ws_server.run_forever, name='ESP WS Server', daemon=True).start()
 
     # We will ping all esp clients to make sure they haven't disconnected. Sadly, when ESP clients power off
     # unexpectedly, they do not fire the disconnect callback.
@@ -196,9 +236,10 @@ def start_server():
             for client in ws_server.clients:
                 if not ping(client['address'][0]):
                     logging.debug(f'Client {client["address"][0]} is not responding to ping. Disconnecting.')
+                    ignorable_disconnects.add(client['address'][0])
                     # noinspection PyProtectedMember
                     ws_server._terminate_client_handler(client['handler'])
             time.sleep(1)
 
-    threading.Thread(target=check_connection, daemon=True).start()
+    threading.Thread(target=check_connection, daemon=True, name='ESP Check Connection').start()
 
