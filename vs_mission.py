@@ -6,8 +6,7 @@ def get_mission_message(mission: str, mission_message_type: int, msg: str):
     try:
         msg = int(msg)
     except ValueError:
-        logging.debug(f'Invalid mission message: {msg}')
-        return None
+        logging.debug(f'String mission message (def machine learning): {msg}')
 
     mission_string: str = ''
     if mission == "CRASH_SITE":  # Crash Site
@@ -72,7 +71,7 @@ def get_mission_message(mission: str, mission_message_type: int, msg: str):
 
     elif mission == "FIRE":  # Fire
         if mission_message_type == 0:  # NUM_CANDLES
-            mission_string += f"The number of candles alit is {msg}."
+            mission_string += f"The number of candles lit is {msg}."
         elif mission_message_type == 1:  # TOPOGRAPHY
             mission_string += "The topography of the fire mission is: "
             if msg == 0:
@@ -103,7 +102,11 @@ def get_mission_message(mission: str, mission_message_type: int, msg: str):
                 mission_string += "?????"
         else:
             mission_string += "Not a valid mission type!"
-
+    elif mission == "MACHINE_LEARNING":
+        if mission_message_type == 0:  # Location
+            mission_string += "The location of the anomaly is " + msg
+        if mission_message_type == 1:  # Percentage
+            mission_string += "The percentage of the anomaly is " + str(msg)
     else:
         mission_string = f"ERROR - invalid mission type ({mission})"
 

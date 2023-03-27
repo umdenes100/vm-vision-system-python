@@ -117,6 +117,7 @@ team_types: dict = {
     2: "MATERIAL",
     3: "FIRE",
     4: "WATER",
+    5: "MACHINE_LEARNING",
 }
 
 fake_esp_data: list = [
@@ -124,8 +125,6 @@ fake_esp_data: list = [
      'aruco': {'num': 2, 'visible': True, 'x': 1, 'y': 2, 'theta': 3.14 / 2}},
     {'name': 'Gary\'s Team', 'mission': 'Water',
      'aruco': {'num': 3, 'visible': False, 'x': None, 'y': None, 'theta': None}},
-    {'name': 'Yo mama\'s Team (boom roasted)', 'mission': 'get shredded',
-     'aruco': {'num': 4, 'visible': True, 'x': 1, 'y': 2, 'theta': 3.14 / 2}}
 ]
 
 esp_data: list = []
