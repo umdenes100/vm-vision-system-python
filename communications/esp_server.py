@@ -51,9 +51,9 @@ def new_client(client, server: WebsocketServer):
     logging.debug(f"New ESP client connected and was given id {client['id']:d}")
     if client['address'][0] in previous_connections:
         client_server.send_error_message(
-            f'Wi-Fi module with previous name {previous_connections[client["address"][0]]} reconnected... waiting for begin statement')
+            f'Wi-Fi module with previous name {previous_connections[client["address"][0]]} reconnected... waiting for begin statement. (Not beginning? See Vision System Troubleshooting at enes100.umd.edu)')
     else:
-        client_server.send_error_message(f'New Wi-Fi module connected... waiting for begin statement')
+        client_server.send_error_message(f'New Wi-Fi module connected... waiting for begin statement. (Not beginning? See Vision System Troubleshooting at enes100.umd.edu)')
 
 
 # Called for every client disconnecting

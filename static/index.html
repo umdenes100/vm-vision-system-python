@@ -19,8 +19,8 @@
 <body style="width: 100%; height: 100%">
 <nav class="navbar navbar-expand-lg umd">
     <div style="color: white; width: 40%" class="umd">
-        Open this page on your computer! Connect to the VisionSystem Wi-Fi network (VisionSystem...)"
-        and go to "enes100.umd.edu" and click "Go to Vision System"
+        Tip: This screen too crowded? <br><small style="display: inline-block;">Open this screen on your laptop: 1. Connect to the VisionSystem Wi-Fi network
+        (VisionSystem...)" 2. Go to "enes100.umd.edu" 3. "Go to Vision System"</small>
     </div>
     <div class="container">
         <!--Logo-->
@@ -66,6 +66,9 @@
                 <select id="port">
                     <option>Waiting for connection...</option>
                 </select>
+                <small style="padding-left: 4px">Team not here? See <a target="_blank"
+                                                                       href="https://docs.google.com/document/d/1hrvkhNof1VFIL7retfn17tdnPCOo5d2WmNKgmRgjyy8/edit?usp=sharing">Vision
+                    System Troubleshooting</a>.</small>
                 <span id="info"></span>
             </div>
 
@@ -99,7 +102,7 @@
         <div class="col-9">
             <div id="stream-container">
                 <img id="stream"
-                     alt="Failed to get image from Vision System. Try selecting a different camera.">
+                     alt="Failed to get image from Vision System. Restart the Vision System by closing all open windows and opening Vision System 2 from the desktop.">
             </div>
             <textarea id="console" style="width: 100%" readonly></textarea>
         </div>
@@ -217,6 +220,7 @@
     }
 
     let lastAllTeamData = null;
+
     function updateOptionsList() {
         if (!allTeamData) return;
         if (lastAllTeamData === JSON.stringify(allTeamData)) return;
