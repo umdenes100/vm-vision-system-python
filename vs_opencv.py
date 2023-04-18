@@ -14,12 +14,12 @@ from data import dr_op, camera
 from vs_arena import getHomographyMatrix, processMarkers, createObstacles, createMission
 import time
 
-
+dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_1000)
+parameters = cv2.aruco.DetectorParameters()
+detector = cv2.aruco.ArucoDetector(dictionary, parameters)
 def draw_on_frame(frame):
     try:
-        arucoParams = cv2.aruco.DetectorParameters_create()
-        (corners, ids, rejected) = cv2.aruco.detectMarkers(frame, cv2.aruco.Dictionary_get(cv2.aruco.DICT_4X4_1000),
-                                                           parameters=arucoParams)
+        (corners, ids, rejected) = detector.detectMarkers(frame)
         frame = cv2.aruco.drawDetectedMarkers(frame, corners)
         if not (isinstance(ids, list) or isinstance(ids, np.ndarray)):
             return frame
@@ -90,6 +90,7 @@ img_info = {
 
 def start_image_processing():
     print_fps_time = time.perf_counter()
+    send_locations_bool = True  # send locations to esp32 every other frame
     while True:
         # If a web client is connected
         # if len(communications.client_server.ws_server.clients) == 0 and len(communications.esp_server.ws_server.clients) == 0:
@@ -102,7 +103,10 @@ def start_image_processing():
                 ret, frame = cap.read()  # read frame from video stream
                 if ret:
                     new_frame = draw_on_frame(frame)
-                    threading.Thread(target=send_locations, name='Send Locations').start()
+                    if send_locations_bool:
+                        threading.Thread(target=send_locations, name='Send Locations').start()
+                    send_locations_bool = not send_locations_bool
+
                     jpeg_bytes = cv2.imencode('.jpg', new_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 30])[1]
                     img_info['bytes_sent'] += len(jpeg_bytes)
                     img_info['frames_sent'] += 1

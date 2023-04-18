@@ -79,12 +79,12 @@ def message_received(client, server: WebsocketServer, message):
         if message is None:
             logging.debug(f'Client {get_team_name(client)} sent an empty message. (Could be ping...)')
             client_server.send_error_message(
-                f'Team {get_team_name(client)} sent an invalid message. Try pressing the reset button on the your arduino.')
+                f'Team {get_team_name(client)} sent an invalid message. Try pressing the reset button on your arduino. (Empty Message)')
             return
     except json.JSONDecodeError:
         logging.debug(f'Invalid JSON: {message}')
         client_server.send_error_message(
-            f'Team {get_team_name(client)} sent an invalid message. Try pressing the reset button on your arduino.')
+            f'Team {get_team_name(client)} sent an invalid message. Try pressing the reset button on your arduino. (JSON Parse Error)')
         return
 
     if message['op'] == 'begin':
