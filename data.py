@@ -62,7 +62,7 @@ class CameraManager:
             logging.debug(f'length of legit_cameras is 2, picking {legit_cameras[1]}')
             self.camera_num = int(legit_cameras[1][-1])  # It is probably the second camera
         elif len(legit_cameras) == 1:
-            logging.debug(f'length of legit_cameras is 1, picking {legit_cameras[1]}')
+            logging.debug(f'length of legit_cameras is 1, picking {legit_cameras[0]}')
             self.camera_num = int(legit_cameras[0][-1])  # otherwise pick the first one
         try:
             self.video = cv2.VideoCapture(int(self.camera_num), cv2.CAP_V4L2)

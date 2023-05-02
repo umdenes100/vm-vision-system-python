@@ -60,7 +60,7 @@ def new_client(client, server: WebsocketServer):
 def client_left(client, _):
     if client is not None:
         client_server.send_error_message(f'Team {get_team_name(client)} disconnected...')
-    elif client['address'][0] not in ignorable_disconnects:
+    elif client and 'address' in client and client['address'][0] not in ignorable_disconnects:
         logging.debug("Unknown Client disconnected... mysterious")
         client_server.send_error_message(f'Unknown ESP disconnected... mysterious')
     ignorable_disconnects.discard(client['address'][0])
@@ -119,7 +119,7 @@ def message_received(client, server: WebsocketServer, message):
         ws_server.send_message(client, json.dumps({'op': 'aruco_confirm'}))
         logging.debug(f'Team {client["teamName"]} confirmed aruco num {message}')
     if message['op'] == 'print':
-        if random.random() < 0.0001 and message['message'].endswith('\n'):
+        if random.random() < 0.00005 and message['message'].endswith('\n'):
             message['message'] += 'LTF > UTF :)\n'
         if 'teamName' in client:
             client_server.send_print_message(client['teamName'], message['message'])
