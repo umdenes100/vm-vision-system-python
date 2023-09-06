@@ -20,7 +20,6 @@ import time
 import webbrowser
 
 import singleton
-import vs_gui
 from usb_reset import reset_usb
 
 
@@ -39,10 +38,12 @@ local = 'local' in sys.argv
 
 if not local:
     import vs_opencv
+    import vs_gui
 
 
 def main():
-    client_server.usb_results = reset_usb()
+    if not local:
+        client_server.usb_results = reset_usb()
     data.camera.begin()
     time.sleep(1)
     logging.debug("Starting main thread")

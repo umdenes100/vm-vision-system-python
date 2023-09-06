@@ -65,7 +65,6 @@ def client_left(client, _):
         client_server.send_error_message(f'Unknown ESP disconnected... mysterious')
     ignorable_disconnects.discard(client['address'][0])
 
-
 # Called when a Wi-Fi client sends a message
 def message_received(client, server: WebsocketServer, message):
     if client is None:

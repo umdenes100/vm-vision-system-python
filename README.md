@@ -1,6 +1,13 @@
 # Vision-System-Python
-A new vision system written in Python. The devlopment of this Vision System is heavily based on
+A new vision system written in Python. The development of this Vision System is heavily based on
 the prior versions of the Vision System, which were written in C++.
+
+# Installation instructions
+(Written 9/6/2023)
+1. 
+
+
+(All other content is not updated.)
 
 ![Vision System Diagram](images/VisionSystemDiagram.PNG "Vision System Diagram")
 
