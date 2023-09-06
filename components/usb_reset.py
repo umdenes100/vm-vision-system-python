@@ -1,6 +1,3 @@
-import pprint
-
-
 def reset_usb():
     import subprocess
 

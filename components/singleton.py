@@ -22,6 +22,9 @@ class SingleInstance:
             except OSError as e:
                 if e.errno == 13:
                     logging.error("Another instance is already running, quitting.")
+                    logging.error(
+                        "If this is not true, likely the program is running in the background. Try sudo pkill -f python3 in the terminal or restart the computer.")
+                    input("Press ENTER to exit...")
                     sys.exit(-1)
                 print(e.errno)
                 raise
@@ -32,6 +35,9 @@ class SingleInstance:
                 fcntl.lockf(self.fp, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except IOError:
                 logging.warning("Another instance is already running, quitting.")
+                logging.error(
+                    "If this is not true, likely the program is running in the background. Try sudo pkill -f python3 in the terminal or restart the computer.")
+                input("Press ENTER to exit...")
                 sys.exit(-1)
 
     def __del__(self):

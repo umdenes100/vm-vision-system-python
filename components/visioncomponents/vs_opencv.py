@@ -11,7 +11,7 @@ if 'local' not in sys.argv:
     import numpy as np
 
 from components.data import dr_op, camera
-from vs_arena import getHomographyMatrix, processMarkers, createObstacles, createMission
+from components.visioncomponents.vs_arena import getHomographyMatrix, processMarkers, createObstacles, createMission
 import time
 
 dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_1000)

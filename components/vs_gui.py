@@ -1,12 +1,11 @@
 import logging
-import threading
 
 from PyQt5 import QtWidgets, QtGui, uic
 import sys
 import os
 import math
 
-from data import dr_op, camera
+from components.data import dr_op, camera
 import random
 import subprocess
 
