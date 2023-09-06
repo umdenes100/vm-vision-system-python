@@ -10,21 +10,20 @@
 
 import logging
 
-import data
-
 logging.basicConfig(format='[%(threadName)-16.16s]%(levelname)s:%(message)s', level=logging.DEBUG)
 
 import sys
 import threading
 import time
 import webbrowser
-
-import singleton
-from usb_reset import reset_usb
-
-
-logging.info("Starting main thread\n")
+from components import singleton
 me = singleton.SingleInstance()
+logging.info("Starting main thread\n")
+
+from components import data
+from components.usb_reset import reset_usb
+from components.communications import client_server, esp_server, jetson_server
+
 
 log_requests = {
     'esp': True,
@@ -32,19 +31,19 @@ log_requests = {
     'client': False,
 }
 
-from communications import esp_server, client_server, jetson_server
-
 local = 'local' in sys.argv
-
+no_gui = 'no_gui' in sys.argv
 if not local:
-    import vs_opencv
-    import vs_gui
+    from components.visioncomponents import vs_opencv
+
+if not no_gui:
+    from components import vs_gui
 
 
 def main():
     if not local:
         client_server.usb_results = reset_usb()
-    data.camera.begin()
+        data.camera.begin()
     time.sleep(1)
     logging.debug("Starting main thread")
     # Main drawing_options object. Shared between many threads.
@@ -59,13 +58,20 @@ def main():
     webbrowser.open('http://192.168.1.2:8080')
 
     # # main process will now continue to GUI
-    vs_gui.start_gui()
-    while vs_gui.gui_is_running:
-    # while True:
-        try:
-            time.sleep(1)
-        except KeyboardInterrupt:
-            break
+    if not no_gui:
+        vs_gui.start_gui()
+        while vs_gui.gui_is_running:
+            # while True:
+            try:
+                time.sleep(1)
+            except KeyboardInterrupt:
+                break
+    else:
+        while True:
+            try:
+                time.sleep(1)
+            except KeyboardInterrupt:
+                break
     logging.info("Exiting")
 
 

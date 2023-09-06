@@ -4,7 +4,22 @@ the prior versions of the Vision System, which were written in C++.
 
 # Installation instructions
 (Written 9/6/2023)
-1. 
+1. clone from the git repository
+    ```shell
+    sudo git clone https://github.com/umdenes100/Vision-System-Python.git)
+    ```
+2. cd into folder
+    ```shell
+   sudo cd Vision-System-Python
+   ```
+3. Change permissions of the installer script.
+    ```shell
+   chmod +x installdependencies.sh
+   ```
+4. Execute installation script.
+    ```shell
+   ./installdependencies.sh
+   ```
 
 
 (All other content is not updated.)
@@ -51,9 +66,9 @@ The structure of the packets are the following:
 The important files will be listed and summed up below. Check out [NOTES.md](NOTES.md) for more information 
 and Gary's notes on everything about the Vision System (from the PC to OpenCV to Websocket connections).
 
-### vs_main.py
+### main.py
 The entry point to the Vision System. If you are in terminal, go into the dev environment by running 
-`cd ~/dev/Vision-System-Python` and run `python3 vs_main.py` to start the program. Using the terminal 
+`cd ~/dev/Vision-System-Python` and run `python3 main.py` to start the program. Using the terminal 
 is the best way to debug as we can add print statements and all that jazz.
 
 If you just want to run the Vision System for normal use, there should be a desktop application 

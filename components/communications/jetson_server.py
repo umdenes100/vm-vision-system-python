@@ -6,8 +6,8 @@ import time
 
 from websocket_server import WebsocketServer
 
-from communications import client_server, esp_server
-from communications.ping import ping
+from components.communications import client_server, esp_server
+from components.communications.ping import ping
 
 ws_server: WebsocketServer
 
@@ -53,8 +53,8 @@ def message_received(client, server: WebsocketServer, message):
     if client is None:
         logging.debug(f'Unknown Jetson sent a message - {message}')
         return
-    import vs_main
-    if vs_main.log_requests['jetson']:
+    import main
+    if main.log_requests['jetson']:
         logging.debug(f'Team: "{client.get("teamName") if client.get("teamName") else "No Team Name"}" sent message {message}')
     try:
         message = json.loads(message)

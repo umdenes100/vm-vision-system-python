@@ -129,8 +129,6 @@ fake_esp_data: list = [
 
 esp_data: list = []
 
-print('here')
-
 local = 'local' in sys.argv
 if not local:
     camera: CameraManager = CameraManager()

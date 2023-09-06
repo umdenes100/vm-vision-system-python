@@ -10,7 +10,7 @@ from http.server import ThreadingHTTPServer
 
 from websocket_server import WebsocketServer, WebSocketHandler, OPCODE_BINARY, FIN, PAYLOAD_LEN_EXT16, PAYLOAD_LEN_EXT64
 
-import communications.esp_server
+import components.communications.esp_server
 
 local = 'local' in sys.argv
 
@@ -107,7 +107,7 @@ def start_server():
 
     while True:
         time.sleep(0.25)
-        d = communications.esp_server.ws_server.clients
+        d = components.communications.esp_server.ws_server.clients
 
         d = list(filter(lambda c: 'teamName' in c, d))
         ws_server.send_message_to_all(

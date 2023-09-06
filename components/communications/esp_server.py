@@ -7,11 +7,11 @@ import time
 
 from websocket_server import WebsocketServer
 
-import data
-from communications import client_server, jetson_server
-from communications.ping import ping
-from data import team_types, dr_op
-from vs_mission import get_mission_message
+from components import data
+from components.communications import client_server, jetson_server
+from components.communications.ping import ping
+from components.data import team_types, dr_op
+from components.vs_mission import get_mission_message
 
 ws_server: WebsocketServer
 
@@ -70,8 +70,8 @@ def message_received(client, server: WebsocketServer, message):
     if client is None:
         logging.debug(f'Unknown client sent a message - {message}')
         return
-    import vs_main
-    if vs_main.log_requests['esp']:
+    import main
+    if main.log_requests['esp']:
         logging.debug(f'Team: "{client.get("teamName") if client.get("teamName") else "No Team Name"}" sent message {message}')
     try:
         message = json.loads(message)

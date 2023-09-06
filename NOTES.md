@@ -87,7 +87,7 @@ $ sudo apt-get install qttools5-dev
 If you're wondering what Qt 5 Creator is, this is the same thing as Qt 5 Designer, but for C/C++ 
 programs using Qt5.
 
-This is the `start_gui()` method called in **vs_main.py**
+This is the `start_gui()` method called in **main.py**
 ```python
 def start_gui(connections, dr_op):
     app = QtWidgets.QApplication(sys.argv)

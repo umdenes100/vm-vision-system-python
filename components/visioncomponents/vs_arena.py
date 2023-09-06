@@ -4,7 +4,7 @@ import math
 import numpy as np
 import cv2
 
-from data import ProcessedMarker, dr_op
+from components.data import ProcessedMarker, dr_op
 
 
 def center(corners: list[tuple]):

@@ -2,15 +2,15 @@ import logging
 import sys
 import threading
 
-import communications.client_server
-from communications.client_server import send_frame
-from communications.esp_server import send_locations
+import components.communications.client_server
+from components.communications.client_server import send_frame
+from components.communications.esp_server import send_locations
 
 if 'local' not in sys.argv:
     import cv2
     import numpy as np
 
-from data import dr_op, camera
+from components.data import dr_op, camera
 from vs_arena import getHomographyMatrix, processMarkers, createObstacles, createMission
 import time
 
@@ -30,7 +30,7 @@ def draw_on_frame(frame):
         if dr_op.H is None:
             dr_op.H = getHomographyMatrix(zip(ids, corners))
             if dr_op.H is None:
-                communications.client_server.send_error_message(
+                components.communications.client_server.send_error_message(
                     'At least one of the corner ArUco markers are not visible.')
                 time.sleep(1)
                 for y in range(50, frame.shape[0], 50):
@@ -39,7 +39,7 @@ def draw_on_frame(frame):
                                         (0, 0, 255))
 
                 return frame
-            communications.client_server.send_error_message('Initialized Homography Matrix (All corners visible)')
+            components.communications.client_server.send_error_message('Initialized Homography Matrix (All corners visible)')
             dr_op.inverse_matrix = np.linalg.pinv(dr_op.H)
         dr_op.aruco_markers = processMarkers(zip(ids, corners))
 
