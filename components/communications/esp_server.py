@@ -103,7 +103,8 @@ def message_received(client, server: WebsocketServer, message):
         ignorable_disconnects.discard(client['address'][0])  # This client is now valid.
         client_server.send_error_message(f'Team {get_team_name(client)} got begin statement')
         if data.dr_op.aruco_markers.get(client['aruco']['num']) is None:
-            client_server.send_error_message(f'Team {get_team_name(client)} registered with ArUco num {client["aruco"]["num"]} but it is not visible. The visible aruco markers are {list(data.dr_op.aruco_markers.keys())}.')
+            shown_markers = [str(marker) for marker in list(data.dr_op.aruco_markers.keys()) if marker > 3]
+            client_server.send_error_message(f'Warning: Team {get_team_name(client)} registered with ArUco num {client["aruco"]["num"]} but it is not visible! The visible aruco markers are {",".join(shown_markers)}.')
     if message['op'] == 'aruco':
         if 'teamName' not in client:
             if once():
