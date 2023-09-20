@@ -104,7 +104,8 @@ def message_received(client, server: WebsocketServer, message):
         client_server.send_error_message(f'Team {get_team_name(client)} got begin statement')
         if data.dr_op.aruco_markers.get(client['aruco']['num']) is None:
             shown_markers = [str(marker) for marker in list(data.dr_op.aruco_markers.keys()) if marker > 3]
-            client_server.send_error_message(f'Warning: Team {get_team_name(client)} registered with ArUco num {client["aruco"]["num"]} but it is not visible! The visible aruco markers are {",".join(shown_markers)}.')
+            msg = f'The visible aruco markers are {",".join(shown_markers)}.' if shown_markers else 'No aruco markers are visible.'
+            client_server.send_error_message(f'Warning: Team {get_team_name(client)} registered with ArUco num {client["aruco"]["num"]} but it is not visible! ' + msg)
     if message['op'] == 'aruco':
         if 'teamName' not in client:
             if once():
