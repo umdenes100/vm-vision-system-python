@@ -102,6 +102,8 @@ def message_received(client, server: WebsocketServer, message):
                                json.dumps({'op': 'info', 'mission_loc': 'bottom' if dr_op.mission_loc else 'top'}))
         ignorable_disconnects.discard(client['address'][0])  # This client is now valid.
         client_server.send_error_message(f'Team {get_team_name(client)} got begin statement')
+        if data.dr_op.aruco_markers.get(client['aruco']['num']) is None:
+            client_server.send_error_message(f'Team {get_team_name(client)} registered with ArUco num {client["aruco"]["num"]} but it is not visible. The visible aruco markers are {list(data.dr_op.aruco_markers.keys())}.')
     if message['op'] == 'aruco':
         if 'teamName' not in client:
             if once():
@@ -118,8 +120,8 @@ def message_received(client, server: WebsocketServer, message):
         ws_server.send_message(client, json.dumps({'op': 'aruco_confirm'}))
         logging.debug(f'Team {client["teamName"]} confirmed aruco num {message}')
     if message['op'] == 'print':
-        if random.random() < 0.00005 and message['message'].endswith('\n'):
-            message['message'] += 'LTF > UTF :)\n'
+        # if random.random() < 0.00005 and message['message'].endswith('\n'):
+        #     message['message'] += 'LTF > UTF :)\n'
         if 'teamName' in client:
             client_server.send_print_message(client['teamName'], message['message'])
         else:
