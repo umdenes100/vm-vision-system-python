@@ -22,6 +22,7 @@ def draw_on_frame(frame):
         (corners, ids, rejected) = detector.detectMarkers(frame)
         frame = cv2.aruco.drawDetectedMarkers(frame, corners)
         if not (isinstance(ids, list) or isinstance(ids, np.ndarray)):
+            logging.debug('No ArUco markers detected')
             return frame
 
         corners = [c[0] for c in corners]

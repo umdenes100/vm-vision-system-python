@@ -58,9 +58,12 @@ def new_client(client, server: WebsocketServer):
 
 # Called for every client disconnecting
 def client_left(client, _):
-    if client is not None:
-        client_server.send_error_message(f'Team {get_team_name(client)} disconnected...')
-    elif client and 'address' in client and client['address'][0] not in ignorable_disconnects:
+    if client is None:
+        return
+    client_server.send_error_message(f'Team {get_team_name(client)} disconnected...')
+    if 'address' not in client or len(client['address']) == 0:
+        return
+    if client['address'][0] not in ignorable_disconnects:
         logging.debug("Unknown Client disconnected... mysterious")
         client_server.send_error_message(f'Unknown ESP disconnected... mysterious')
     ignorable_disconnects.discard(client['address'][0])
@@ -226,6 +229,7 @@ def start_server():
         if e.errno == 98:
             logging.error('Program is already running on this computer. Please close other instance.')
             exit(1)
+    logging.debug(f'esp {ws_server:=}')
     ws_server.set_fn_new_client(new_client)
     ws_server.set_fn_client_left(client_left)
     ws_server.set_fn_message_received(message_received)
