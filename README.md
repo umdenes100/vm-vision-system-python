@@ -21,6 +21,10 @@ the prior versions of the Vision System, which were written in C++.
    ./installdependencies.sh
    ```
 
+Then set the wifi stuff. Under Network -> Wired turn on the connection. Then click settings, go to IPv4.
+
+The IPv4 method should be Manual. Then set the addresses. The address is 192.168.1.2 The Netmask is 255.255.255.0, The Gateway is 192.168.1.1
+
 
 (All other content is not updated.)
 
@@ -109,7 +113,7 @@ of using this nice utility, but the utility was very nice and useful.
 
 - [Gary](https://github.com/itsecgary)
 - [Eric](https://github.com/ephan1068)
-- (Pending my contributions to this branch) [Forrest](https://github.com/ForrestFire0)
+- [Forrest](https://github.com/ForrestFire0)
 
 
 ## Resources & References
