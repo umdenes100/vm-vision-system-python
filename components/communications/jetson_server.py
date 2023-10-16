@@ -135,9 +135,14 @@ def start_server():
         if e.errno == 98:
             logging.error('Program is already running on this computer. Please close other instance.')
             exit(1)
-    if ws_server is None:
+    try:
+        if ws_server is None:
+            logging.error(
+                'jetson_server -> ws_server is None. Did you make sure to set the network up correctly? (Assign static IP on wired connection) See readme.md')
+            return
+    except NameError:
         logging.error(
-            'jetson_server -> ws_server is None. Did you make sure to set the network up correctly? (Assign static IP on wired connection) See readme.md')
+            'client_server -> ws_server is not defined. Did you make sure to set the network up correctly? (Assign static IP on wired connection) See readme.md')
         return
     ws_server.set_fn_new_client(new_client)
     ws_server.set_fn_client_left(client_left)
