@@ -22,13 +22,12 @@ def draw_on_frame(frame):
         (corners, ids, rejected) = detector.detectMarkers(frame)
         frame = cv2.aruco.drawDetectedMarkers(frame, corners)
         if not (isinstance(ids, list) or isinstance(ids, np.ndarray)):
-            components.communications.client_server.send_error_message(
-                'No corners were found.')
-            time.sleep(1)
-            for y in range(50, frame.shape[0], 50):
-                frame = cv2.putText(frame, 'No corners found', (50, y),
-                                    cv2.FONT_HERSHEY_TRIPLEX, 2,
-                                    (0, 0, 255))
+            components.communications.client_server.send_error_message('No corners were found.')
+            if dr_op.H is None:  # Add the debug text if we have not yet gotten the homography matrix.
+                for y in range(50, frame.shape[0], 50):
+                    frame = cv2.putText(frame, 'No corners found', (50, y),
+                                        cv2.FONT_HERSHEY_TRIPLEX, 2,
+                                        (0, 0, 255))
 
             return frame
 
@@ -38,9 +37,7 @@ def draw_on_frame(frame):
         if dr_op.H is None:
             dr_op.H = getHomographyMatrix(zip(ids, corners))
             if dr_op.H is None:
-                components.communications.client_server.send_error_message(
-                    'At least one of the corner ArUco markers are not visible.')
-                time.sleep(1)
+                components.communications.client_server.send_error_message('At least one of the corner ArUco markers are not visible.')
                 for y in range(50, frame.shape[0], 50):
                     frame = cv2.putText(frame, 'One of the corners is not visible - cannot initialize', (50, y),
                                         cv2.FONT_HERSHEY_TRIPLEX, 2,
