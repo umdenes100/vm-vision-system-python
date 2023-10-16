@@ -230,8 +230,8 @@ def start_server():
             logging.error('Program is already running on this computer. Please close other instance.')
             exit(1)
     if ws_server is None:
-        logging.error('ws_server is None. Did you make sure to set the network up correctly? (Assign static IP on wired connection) See readme.md')
-        exit(1)
+        logging.error('esp_server:233 -> ws_server is None. Did you make sure to set the network up correctly? (Assign static IP on wired connection) See readme.md')
+        return
     ws_server.set_fn_new_client(new_client)
     ws_server.set_fn_client_left(client_left)
     ws_server.set_fn_message_received(message_received)

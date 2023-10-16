@@ -25,6 +25,7 @@ Then set the wifi stuff. Under Network -> Wired turn on the connection. Then cli
 
 The IPv4 method should be Manual. Then set the addresses. The address is 192.168.1.2 The Netmask is 255.255.255.0, The Gateway is 192.168.1.1
 
+The ArUco marker 0 goes in @ 0,0 spot (lower left). They then ascend clockwise. So ID=1 is in the upper left.
 
 (All other content is not updated.)
 
