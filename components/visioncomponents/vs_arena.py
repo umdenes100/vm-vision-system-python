@@ -35,11 +35,11 @@ def getHomographyMatrix(marker_list):
         if aruco_id == 0:  # finding all the corners of the arena
             pt00 = center(corners)
         elif aruco_id == 1:
-            pt40 = center(corners)
-        elif aruco_id == 2:
             pt02 = center(corners)
-        elif aruco_id == 3:
+        elif aruco_id == 2:
             pt42 = center(corners)
+        elif aruco_id == 3:
+            pt40 = center(corners)
 
     if pt00 is None or pt02 is None or pt40 is None or pt42 is None:
         logging.debug("One of the markers is blocked - cannot generate homography matrix")
