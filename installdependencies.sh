@@ -10,5 +10,6 @@ sudo apt install python3-venv
 sudo python3 -m venv .venv
 source .venv/bin/activate
 sudo .venv/bin/pip3 install -r requirements.txt
+cp runner.desktop ~/Desktop/runner.desktop
 
 echo "Installation Complete. Make sure to set the static ip of this machine to 192.168.1.2 (See README.md)"

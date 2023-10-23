@@ -32,7 +32,7 @@ def getHomographyMatrix(marker_list):
     pt40 = None
     pt42 = None
     for aruco_id, corners in marker_list:
-        if aruco_id == 0:  # finding all the corners of the arena
+        if aruco_id == 0:  # finding all the corners of the arena. Corners are clockwise starting from 0 0.
             pt00 = center(corners)
         elif aruco_id == 1:
             pt02 = center(corners)

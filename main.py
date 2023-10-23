@@ -1,11 +1,4 @@
-# todo timeout if no flush sequence recieved
-# todo error list of text.
-
 ### Library Changes
-# todo remove mission site location.
-# todo change library from Software Serial to AltSoftwareSerial to allow for higher baud rates.
-# todo Upgrade baud rate to higher rate
-# todo add a "wait for Vision System"
 # todo remove need to define RX and TX ports. It should be automatic if you get them reversed.
 
 import logging
