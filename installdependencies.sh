@@ -7,10 +7,17 @@ sudo apt-get update
 sudo apt install python3
 sudo apt install python3-pip
 sudo apt install python3-venv
+# make a virtual environment
 sudo python3 -m venv .venv
+# activate the virtual environment
 source .venv/bin/activate
+# install the requirements
 sudo .venv/bin/pip3 install -r requirements.txt
+# Copy the desktop icon to the desktop
 cp runner.desktop ~/Desktop/runner.desktop
+# Enable execution of the runner script.
 chmod +x RunVisionSystem.sh
 
-echo "Installation Complete. Make sure to set the static ip of this machine to 192.168.1.2 (See README.md)"
+echo "Installation Script Complete - please follow up with the following steps:"
+echo "1. Configure the network as per the README - (make sure to set the static ip of this machine to 192.168.1.2)"
+echo "2. Right click the desktop icon and select 'Allow Launching' to enable the desktop shortcut."
