@@ -1,9 +1,9 @@
 #!/bin/bash
-# These you would run yourself...
+# These you would run yourself. YOU MUST INSTALL IN THE HOME DIRECTORY!
 #sudo git clone https://github.com/umdenes100/Vision-System-Python.git
-#sudo cd Vision-System-Python
-sudo apt-get -y install v4l-utils
+#cd Vision-System-Python
 sudo apt-get update
+sudo apt-get -y install v4l-utils
 sudo apt install python3
 sudo apt install python3-pip
 sudo apt install python3-venv
@@ -16,7 +16,7 @@ sudo .venv/bin/pip3 install -r requirements.txt
 # Copy the desktop icon to the desktop
 cp runner.desktop ~/Desktop/runner.desktop
 # Enable execution of the runner script.
-chmod +x RunVisionSystem.sh
+sudo chmod +x RunVisionSystem.sh
 
 echo "Installation Script Complete - please follow up with the following steps:"
 echo "1. Configure the network as per the README - (make sure to set the static ip of this machine to 192.168.1.2)"
