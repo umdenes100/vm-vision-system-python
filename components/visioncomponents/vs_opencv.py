@@ -1,4 +1,6 @@
+import json
 import logging
+import os.path
 import sys
 import threading
 
@@ -14,9 +16,15 @@ from components.data import dr_op, camera
 from components.visioncomponents.vs_arena import getHomographyMatrix, processMarkers, createObstacles, createMission
 import time
 
+config = {}
+if os.path.isfile(os.path.expanduser('~/config.json')):
+    with open(os.path.expanduser('~/config.json')) as f:
+        config = json.load(f)
+
 dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_1000)
 parameters = cv2.aruco.DetectorParameters()
 detector = cv2.aruco.ArucoDetector(dictionary, parameters)
+camera_bounds = None
 def draw_on_frame(frame):
     try:
         (corners, ids, rejected) = detector.detectMarkers(frame)
@@ -35,7 +43,9 @@ def draw_on_frame(frame):
         ids = [i[0] for i in ids]
 
         if dr_op.H is None:
-            dr_op.H = getHomographyMatrix(zip(ids, corners))
+            dr_op.H, dr_op.camera_matrix = getHomographyMatrix(zip(ids, corners),
+                                                               camera_width=frame.shape[1],
+                                                               camera_height=frame.shape[0])
             if dr_op.H is None:
                 components.communications.client_server.send_error_message('At least one of the corner ArUco markers are not visible.')
                 for y in range(50, frame.shape[0], 50):
@@ -46,6 +56,7 @@ def draw_on_frame(frame):
                 return frame
             components.communications.client_server.send_error_message('Initialized Homography Matrix (All corners visible)')
             dr_op.inverse_matrix = np.linalg.pinv(dr_op.H)
+        frame = cv2.warpPerspective(frame, dr_op.camera_matrix, (frame.shape[1], frame.shape[0]))
         dr_op.aruco_markers = processMarkers(zip(ids, corners))
 
         if dr_op.draw_obstacles:
@@ -107,8 +118,11 @@ def start_image_processing():
             if cap.isOpened():
                 ret, frame = cap.read()  # read frame from video stream
                 if ret:
+                    if 'rotate' in config:
+                        if config['rotate']:  # Rotate by 180
+                            frame = cv2.rotate(frame, cv2.ROTATE_180)
                     new_frame = draw_on_frame(frame)
-                    if send_locations_bool:
+                    if send_locations_bool:  # send locations to esp32 every other frame
                         threading.Thread(target=send_locations, name='Send Locations').start()
                     send_locations_bool = not send_locations_bool
 

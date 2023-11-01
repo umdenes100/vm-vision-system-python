@@ -104,6 +104,7 @@ class DrawingOptions:
     aruco_markers: dict[int, ProcessedMarker] = field(default_factory=dict)
     first: bool = True
     H = None
+    camera_matrix = None
     inverse_matrix: list = field(default_factory=list)
 
     # self.randomization = self.obstacle_presets[random.randrange(0, 12)]

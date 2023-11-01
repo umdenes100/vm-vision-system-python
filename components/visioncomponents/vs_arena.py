@@ -22,8 +22,10 @@ def center(corners: list[tuple]):
     return int(x), int(y)
 
 
-def getHomographyMatrix(marker_list):
+def getHomographyMatrix(marker_list, camera_width, camera_height):
     """
+    :param camera_height: camera height in pixels
+    :param camera_width:  camera width in pixels
     :param marker_list: list of markers
     :return: the homography matrix or None if there are not enough markers
     """
@@ -47,8 +49,16 @@ def getHomographyMatrix(marker_list):
     src_pts = np.float32([pt00, pt40, pt02, pt42])  # pixel coordinates of the markers
     dst_pts = np.float32([[0.0, 0.0], [4.0, 0.0], [0.0, 2.0], [4.0, 2.0]])  # arena coordinates of markers
     homography_matrix = cv2.getPerspectiveTransform(src_pts, dst_pts)  # this gives us the homography matrix of the arena
+    camera_dst_points = np.float32([[0.0, 0.0], [camera_width, 0.0], [0.0, camera_height], [camera_width, camera_height]])
+    # the camera source points are the corners of the camera frame, but extended by a factor of 1.1 from the center
+    camera_src_pts = np.float32([pt00, pt40, pt02, pt42])
+    cent = (camera_width / 2, camera_height / 2)
+    for i in range(4):
+        camera_src_pts[i] = (camera_src_pts[i][0] - cent[0]) * 1.05 + cent[0], (camera_src_pts[i][1] - cent[1]) * 1.1 + cent[1]
+    camera_matrix = cv2.getPerspectiveTransform(camera_src_pts, camera_dst_points)
+    logging.debug(camera_dst_points)
     logging.debug("Generated Homography Matrix!!!")
-    return homography_matrix
+    return homography_matrix, camera_matrix
 
 
 def processMarkers(marker_list):
