@@ -56,7 +56,6 @@ def draw_on_frame(frame):
                 return frame
             components.communications.client_server.send_error_message('Initialized Homography Matrix (All corners visible)')
             dr_op.inverse_matrix = np.linalg.pinv(dr_op.H)
-        frame = cv2.warpPerspective(frame, dr_op.camera_matrix, (frame.shape[1], frame.shape[0]))
         dr_op.aruco_markers = processMarkers(zip(ids, corners))
 
         if dr_op.draw_obstacles:
@@ -85,6 +84,8 @@ def draw_on_frame(frame):
                 if i not in range(4):
                     frame = cv2.arrowedLine(frame, tuple_int(c[0]), tuple_int(c[1]), (0, 255, 0), 2,
                                             tipLength=.4)
+
+        frame = cv2.warpPerspective(frame, dr_op.camera_matrix, (frame.shape[1], frame.shape[0]))
 
     except KeyboardInterrupt:
         exit()
