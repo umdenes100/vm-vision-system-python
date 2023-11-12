@@ -148,7 +148,7 @@ def message_received(client, server: WebsocketServer, message):
                 f'Client {get_team_name(client)} called prediction_request before begin statement. Try pressing the reset button on your arduino.')
             logging.debug(f'Team {get_team_name(client)} tried to get a prediction_request without a team name.')
         # assemble the data in client['image'] into a single string
-        if not jetson_server.request_prediction(client['teamName']):
+        if not jetson_server.request_prediction(client['teamName'], client['address']):
             logging.debug(f'Team {get_team_name(client)} requested a prediction but no jetson could be found.')
             client_server.send_error_message(f'Team {get_team_name(client)} requested a prediction but no jetson could be found.')
 

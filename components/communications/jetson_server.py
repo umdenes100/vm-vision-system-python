@@ -100,12 +100,11 @@ def message_received(client, server: WebsocketServer, message):
         esp_server.send_prediction(client['teamName'], message['prediction'])
         logging.debug(f'Jetson {get_team_name(client)} sent prediction results ({message["prediction"]}) to esp.')
 
-
-def request_prediction(team_name):
+def request_prediction(team_name, ESPIP):
     # Find the client with the given team name
     for client in ws_server.clients:
         if 'teamName' in client and client['teamName'] == team_name:
-            ws_server.send_message(client, json.dumps({'op': 'prediction_request'}))
+            ws_server.send_message(client, json.dumps({'op': 'prediction_request', 'ESPIP': ESPIP}))
             return True
     return False
 
