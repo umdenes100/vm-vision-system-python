@@ -16,6 +16,7 @@ from subprocess import Popen, PIPE, STDOUT
 
 class CameraManager:
     def __init__(self):
+        self.video = None
         self.camera_num = None
 
     def set_cam(self, num):
@@ -33,7 +34,7 @@ class CameraManager:
                 video.set(cv2.CAP_PROP_FPS, 30.0)  # supported FPS: 30, 15
                 print(f'camera set to {num}')
                 self.video = video
-                self.camera_num = num
+                self.camera_num = int(num)
         except KeyboardInterrupt:
             exit()
         except Exception as e:
@@ -42,6 +43,14 @@ class CameraManager:
     def get_camera(self):
         return self.video
 
+    def restart_stream(self):
+        self.video.release()
+        self.video = cv2.VideoCapture(self.camera_num, cv2.CAP_V4L2)
+        self.video.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
+        self.video.set(cv2.CAP_PROP_FPS, 30.0)
+        self.video.set(cv2.CAP_PROP_FRAME_WIDTH, 1920.0)
+        self.video.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080.0)
+        return self.video
 
 
     def begin(self):

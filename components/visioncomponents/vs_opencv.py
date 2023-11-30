@@ -25,36 +25,43 @@ dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_1000)
 parameters = cv2.aruco.DetectorParameters()
 detector = cv2.aruco.ArucoDetector(dictionary, parameters)
 camera_bounds = None
+
+def corners_found(ids):
+    return len(ids) >= 4 and all([i in ids for i in range(4)])
+
+def render_issue(issue: str, frame):
+    components.communications.client_server.send_console_message(issue)
+    logging.debug(issue)
+    for y in range(50, frame.shape[0], 50):
+        frame = cv2.putText(frame, 'One of the corners is not visible - cannot initialize', (50, y),
+                            cv2.FONT_HERSHEY_TRIPLEX, 2,
+                            (0, 0, 255))
+
+    return frame
+
+
+
 def draw_on_frame(frame):
     try:
+
         (corners, ids, rejected) = detector.detectMarkers(frame)
         frame = cv2.aruco.drawDetectedMarkers(frame, corners)
-        if not (isinstance(ids, list) or isinstance(ids, np.ndarray)):
-            components.communications.client_server.send_error_message('No corners were found.')
-            if dr_op.H is None:  # Add the debug text if we have not yet gotten the homography matrix.
-                for y in range(50, frame.shape[0], 50):
-                    frame = cv2.putText(frame, 'No corners found', (50, y),
-                                        cv2.FONT_HERSHEY_TRIPLEX, 2,
-                                        (0, 0, 255))
-
-            return frame
-
-        corners = [c[0] for c in corners]
-        ids = [i[0] for i in ids]
 
         if dr_op.H is None:
+            if not (isinstance(ids, list) or isinstance(ids, np.ndarray)):
+                return render_issue('No corners were found', frame)
+            if not corners_found([i[0] for i in ids]):
+                return render_issue('One of the markers is blocked - cannot generate homography matrix', frame)
+
+            corners = [c[0] for c in corners]
+            ids = [i[0] for i in ids]
+
             dr_op.H, dr_op.camera_matrix = getHomographyMatrix(zip(ids, corners),
                                                                camera_width=frame.shape[1],
                                                                camera_height=frame.shape[0])
             if dr_op.H is None:
-                components.communications.client_server.send_error_message('At least one of the corner ArUco markers are not visible.')
-                for y in range(50, frame.shape[0], 50):
-                    frame = cv2.putText(frame, 'One of the corners is not visible - cannot initialize', (50, y),
-                                        cv2.FONT_HERSHEY_TRIPLEX, 2,
-                                        (0, 0, 255))
-
-                return frame
-            components.communications.client_server.send_error_message('Initialized Homography Matrix (All corners visible)')
+                return render_issue('At least one of the corner ArUco markers are not visible - homography matrix could not be generated')
+            components.communications.client_server.send_console_message('Initialized Homography Matrix (All corners visible)')
             dr_op.inverse_matrix = np.linalg.pinv(dr_op.H)
         dr_op.aruco_markers = processMarkers(zip(ids, corners))
 
@@ -114,8 +121,8 @@ def start_image_processing():
         #     logging.debug('No clients connected, slowing image processing to 1fps')
         #     time.sleep(1)
         start = time.perf_counter()  # start timer to calculate FPS
-        cap = camera.get_camera()  # get video stream from connections object
         try:
+            cap = camera.get_camera()  # get video stream from connections object
             if cap.isOpened():
                 ret, frame = cap.read()  # read frame from video stream
                 if ret:
@@ -132,6 +139,16 @@ def start_image_processing():
                     img_info['frames_sent'] += 1
                     # logging.log(f'Image size: {len(jpeg_bytes)} bytes')
                     send_frame(np.array(jpeg_bytes).tostring())  # send frame to web client
+                else:
+                    time.sleep(1)
+                    logging.debug('Could not read frame from camera, restarting stream')
+                    time.sleep(1)
+                    camera.restart_stream()
+            else:
+                time.sleep(1)
+                logging.debug('Camera is not open, restarting stream')
+                time.sleep(1)
+                camera.restart_stream()
         except Exception as e:
             logging.debug(str(e))
         global last_sleep

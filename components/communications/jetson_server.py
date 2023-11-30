@@ -32,19 +32,19 @@ def get_team_name(client):
 def new_client(client, server: WebsocketServer):
     logging.debug(f"New JETSON client connected and was given id {client['id']:d}")
     if client['address'][0] in previous_connections:
-        client_server.send_error_message(
+        client_server.send_console_message(
             f'Jetson with previous name {previous_connections[client["address"][0]]} reconnected... waiting for client initialization')
     else:
-        client_server.send_error_message(f'New Jetson connected... waiting for client initialization')
+        client_server.send_console_message(f'New Jetson connected... waiting for client initialization')
 
 
 # Called for every client disconnecting
 def client_left(client, _):
     if client is not None:
-        client_server.send_error_message(f'Jetson from team {get_team_name(client)} disconnected...')
+        client_server.send_console_message(f'Jetson from team {get_team_name(client)} disconnected...')
     elif client['address'][0] not in ignorable_disconnects:
-        logging.debug("Unknown Client disconnected... mysterious")
-        client_server.send_error_message(f'Unknown Jetson disconnected... mysterious')
+        logging.debug("Unknown Jetson Client disconnected... mysterious")
+        client_server.send_console_message(f'Unknown Jetson disconnected... mysterious')
     ignorable_disconnects.discard(client['address'][0])
 
 
@@ -55,24 +55,25 @@ def message_received(client, server: WebsocketServer, message):
         return
     import main
     if main.log_requests['jetson']:
-        logging.debug(f'Team: "{client.get("teamName") if client.get("teamName") else "No Team Name"}" sent message {message}')
+        logging.debug(
+            f'Jetson from Team: "{client.get("teamName") if client.get("teamName") else "No Team Name"}" sent message {message}')
     try:
         message = json.loads(message)
         if message is None:
             logging.debug(f'Jetson from team {get_team_name(client)} sent an empty message. (Could be ping...)')
-            client_server.send_error_message(
+            client_server.send_console_message(
                 f'Jetson from team {get_team_name(client)} sent an invalid message.')
             return
     except json.JSONDecodeError:
         logging.debug(f'Invalid JSON: {message}')
-        client_server.send_error_message(
+        client_server.send_console_message(
             f'Jetson from team {get_team_name(client)} sent an invalid message.')
         return
 
     if message['op'] == 'begin':
         # Check to make sure the team name is unique
         if message['teamName'] in [get_team_name(c) for c in ws_server.clients if c != client]:
-            client_server.send_error_message(
+            client_server.send_console_message(
                 f'Jetson tried to connect with team name {message["teamName"]}. It is already in use for another Jetson. Please choose a different name.')
             return
         client['teamName'] = message['teamName']
@@ -80,17 +81,17 @@ def message_received(client, server: WebsocketServer, message):
         ws_server.send_message(client,
                                json.dumps({'op': 'status', 'status': 'OK'}))
         ignorable_disconnects.discard(client['address'][0])  # This client is now valid.
-        client_server.send_error_message(f'Jetson from team {get_team_name(client)} client initialization complete.')
+        client_server.send_console_message(f'Jetson from team {get_team_name(client)} client initialization complete.')
         logging.debug(f'Jetson from team {get_team_name(client)} client initialization complete.')
     if message['op'] == 'prediction_results':
         if 'teamName' not in client:
-            client_server.send_error_message(
+            client_server.send_console_message(
                 f'Jetson {get_team_name(client)} tried to send prediction results before initialization.')
             logging.debug(
                 f'Jetson {get_team_name(client)} tried to send prediction results before initialization.')
             return
         if 'prediction' not in message:
-            client_server.send_error_message(
+            client_server.send_console_message(
                 f'Jetson {get_team_name(client)} tried to send prediction results without a prediction.')
             logging.debug(
                 f'Jetson {get_team_name(client)} tried to send prediction results without a prediction.')
@@ -98,7 +99,9 @@ def message_received(client, server: WebsocketServer, message):
 
         # Send the prediction to the esp
         esp_server.send_prediction(client['teamName'], message['prediction'])
-        logging.debug(f'Jetson {get_team_name(client)} sent prediction results ({message["prediction"]}) to esp.')
+        logging.debug(
+            f'Sent prediction results from {get_team_name(client)}\'s Jetson (prediction: {message["prediction"]}) to the teams wifi module.')
+
 
 
 

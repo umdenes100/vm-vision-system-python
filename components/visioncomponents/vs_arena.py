@@ -24,9 +24,9 @@ def center(corners: list[tuple]):
 
 def getHomographyMatrix(marker_list, camera_width, camera_height):
     """
-    :param camera_height: camera height in pixels
-    :param camera_width:  camera width in pixels
-    :param marker_list: list of markers
+    :param camera_height: camera height in pixels.
+    :param camera_width:  camera width in pixels.
+    :param marker_list: list of markers.
     :return: the homography matrix or None if there are not enough markers
     """
     pt00 = None
@@ -34,7 +34,7 @@ def getHomographyMatrix(marker_list, camera_width, camera_height):
     pt40 = None
     pt42 = None
     for aruco_id, corners in marker_list:
-        if aruco_id == 0:  # finding all the corners of the arena. Corners are clockwise starting from 0 0.
+        if aruco_id == 0:  # Finding all the corners of the arena. Corners are clockwise starting from 0 0.
             pt00 = center(corners)
         elif aruco_id == 1:
             pt02 = center(corners)
