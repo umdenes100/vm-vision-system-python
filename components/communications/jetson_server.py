@@ -103,22 +103,11 @@ def message_received(client, server: WebsocketServer, message):
             f'Sent prediction results from {get_team_name(client)}\'s Jetson (prediction: {message["prediction"]}) to the teams wifi module.')
 
 
-
-
-def request_prediction(team_name, image_hex):
+def request_prediction(team_name, ESPIP):
     # Find the client with the given team name
     for client in ws_server.clients:
         if 'teamName' in client and client['teamName'] == team_name:
-            ws_server.send_message(client, json.dumps({'op': 'prediction_request', 'image': image_hex}))
-            return True
-    return False
-
-
-def image_capture(team_name, image_hex, category):
-    # Find the client with the given team name
-    for client in ws_server.clients:
-        if 'teamName' in client and client['teamName'] == team_name:
-            ws_server.send_message(client, json.dumps({'op': 'image_capture', 'image': image_hex, 'category': category}))
+            ws_server.send_message(client, json.dumps({'op': 'prediction_request', 'ESPIP': ESPIP}))
             return True
     return False
 
