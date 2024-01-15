@@ -149,22 +149,8 @@ def message_received(client, server: WebsocketServer, message):
             logging.debug(f'Team {get_team_name(client)} tried to get a prediction_request without a team name.')
         # assemble the data in client['image'] into a single string
         if not jetson_server.request_prediction(client['teamName'], client['address']):
-            logging.debug(f'Team {get_team_name(client)} requested a prediction but no jetson could be found.')
-            client_server.send_error_message(f'Team {get_team_name(client)} requested a prediction but no jetson could be found.')
-
-    if message['op'] == 'image_capture':
-        if 'teamName' not in client:
-            client_server.send_error_message(
-                f'Client {get_team_name(client)} called image_capture before begin statement. Try pressing the reset button on your arduino.')
-            logging.debug(f'Team {get_team_name(client)} tried to get a image_capture without a team name.')
-        # assemble the data in client['image'] into a single string
-        image = ''.join([client['image'][i] for i in range(len(client['image']))])
-        logging.debug(f'Team {get_team_name(client)} requested a prediction with an image of length {len(image)/2} bytes')
-        if not jetson_server.image_capture(client['teamName'], image, message['category']):
-            logging.debug(f'Team {get_team_name(client)} requested to capture an image but no Jetson could be found.')
-            client_server.send_error_message(f'Team {get_team_name(client)} requested to capture an image but no Jetson could be found.')
-
-
+            logging.debug(f'Team {get_team_name(client)} requested a prediction but jetson is not connected.')
+            client_server.send_error_message(f'Team {get_team_name(client)} requested a prediction but jetson is not connected.')
 
 def send_locations():
     for client in ws_server.clients:
