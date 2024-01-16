@@ -43,6 +43,16 @@ def message_received(client, server: WebsocketServer, message):
     if client is None:
         logging.debug(f'Unknown Jetson sent a message - {message}')
         return
+    
+    if message['op'] == 'begin':
+        jetson_id = message['jetson_id']
+        # Check to make sure the team name is unique
+        client['jetson_id'] = message['teamName']
+        previous_connections[client['address'][0]] = client['jetson_id']
+        ws_server.send_message(client,
+                               json.dumps({'op': 'status', 'status': 'OK'}))
+        ignorable_disconnects.discard(client['address'][0])  # This client is now valid.
+        client_server.send_error_message(f'Jetson with id :{jetson_id} connected.')
 
     if message['op'] == 'prediction_results':
         if 'teamName' not in message:
