@@ -26,6 +26,9 @@ def new_client(client, server: WebsocketServer):
             f'Jetson with previous name {previous_connections[client["address"][0]]} reconnected... waiting for client initialization')
     else:
         client_server.send_error_message(f'New Jetson connected... waiting for client initialization')
+    if len(ws_server.clients) > 1:
+        logging.debug(f"There are now {str(len(ws_server.clients))} connected to the vision system")
+        client_server.send_error_message(f"There are now {str(len(ws_server.clients))} connected to the vision system")
 
 
 # Called for every client disconnecting
@@ -45,27 +48,32 @@ def message_received(client, server: WebsocketServer, message):
         return
     
     if message['op'] == 'begin':
-        jetson_id = message['jetson_id']
         # Check to make sure the team name is unique
-        client['jetson_id'] = message['teamName']
-        previous_connections[client['address'][0]] = client['jetson_id']
+        if message['jetson_id'] in [c["jetson_id"] for c in ws_server.clients if c != client]:
+            client_server.send_error_message(
+                f'Jetson tried to connect with jid {client["jetson_id"]}. It is already in use for another Jetson. Please choose a different name.')
+            return
+        client['jetson_id'] = message['jetson_id']
+        previous_connections[client['address'][0]] = client["jetson_id"]
         ws_server.send_message(client,
                                json.dumps({'op': 'status', 'status': 'OK'}))
         ignorable_disconnects.discard(client['address'][0])  # This client is now valid.
-        client_server.send_error_message(f'Jetson with id :{jetson_id} connected.')
+        client_server.send_error_message(f'Jetson with jid {client["jetson_id"]} client initialization complete.')
+        logging.debug(f'Jetson with jid {client["jetson_id"]} client initialization complete.')
 
     if message['op'] == 'prediction_results':
-        if 'teamName' not in message:
-            client_server.send_error_message(
-                f'Jetson tried to send prediction results without a team name.')
-            logging.debug(
-                f'Jetson tried to send prediction results without a team name.')
-            return
         if 'prediction' not in message:
             client_server.send_error_message(
                 f'Jetson tried to send prediction results without a prediction.')
             logging.debug(
                 f'Jetson tried to send prediction results without a prediction.')
+            return
+        
+        if int(message['prediction']) == -99:
+            client_server.send_error_message(
+                f'Error occured on Jetson when making prediction.')
+            logging.debug(
+                f'Error occured on Jetson when making prediction.')
             return
 
         # Send the prediction to the esp
