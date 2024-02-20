@@ -47,7 +47,8 @@ def message_received(client, server: WebsocketServer, message):
         logging.debug(f'Unknown Jetson sent a message - {message}')
         return
     
-    logging.debug(f' Jetson sent a message - {message}')
+    message=json.loads(message)
+    logging.debug(f'Jetson sent a message - {message}')
     
     if message['op'] == 'begin':
         # Check to make sure the team name is unique
