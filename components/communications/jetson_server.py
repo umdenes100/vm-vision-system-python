@@ -47,6 +47,8 @@ def message_received(client, server: WebsocketServer, message):
         logging.debug(f'Unknown Jetson sent a message - {message}')
         return
     
+    logging.debug(f' Jetson sent a message - {message}')
+    
     if message['op'] == 'begin':
         # Check to make sure the team name is unique
         if message['jetson_id'] in [c["jetson_id"] for c in ws_server.clients if c != client]:
