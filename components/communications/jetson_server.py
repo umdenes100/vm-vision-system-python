@@ -44,7 +44,6 @@ def client_left(client, _):
         client_server.send_console_message(f'Jetson from team {get_team_name(client)} disconnected...')
     elif client['address'][0] not in ignorable_disconnects:
         logging.debug("Unknown Jetson Client disconnected... mysterious")
-        client_server.send_console_message(f'Unknown Jetson disconnected... mysterious')
     ignorable_disconnects.discard(client['address'][0])
 
 
@@ -60,9 +59,8 @@ def message_received(client, server: WebsocketServer, message):
     try:
         message = json.loads(message)
         if message is None:
-            logging.debug(f'Jetson from team {get_team_name(client)} sent an empty message. (Could be ping...)')
             client_server.send_console_message(
-                f'Jetson from team {get_team_name(client)} sent an invalid message.')
+                f'Jetson from team {get_team_name(client)} sent an invalid message. (Empty message)')
             return
     except json.JSONDecodeError:
         logging.debug(f'Invalid JSON: {message}')
@@ -82,25 +80,20 @@ def message_received(client, server: WebsocketServer, message):
                                json.dumps({'op': 'status', 'status': 'OK'}))
         ignorable_disconnects.discard(client['address'][0])  # This client is now valid.
         client_server.send_console_message(f'Jetson from team {get_team_name(client)} client initialization complete.')
-        logging.debug(f'Jetson from team {get_team_name(client)} client initialization complete.')
     if message['op'] == 'prediction_results':
         if 'teamName' not in client:
             client_server.send_console_message(
-                f'Jetson {get_team_name(client)} tried to send prediction results before initialization.')
-            logging.debug(
                 f'Jetson {get_team_name(client)} tried to send prediction results before initialization.')
             return
         if 'prediction' not in message:
             client_server.send_console_message(
                 f'Jetson {get_team_name(client)} tried to send prediction results without a prediction.')
-            logging.debug(
-                f'Jetson {get_team_name(client)} tried to send prediction results without a prediction.')
             return
 
         # Send the prediction to the esp
         esp_server.send_prediction(client['teamName'], message['prediction'])
-        logging.debug(
-            f'Sent prediction results from {get_team_name(client)}\'s Jetson (prediction: {message["prediction"]}) to the teams wifi module.')
+        client_server.send_console_message(
+            f'ML prediction from team {get_team_name(client)}\ finished. Result (prediction: {message["prediction"]}) sent to the teams wifi module.')
 
 
 def request_prediction(team_name, ESPIP):

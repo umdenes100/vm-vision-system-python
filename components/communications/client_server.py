@@ -67,7 +67,7 @@ def send_console_message(message: str):
     """
     if ws_server is None:
         return
-    # logging.debug(f'Sending error message: {message}')
+    logging.debug(message)
     ws_server.send_message_to_all(json.dumps({'type': 'error', 'data': message}))
 
 
