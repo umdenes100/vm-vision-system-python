@@ -49,18 +49,19 @@ def message_received(client, server: WebsocketServer, message):
     try:
         message = json.loads(message)
         if message is None:
-            client_server.send_console_message(
-                f'Jetson from team {get_team_name(client)} sent an invalid message. (Empty message)')
+            client_server.send_console_message(f'Jetson sent an invalid message. (Empty message)')
             return
     except json.JSONDecodeError:
         logging.debug(f'Invalid JSON: {message}')
-        client_server.send_console_message(
-            f'Jetson from team {get_team_name(client)} sent an invalid message.')
+        client_server.send_console_message(f'Jetson sent an invalid message. Bad JSON.')
         return
 
     if message['op'] == 'prediction_results':
         if 'teamName' not in message:
             client_server.send_console_message(f'Jetson tried to send prediction results without a team name.')
+            return
+        if 'error' in message:
+            client_server.send_console_message(f"Error from Jetson when proccessing request from {message['teamName']}: {message['error']}")
             return
         if 'prediction' not in message:
             client_server.send_console_message(f'Jetson tried to send prediction results without a prediction.')

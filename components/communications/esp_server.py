@@ -72,6 +72,7 @@ def message_received(client, server: WebsocketServer, message):
     if client is None:
         logging.debug(f'Unknown client sent a message - {message}')
         return
+
     import main
     if main.log_requests['esp']:
         logging.debug(f'Team: "{client.get("teamName") if client.get("teamName") else "No Team Name"}" sent message {message}')
