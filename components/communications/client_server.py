@@ -29,7 +29,7 @@ def new_client(client, __):
             jpegs.append(file)
     print(jpegs)
     ws_server.send_message(client, json.dumps({'type': 'jpegs', 'data': jpegs}))
-    send_error_message(usb_results if usb_results is not None else 'No USB results yet.')
+    send_console_message(usb_results if usb_results is not None else 'No USB results yet.')
 
 
 # Called for every client disconnecting
@@ -61,13 +61,13 @@ def send_print_message(team_name, message):
     ws_server.send_message_to_all(json.dumps({'type': 'print', 'team': team_name, 'data': message}))
 
 
-def send_error_message(message: str):
+def send_console_message(message: str):
     """
     Sends an error message to the web client.
     """
     if ws_server is None:
         return
-    # logging.debug(f'Sending error message: {message}')
+    logging.debug(message)
     ws_server.send_message_to_all(json.dumps({'type': 'error', 'data': message}))
 
 

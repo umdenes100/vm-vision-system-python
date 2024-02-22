@@ -50,22 +50,21 @@ def get_team_name(client):
 def new_client(client, server: WebsocketServer):
     logging.debug(f"New ESP client connected and was given id {client['id']:d}")
     if client['address'][0] in previous_connections:
-        client_server.send_error_message(
+        client_server.send_console_message(
             f'Wi-Fi module with previous name {previous_connections[client["address"][0]]} reconnected... waiting for begin statement. (Not beginning? See Vision System Troubleshooting at enes100.umd.edu)')
     else:
-        client_server.send_error_message(f'New Wi-Fi module connected... waiting for begin statement. (Not beginning? See Vision System Troubleshooting at enes100.umd.edu)')
+        client_server.send_console_message(f'New Wi-Fi module connected... waiting for begin statement. (Not beginning? See Vision System Troubleshooting at enes100.umd.edu)')
 
 
 # Called for every client disconnecting
 def client_left(client, _):
     if client is None:
         return
-    client_server.send_error_message(f'Team {get_team_name(client)} disconnected...')
+    client_server.send_console_message(f'Team {get_team_name(client)} disconnected...')
     if 'address' not in client or len(client['address']) == 0:
         return
     if client['address'][0] not in ignorable_disconnects:
-        logging.debug("Unknown Client disconnected... mysterious")
-        client_server.send_error_message(f'Unknown ESP disconnected... mysterious')
+        client_server.send_console_message(f'Unknown ESP disconnected... mysterious')
     ignorable_disconnects.discard(client['address'][0])
 
 # Called when a Wi-Fi client sends a message
@@ -79,20 +78,19 @@ def message_received(client, server: WebsocketServer, message):
     try:
         message = json.loads(message)
         if message is None:
-            logging.debug(f'Client {get_team_name(client)} sent an empty message. (Could be ping...)')
-            client_server.send_error_message(
+            client_server.send_console_message(
                 f'Team {get_team_name(client)} sent an invalid message. Try pressing the reset button on your arduino. (Empty Message)')
             return
     except json.JSONDecodeError:
         logging.debug(f'Invalid JSON: {message}')
-        client_server.send_error_message(
+        client_server.send_console_message(
             f'Team {get_team_name(client)} sent an invalid message. Try pressing the reset button on your arduino. (JSON Parse Error)')
         return
 
     if message['op'] == 'begin':
         # Check to make sure the team name is unique
         if message['teamName'] in [get_team_name(c) for c in ws_server.clients if c != client]:
-            client_server.send_error_message(
+            client_server.send_console_message(
                 f'Team name {message["teamName"]} is already in use. Please choose a different name.')
             return
         client['teamName'] = message['teamName']
@@ -100,30 +98,13 @@ def message_received(client, server: WebsocketServer, message):
         client['teamType'] = team_types[message['teamType']]
         # Optional aruco argument. If not provided, it will be None.
         client['aruco'] = {'num': message.get('aruco'), 'visible': False, 'x': None, 'y': None, 'theta': None}
-        client['image']: dict[int: str] = {}
-        ws_server.send_message(client,
-                               json.dumps({'op': 'info', 'mission_loc': 'bottom' if dr_op.mission_loc else 'top'}))
+
         ignorable_disconnects.discard(client['address'][0])  # This client is now valid.
-        client_server.send_error_message(f'Team {get_team_name(client)} got begin statement')
+        client_server.send_console_message(f'Team {get_team_name(client)} got begin statement')
         if data.dr_op.aruco_markers.get(client['aruco']['num']) is None:
             shown_markers = [str(marker) for marker in list(data.dr_op.aruco_markers.keys()) if marker > 3]
             msg = f'The visible aruco markers are {",".join(shown_markers)}.' if shown_markers else 'No aruco markers are visible.'
-            client_server.send_error_message(f'Warning: Team {get_team_name(client)} registered with ArUco num {client["aruco"]["num"]} but it is not visible! ' + msg)
-    if message['op'] == 'aruco':
-        if 'teamName' not in client:
-            if once():
-                client_server.send_error_message(
-                    f'Client {get_team_name(client)} called updateLocation before begin statement. Try pressing the reset button on your arduino.')
-            logging.debug(
-                f'Team {get_team_name(client)} registered for aruco num {message["aruco"]} without begin statement')
-            return
-        logging.debug(f'Team {get_team_name(client)} registered for aruco num {message}')
-        client_server.send_error_message(f'Team {get_team_name(client)} called updateLocation for the first time with '
-                                         f'aruco num {message["aruco"]}')
-        # Since we know team name is set, we know aruco is set
-        client['aruco']['num'] = message['aruco']
-        ws_server.send_message(client, json.dumps({'op': 'aruco_confirm'}))
-        logging.debug(f'Team {client["teamName"]} confirmed aruco num {message}')
+            client_server.send_console_message(f'Warning: Team {get_team_name(client)} registered with ArUco num {client["aruco"]["num"]} but it is not visible! ' + msg)
     if message['op'] == 'print':
         # if random.random() < 0.00005 and message['message'].endswith('\n'):
         #     message['message'] += 'LTF > UTF :)\n'
@@ -135,22 +116,20 @@ def message_received(client, server: WebsocketServer, message):
     if message['op'] == 'mission':
         if 'teamName' not in client:
             if once():
-                client_server.send_error_message(
+                client_server.send_console_message(
                     f'Client {get_team_name(client)} sent mission message before begin statement. Try pressing the reset button on your arduino.')
             return
         # logging.debug(f'Mission submission from team {client["teamName"]}.')
         client_server.send_print_message(client['teamName'],
                                          get_mission_message(client['teamType'], message['type'], message['message']))
-
     if message['op'] == 'prediction_request':
         if 'teamName' not in client:
-            client_server.send_error_message(
+            client_server.send_console_message(
                 f'Client {get_team_name(client)} called prediction_request before begin statement. Try pressing the reset button on your arduino.')
-            logging.debug(f'Team {get_team_name(client)} tried to get a prediction_request without a team name.')
-        # assemble the data in client['image'] into a single string
         if not jetson_server.request_prediction(client['teamName'], client['address']):
-            logging.debug(f'Team {get_team_name(client)} requested a prediction but jetson is not connected.')
-            client_server.send_error_message(f'Team {get_team_name(client)} requested a prediction but jetson is not connected.')
+            client_server.send_console_message(f'Team {get_team_name(client)} requested a prediction but no jetson could be found.')
+        else:
+          client_server.send_console_message(f'ML prediction from team {get_team_name(client)}\ requested. Waiting for response from Jetson.')
 
 def send_locations():
     for client in ws_server.clients:
@@ -163,7 +142,7 @@ def send_locations():
                 client['aruco']['theta'] = round(float(aruco.theta), 2)
             else:
                 client['aruco']['visible'] = False
-                client['aruco'].update({'visible': False, 'x': None, 'y': None, 'theta': None})
+                client['aruco'].update({'visible': False, 'x': -1, 'y': -1, 'theta': -1})
             ws_server.send_message(client, json.dumps({'op': 'aruco', 'aruco': client['aruco']}))
 
 
@@ -175,8 +154,8 @@ def send_prediction(team_name, prediction):
         if client and client.get('teamName') == team_name:
             ws_server.send_message(client, json.dumps({'op': 'prediction', 'prediction': prediction}))
             return
-    client_server.send_error_message(
-        f'Could not find team {team_name} to send prediction to from jetson with team name {team_name}')
+    client_server.send_console_message(
+        f'Could not find Wifi Module for team {team_name} to send prediction results to.')
 
 
 # noinspection PyTypeChecker
