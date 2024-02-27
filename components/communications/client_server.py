@@ -27,14 +27,13 @@ def new_client(client, __):
     for file in os.listdir('static'):
         if file.endswith('.jpg') or file.endswith('.jpeg') or file.endswith('.png') or file.endswith('.gif'):
             jpegs.append(file)
-    print(jpegs)
     ws_server.send_message(client, json.dumps({'type': 'jpegs', 'data': jpegs}))
     send_console_message(usb_results if usb_results is not None else 'No USB results yet.')
 
 
 # Called for every client disconnecting
 def client_left(client, _):
-    print(f"WEB Client({client['id']:d}) disconnected")
+    logging.debug(f"WEB Client({client['id']:d}) disconnected")
 
 
 # Called when a client sends a message
@@ -44,7 +43,7 @@ def message_received(client, _, message):
         logging.debug('register that baddie')
     if len(message) > 200:
         message = message[:200] + '..'
-    print("Client(%d) said: %s" % (client['id'], message))
+    logging.debug("Client(%d) said: %s" % (client['id'], message))
 
 
 # Called when the ws_server needs to send a print message associated with a team.

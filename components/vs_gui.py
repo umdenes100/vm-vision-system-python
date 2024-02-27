@@ -122,6 +122,7 @@ class Ui(QtWidgets.QMainWindow):
 def start_gui():
     global gui_is_running
     gui_is_running = True
+    logging.getLogger('PyQt5').setLevel(logging.WARNING)
     app = QtWidgets.QApplication(sys.argv)
     app.setWindowIcon(
         QtGui.QIcon('/snap/gtk-common-themes/1519/share/icons/elementary-xfce/categories/48/applications-arcade.png'))

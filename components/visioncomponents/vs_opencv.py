@@ -26,24 +26,21 @@ parameters = cv2.aruco.DetectorParameters()
 detector = cv2.aruco.ArucoDetector(dictionary, parameters)
 camera_bounds = None
 
+
 def corners_found(ids):
     return len(ids) >= 4 and all([i in ids for i in range(4)])
 
+
 def render_issue(issue: str, frame):
     components.communications.client_server.send_console_message(issue)
-    logging.debug(issue)
     for y in range(50, frame.shape[0], 50):
-        frame = cv2.putText(frame, 'One of the corners is not visible - cannot initialize', (50, y),
-                            cv2.FONT_HERSHEY_TRIPLEX, 2,
-                            (0, 0, 255))
+        frame = cv2.putText(frame, issue, (50, y), cv2.FONT_HERSHEY_TRIPLEX, 2, (0, 0, 255))
 
     return frame
 
 
-
-def draw_on_frame(frame):
+def process_frame(frame):
     try:
-
         (corners, ids, rejected) = detector.detectMarkers(frame)
         frame = cv2.aruco.drawDetectedMarkers(frame, corners)
 
@@ -60,11 +57,12 @@ def draw_on_frame(frame):
                                                                camera_width=frame.shape[1],
                                                                camera_height=frame.shape[0])
             if dr_op.H is None:
-                return render_issue('At least one of the corner ArUco markers are not visible - homography matrix could not be generated')
-            components.communications.client_server.send_console_message('Initialized Homography Matrix (All corners visible)')
+                return render_issue(
+                    'At least one of the corner ArUco markers are not visible - homography matrix could not be generated',
+                    frame)
+            components.communications.client_server.send_console_message(
+                'Initialized Homography Matrix (All corners visible)')
             dr_op.inverse_matrix = np.linalg.pinv(dr_op.H)
-        dr_op.aruco_markers = processMarkers(zip(ids, corners))
-
         if dr_op.draw_obstacles:
             frame = createObstacles(frame, dr_op.inverse_matrix, dr_op.randomization)
 
@@ -72,6 +70,11 @@ def draw_on_frame(frame):
             frame = createMission(frame, dr_op.inverse_matrix, dr_op.otv_start_dir, dr_op.mission_loc,
                                   dr_op.otv_start_loc)
 
+        if ids is None or corners is None:
+            logging.debug(f'{ids}, {corners}')
+            return frame
+
+        dr_op.aruco_markers = processMarkers(zip(ids, corners))
         if dr_op.draw_text:
             for marker in dr_op.aruco_markers.values():
                 if marker.id not in range(3):
@@ -129,7 +132,7 @@ def start_image_processing():
                     if 'rotate' in config:
                         if config['rotate']:  # Rotate by 180
                             frame = cv2.rotate(frame, cv2.ROTATE_180)
-                    new_frame = draw_on_frame(frame)
+                    new_frame = process_frame(frame)
                     if send_locations_bool:  # send locations to esp32 every other frame
                         threading.Thread(target=send_locations, name='Send Locations').start()
                     send_locations_bool = not send_locations_bool

@@ -44,7 +44,6 @@ def message_received(client, server: WebsocketServer, message):
     if client is None:
         logging.debug(f'Unknown Jetson sent a message - {message}')
         return
-    print(message)
     
     try:
         message = json.loads(message)
@@ -111,16 +110,16 @@ def start_server():
     logging.debug(f'Starting client jetson_server on port {ws_server.port:d}')
     threading.Thread(target=ws_server.run_forever, name='Jetson WS Server').start()
 
-    # We will ping all esp clients to make sure they haven't disconnected. Sadly, when ESP clients power off
-    # unexpectedly, they do not fire the disconnect callback.
-    def check_connection():
-        while True:
-            for client in ws_server.clients:
-                if not ping(client['address'][0]):
-                    logging.debug(f'Client {client["address"][0]} is not responding to ping. Disconnecting.')
-                    ignorable_disconnects.add(client['address'][0])
-                    # noinspection PyProtectedMember
-                    ws_server._terminate_client_handler(client['handler'])
-            time.sleep(1)
-
-    threading.Thread(target=check_connection, daemon=True, name='Jetson Check Connection').start()
+    # # We will ping all esp clients to make sure they haven't disconnected. Sadly, when ESP clients power off
+    # # unexpectedly, they do not fire the disconnect callback.
+    # def check_connection():
+    #     while True:
+    #         for client in ws_server.clients:
+    #             if not ping(client['address'][0]):
+    #                 logging.debug(f'Client {client["address"][0]} is not responding to ping. Disconnecting.')
+    #                 ignorable_disconnects.add(client['address'][0])
+    #                 # noinspection PyProtectedMember
+    #                 ws_server._terminate_client_handler(client['handler'])
+    #         time.sleep(1)
+    #
+    # threading.Thread(target=check_connection, daemon=True, name='Jetson Check Connection').start()

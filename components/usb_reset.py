@@ -1,7 +1,10 @@
+import logging
+
+
 def reset_usb():
     import subprocess
 
-    print('Resetting USB Devices...')
+    logging.debug('Resetting USB Devices...')
 
     process = subprocess.Popen(['lsusb'], stdout=subprocess.PIPE)
     out = process.communicate()[0].decode().strip().split('\n')
@@ -18,6 +21,6 @@ def reset_usb():
                 ret.append(out.decode("utf-8"))
             else:
                 ret.append(f'{out.decode("utf-8")} {err.decode("utf-8")}')
-    print('USB Devices Reset Complete. Starting Vision System...')
+    logging.debug('USB Devices Reset Complete. Starting Vision System...')
 
     return "".join(ret).replace('Resetting', 'reset ')

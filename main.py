@@ -3,8 +3,7 @@
 
 import logging
 
-logging.basicConfig(format='[%(threadName)-16.16s]%(levelname)s:%(message)s', level=logging.DEBUG)
-
+logging.basicConfig(format='[%(threadName)-16.16s] %(levelname)s: %(message)s', level=logging.DEBUG)
 import sys
 import threading
 import time
