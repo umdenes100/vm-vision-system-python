@@ -44,14 +44,22 @@ def process_frame(frame):
         (corners, ids, rejected) = detector.detectMarkers(frame)
         frame = cv2.aruco.drawDetectedMarkers(frame, corners)
 
+        if ids is None or corners is None:
+            if dr_op.camera_matrix is not None:
+                frame = cv2.warpPerspective(frame, dr_op.camera_matrix, (frame.shape[1], frame.shape[0]))
+            return frame
+
+        ids = [i[0] for i in ids]
+        corners = [c[0] for c in corners]
+        # logging.debug(f'corners {corners}')
+        # logging.debug(f'ids {ids}')
+
+
         if dr_op.H is None:
             if not (isinstance(ids, list) or isinstance(ids, np.ndarray)):
                 return render_issue('No corners were found', frame)
-            if not corners_found([i[0] for i in ids]):
+            if not corners_found(ids):
                 return render_issue('One of the markers is blocked - cannot generate homography matrix', frame)
-
-            corners = [c[0] for c in corners]
-            ids = [i[0] for i in ids]
 
             dr_op.H, dr_op.camera_matrix = getHomographyMatrix(zip(ids, corners),
                                                                camera_width=frame.shape[1],
@@ -63,16 +71,13 @@ def process_frame(frame):
             components.communications.client_server.send_console_message(
                 'Initialized Homography Matrix (All corners visible)')
             dr_op.inverse_matrix = np.linalg.pinv(dr_op.H)
+
         if dr_op.draw_obstacles:
             frame = createObstacles(frame, dr_op.inverse_matrix, dr_op.randomization)
 
         if dr_op.draw_dest:
             frame = createMission(frame, dr_op.inverse_matrix, dr_op.otv_start_dir, dr_op.mission_loc,
                                   dr_op.otv_start_loc)
-
-        if ids is None or corners is None:
-            logging.debug(f'{ids}, {corners}')
-            return frame
 
         dr_op.aruco_markers = processMarkers(zip(ids, corners))
         if dr_op.draw_text:
@@ -102,7 +107,7 @@ def process_frame(frame):
     except Exception as e:
         logging.debug(str(e))
         import traceback
-        print(traceback.format_exc())
+        logging.debug(traceback.format_exc())
     return frame
 
 

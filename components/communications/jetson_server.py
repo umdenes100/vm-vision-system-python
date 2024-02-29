@@ -14,29 +14,22 @@ jetson_client = None
 
 local = 'local' in sys.argv
 
-# Previous connections allows us to record the name of a team so when a jetson, we can inform the user whose jetson reconnects.
-previous_connections: dict[str, str] = {}  # {'ip': 'cached name'}
-# List of IPs that we have forcibly disconnected. We don't want to send an error message for these.
-ignorable_disconnects: set[str] = set()
 
 # Called for every client connecting (after handshake)
 def new_client(client, server: WebsocketServer):
-    logging.debug(f"New JETSON client connected and was given id {client['id']:d}")
-    if client['address'][0] in previous_connections:
-        client_server.send_console_message(
-            f'Jetson with previous name {previous_connections[client["address"][0]]} reconnected... waiting for client initialization')
-    else:
-        client_server.send_console_message(f'New Jetson connected... waiting for client initialization')
+    client_server.send_console_message(
+        f'The Jetson (IP: {client["address"][0]}) connected, ready for prediction requests!')
+    client_server.send_console_message(
+        'Please note: The first prediction when the Jetson is restarted may take up to 2 minutes. Please be patient!)')
     if len(ws_server.clients) > 1:
-        client_server.send_console_message(f"There are more than one jetsons connected! {str(len(ws_server.clients))} jetsons connected to the vision system")
+        client_server.send_console_message(
+            f"There are more than one jetsons connected! {str(len(ws_server.clients))} jetsons connected to the vision system")
+
 
 # Called for every client disconnecting
 def client_left(client, _):
-    # todo singleton here
     if client is not None:
-        client_server.send_console_message(f'Jetson disconnected...')
-    
-    jetson_client = None
+        client_server.send_console_message(f'The Jetson disconnected...')
 
 
 # Called when a Wi-Fi client sends a message
@@ -44,7 +37,7 @@ def message_received(client, server: WebsocketServer, message):
     if client is None:
         logging.debug(f'Unknown Jetson sent a message - {message}')
         return
-    
+
     try:
         message = json.loads(message)
         if message is None:
@@ -60,7 +53,8 @@ def message_received(client, server: WebsocketServer, message):
             client_server.send_console_message(f'Jetson tried to send prediction results without a team name.')
             return
         if 'error' in message:
-            client_server.send_console_message(f"Error from Jetson when proccessing request from {message['teamName']}: {message['error']}")
+            client_server.send_console_message(
+                f"Error from Jetson when processing request from {message['teamName']}: {message['error']}")
             return
         if 'prediction' not in message:
             client_server.send_console_message(f'Jetson tried to send prediction results without a prediction.')
@@ -68,7 +62,8 @@ def message_received(client, server: WebsocketServer, message):
 
         # Send the prediction to the esp
         esp_server.send_prediction(message['teamName'], message['prediction'])
-        client_server.send_console_message(f"ML prediction from team {message['teamName']} finished. Result (prediction: {message['prediction']}) sent to the teams wifi module.")
+        client_server.send_console_message(
+            f"ML prediction from team {message['teamName']} finished in {message['executionTime']:.2f} seconds. Result (prediction: {message['prediction']}) sent to the teams wifi module.")
 
 
 def request_prediction(team_name, ESPIP):
@@ -78,6 +73,7 @@ def request_prediction(team_name, ESPIP):
         ws_server.send_message(client, json.dumps({'op': 'prediction_request', 'ESPIP': ESPIP, 'team_name': team_name}))
         return True
     return False
+
 
 # noinspection PyTypeChecker
 def start_server():
