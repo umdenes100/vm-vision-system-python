@@ -19,8 +19,6 @@ local = 'local' in sys.argv
 def new_client(client, server: WebsocketServer):
     client_server.send_console_message(
         f'The Jetson (IP: {client["address"][0]}) connected, ready for prediction requests!')
-    client_server.send_console_message(
-        'Please note: The first prediction when the Jetson is restarted may take up to 2 minutes. Please be patient!)')
     if len(ws_server.clients) > 1:
         client_server.send_console_message(
             f"There are more than one jetsons connected! {str(len(ws_server.clients))} jetsons connected to the vision system")

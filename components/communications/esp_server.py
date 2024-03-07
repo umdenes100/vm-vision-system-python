@@ -131,7 +131,7 @@ def message_received(client, server: WebsocketServer, message):
         if not jetson_server.request_prediction(client['teamName'], client['address']):
             client_server.send_console_message(f'Team {get_team_name(client)} requested a prediction but no jetson could be found.')
         else:
-          client_server.send_console_message(f'ML prediction from team {get_team_name(client)} requested. Waiting for response. (Please note that the first prediction may take up to a minute)')
+          client_server.send_console_message(f'ML prediction from team {get_team_name(client)} requested. Waiting for response.')
 
 def send_locations():
     for client in ws_server.clients:
