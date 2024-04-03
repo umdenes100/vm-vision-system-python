@@ -46,12 +46,13 @@ def getHomographyMatrix(marker_list, camera_width, camera_height):
     if pt00 is None or pt02 is None or pt40 is None or pt42 is None:
         logging.debug("One of the markers is blocked - cannot generate homography matrix")
         return None
-    src_pts = np.float32([pt00, pt40, pt02, pt42])  # pixel coordinates of the markers
-    dst_pts = np.float32([[0.0, 0.0], [4.0, 0.0], [0.0, 2.0], [4.0, 2.0]])  # arena coordinates of markers
+    src_pts = np.float32([pt00, pt02, pt42, pt40])  # pixel coordinates of the markers. Clockwise from 0,0
+    dst_pts = np.float32([[0.0, 0.0], [0.0, 2.0], [4.0, 2.0], [4.0, 0.0]])  # arena coordinates of markers, clockwise from 0,0
     homography_matrix = cv2.getPerspectiveTransform(src_pts, dst_pts)  # this gives us the homography matrix of the arena
-    camera_dst_points = np.float32([[0.0, 0.0], [camera_width, 0.0], [0.0, camera_height], [camera_width, camera_height]])
+    # Camera coordinates, clockwise from 0,0. Note that 0 0 for a frame is upper left
+    camera_dst_points = np.float32([[0.0, camera_height], [0.0, 0.0], [camera_width, 0.0], [camera_width, camera_height]])
     # the camera source points are the corners of the camera frame, but extended by a factor of 1.1 from the center
-    camera_src_pts = np.float32([pt00, pt40, pt02, pt42])
+    camera_src_pts = np.float32([pt00, pt02, pt42, pt40])
     cent = (camera_width / 2, camera_height / 2)
     for i in range(4):
         camera_src_pts[i] = (camera_src_pts[i][0] - cent[0]) * 1.05 + cent[0], (camera_src_pts[i][1] - cent[1]) * 1.1 + cent[1]
@@ -62,15 +63,11 @@ def getHomographyMatrix(marker_list, camera_width, camera_height):
 
 
 def processMarkers(marker_list):
-    markers: dict[int: ProcessedMarker] = {0: ProcessedMarker(0, -1.0, -1.0, (-1, -1), -1.0),
-                                           1: ProcessedMarker(1, -1.0, -1.0, (-1, -1), -1.0),
-                                           2: ProcessedMarker(2, -1.0, -1.0, (-1, -1), -1.0),
-                                           3: ProcessedMarker(3, -1.0, -1.0, (-1, -1), -1.0)}
+    markers: dict[int: ProcessedMarker] = {}
     try:
         for marker in marker_list:
-            if marker[0] > 3:
-                p_marker: ProcessedMarker = translate(marker[0], marker[1], dr_op.H)
-                markers[p_marker.id] = p_marker
+            p_marker: ProcessedMarker = translate(marker[0], marker[1], dr_op.H)
+            markers[p_marker.id] = p_marker
     except Exception as e:
         logging.debug(e)
     # returned the processed image frame and marker list

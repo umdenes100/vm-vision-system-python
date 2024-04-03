@@ -103,7 +103,7 @@ def get_mission_message(mission: str, mission_message_type: int, msg: str):
                     mission_string += "?????"
             else:
                 mission_string += "Not a valid mission type!"
-        elif mission == "MACHINE_LEARNING":
+        elif mission == "SEED":
             if mission_message_type == 0:  # Location
                 logging.debug(f'Location mission message: {msg}')
                 mission_string += f"The location of the anomaly is {msg}"

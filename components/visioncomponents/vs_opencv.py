@@ -44,6 +44,7 @@ def process_frame(frame):
         (corners, ids, rejected) = detector.detectMarkers(frame)
         frame = cv2.aruco.drawDetectedMarkers(frame, corners)
 
+        # Serious ish error.
         if ids is None or corners is None:
             if dr_op.camera_matrix is not None:
                 frame = cv2.warpPerspective(frame, dr_op.camera_matrix, (frame.shape[1], frame.shape[0]))
@@ -53,7 +54,6 @@ def process_frame(frame):
         corners = [c[0] for c in corners]
         # logging.debug(f'corners {corners}')
         # logging.debug(f'ids {ids}')
-
 
         if dr_op.H is None:
             if not (isinstance(ids, list) or isinstance(ids, np.ndarray)):
@@ -65,11 +65,8 @@ def process_frame(frame):
                                                                camera_width=frame.shape[1],
                                                                camera_height=frame.shape[0])
             if dr_op.H is None:
-                return render_issue(
-                    'At least one of the corner ArUco markers are not visible - homography matrix could not be generated',
-                    frame)
-            components.communications.client_server.send_console_message(
-                'Initialized Homography Matrix (All corners visible)')
+                return render_issue('At least one of the corner ArUco markers are not visible - homography matrix could not be generated', frame)
+            components.communications.client_server.send_console_message('Initialized Homography Matrix (All corners visible)')
             dr_op.inverse_matrix = np.linalg.pinv(dr_op.H)
 
         if dr_op.draw_obstacles:
@@ -79,28 +76,45 @@ def process_frame(frame):
             frame = createMission(frame, dr_op.inverse_matrix, dr_op.otv_start_dir, dr_op.mission_loc,
                                   dr_op.otv_start_loc)
 
-        dr_op.aruco_markers = processMarkers(zip(ids, corners))
-        if dr_op.draw_text:
-            for marker in dr_op.aruco_markers.values():
-                if marker.id not in range(3):
-                    try:
-                        frame = cv2.putText(frame, 'ID:' + str(marker.id), marker.pixels, cv2.FONT_HERSHEY_SIMPLEX, 1,
-                                            (0, 255, 0))
-                    except Exception as e:
-                        print('exception: ' + str(marker), str(marker.pixels))
-                        import traceback
-                        print(traceback.format_exc())
-
-        if dr_op.draw_arrows:
-            def tuple_int(x):
-                return tuple(map(int, x))
-
-            for i, c in zip(ids, corners):
-                if i not in range(4):
-                    frame = cv2.arrowedLine(frame, tuple_int(c[0]), tuple_int(c[1]), (0, 255, 0), 2,
-                                            tipLength=.4)
-
+        # Warp the frame here. From now on, you must multiply points by the camera matrix to get stuff to line up.
         frame = cv2.warpPerspective(frame, dr_op.camera_matrix, (frame.shape[1], frame.shape[0]))
+
+        dr_op.aruco_markers = processMarkers(zip(ids, corners))
+        for marker in dr_op.aruco_markers.values():
+            # if marker.id not in range(3):
+            # print('marker:', marker)
+            try:
+                original = np.array([marker.pixels[0], marker.pixels[1], 1])
+                warped = np.dot(dr_op.camera_matrix, original)
+                warped[0] /= warped[2]
+                warped[1] /= warped[2]
+                pixels = (int(warped[0]), int(warped[1]))
+                # print('Original: ', original)
+                # print('Warped: ', warped)
+                frame = cv2.putText(frame, 'ID:' + str(marker.id), pixels, cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0))
+            except Exception as e:
+                print('exception when processing marker' + str(marker), str(marker.pixels), e)
+                import traceback
+                print(traceback.format_exc())
+        def tuple_int(x):
+            return tuple(map(int, x))
+
+        for i, marker in zip(ids, corners):
+            if i not in range(4):
+                corner1 = tuple_int(marker[0])
+                corner2 = tuple_int(marker[1])
+                originalc1 = np.array([corner1[0], corner1[1], 1])
+                originalc2 = np.array([corner2[0], corner2[1], 1])
+                warpedc1 = np.dot(dr_op.camera_matrix, originalc1)
+                warpedc2 = np.dot(dr_op.camera_matrix, originalc2)
+                warpedc1[0] /= warpedc1[2]
+                warpedc1[1] /= warpedc1[2]
+                warpedc2[0] /= warpedc2[2]
+                warpedc2[1] /= warpedc2[2]
+                pixels1 = (int(warpedc1[0]), int(warpedc1[1]))
+                pixels2 = (int(warpedc2[0]), int(warpedc2[1]))
+                frame = cv2.arrowedLine(frame, pixels1, pixels2, (0, 255, 0), 2,
+                                        tipLength=.4)
 
     except KeyboardInterrupt:
         exit()
@@ -134,9 +148,6 @@ def start_image_processing():
             if cap.isOpened():
                 ret, frame = cap.read()  # read frame from video stream
                 if ret:
-                    if 'rotate' in config:
-                        if config['rotate']:  # Rotate by 180
-                            frame = cv2.rotate(frame, cv2.ROTATE_180)
                     new_frame = process_frame(frame)
                     if send_locations_bool:  # send locations to esp32 every other frame
                         threading.Thread(target=send_locations, name='Send Locations').start()

@@ -107,8 +107,6 @@ class DrawingOptions:
     otv_start_dir: float = -(math.pi / 2)
     draw_dest: bool = False
     draw_obstacles: bool = False
-    draw_arrows: bool = True
-    draw_text: bool = True
     draw_coordinate: bool = False
     aruco_markers: dict[int, ProcessedMarker] = field(default_factory=dict)
     first: bool = True
@@ -127,7 +125,7 @@ team_types: dict = {
     2: "MATERIAL",
     3: "FIRE",
     4: "WATER",
-    5: "MACHINE_LEARNING",
+    5: "SEED",
 }
 
 fake_esp_data: list = [

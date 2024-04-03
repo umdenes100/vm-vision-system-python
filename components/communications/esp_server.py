@@ -134,6 +134,7 @@ def message_received(client, server: WebsocketServer, message):
           client_server.send_console_message(f'ML prediction from team {get_team_name(client)} requested. Waiting for response.')
 
 def send_locations():
+    # print(dr_op.aruco_markers[402])
     for client in ws_server.clients:
         if client and client.get('aruco') is not None and client['aruco']['num'] is not None:
             if data.dr_op.aruco_markers.get(client['aruco']['num']):
