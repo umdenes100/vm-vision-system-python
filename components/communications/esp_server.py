@@ -128,7 +128,10 @@ def message_received(client, server: WebsocketServer, message):
         if 'teamName' not in client:
             client_server.send_console_message(
                 f'Client {get_team_name(client)} called prediction_request before begin statement. Try pressing the reset button on your arduino.')
-        if not jetson_server.request_prediction(client['teamName'], client['address']):
+        if not message['modelIndex']:
+            client_server.send_console_message(
+                f'Client {get_team_name(client)} called prediction_request without providing a model index')
+        if not jetson_server.request_prediction(client['teamName'], client['address'], message['modelIndex']):
             client_server.send_console_message(f'Team {get_team_name(client)} requested a prediction but no jetson could be found.')
         else:
           client_server.send_console_message(f'ML prediction from team {get_team_name(client)} requested. Waiting for response.')

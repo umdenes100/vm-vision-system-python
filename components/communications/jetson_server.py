@@ -64,11 +64,11 @@ def message_received(client, server: WebsocketServer, message):
             f"ML prediction from team {message['teamName']} finished in {message['executionTime']:.2f} seconds. Result (prediction: {message['prediction']}) sent to the teams wifi module.")
 
 
-def request_prediction(team_name, ESPIP):
+def request_prediction(team_name, ESPIP, model_index):
     # Find the client with the given team name
     for client in ws_server.clients:
         # if >1 jetson is connected, it doesn't matter which is sent request (as long as connected jetsons have models)
-        ws_server.send_message(client, json.dumps({'op': 'prediction_request', 'ESPIP': ESPIP, 'team_name': team_name}))
+        ws_server.send_message(client, json.dumps({'op': 'prediction_request', 'ESPIP': ESPIP, 'team_name': team_name, 'model_index': model_index}))
         return True
     return False
 
