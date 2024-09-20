@@ -9,7 +9,7 @@ from websocket_server import WebsocketServer
 
 from components import data
 from components.communications import client_server, jetson_server
-from components.machinelearning import ml_processor
+from components.machinelearning.ml import ml_processor
 from components.communications.ping import ping
 from components.data import team_types, dr_op
 from components.vs_mission import get_mission_message

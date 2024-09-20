@@ -15,7 +15,7 @@ logging.info("Starting main thread\n")
 from components import data
 from components.usb_reset import reset_usb
 from components.communications import client_server, esp_server, jetson_server
-from components.machinelearning import start_ml
+from components.machinelearning.ml import start_ml
 
 
 log_requests = {
