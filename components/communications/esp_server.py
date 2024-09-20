@@ -9,6 +9,7 @@ from websocket_server import WebsocketServer
 
 from components import data
 from components.communications import client_server, jetson_server
+from components.machinelearning import ml_processor
 from components.communications.ping import ping
 from components.data import team_types, dr_op
 from components.vs_mission import get_mission_message
@@ -125,16 +126,24 @@ def message_received(client, server: WebsocketServer, message):
         client_server.send_print_message(client['teamName'],
                                          get_mission_message(client['teamType'], message['type'], message['message']))
     if message['op'] == 'prediction_request':
+        
+        # TODO TESTING VAR
+        use_jetson = False
+
         if 'teamName' not in client:
             client_server.send_console_message(
                 f'Client {get_team_name(client)} called prediction_request before begin statement. Try pressing the reset button on your arduino.')
         if not message['modelIndex']:
             client_server.send_console_message(
                 f'Client {get_team_name(client)} called prediction_request without providing a model index')
-        if not jetson_server.request_prediction(client['teamName'], client['address'], message['modelIndex']):
-            client_server.send_console_message(f'Team {get_team_name(client)} requested a prediction but no jetson could be found.')
+        
+        if use_jetson:
+            if not jetson_server.request_prediction(client['teamName'], client['address'], message['modelIndex']):
+                client_server.send_console_message(f'Team {get_team_name(client)} requested a prediction but no jetson could be found.')
+            else:
+                client_server.send_console_message(f'ML prediction from team {get_team_name(client)} requested. Waiting for response.')
         else:
-          client_server.send_console_message(f'ML prediction from team {get_team_name(client)} requested. Waiting for response.')
+            ml_processor.enqueue(json.dumps({'op': 'prediction_request', 'ESPIP': client['address'], 'team_name': client['teamName'], 'model_index': message['modelIndex']}))
 
 def send_locations():
     # print(dr_op.aruco_markers[402])
