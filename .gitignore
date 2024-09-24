@@ -1,3 +1,7 @@
 __pycache__/
 teams.txt
 /.idea/
+/components/machinelearning/models/*
+!/components/machinelearning/models/alextest_1_3.pth
+node_modules
+package*

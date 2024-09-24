@@ -27,7 +27,7 @@ const rootref = ref(storage, '/');
 // On startup, it should list files and see which ones need to be updated.
 // It will then listen to the realtimedatabase. When the root updates, it will check the files again.
 
-const outputdir = '~/Vision-System-Python/components/machinelearning/models/';
+const outputdir = '/home/visionsystem/Vision-System-Python/components/machinelearning/models/';
 
 async function downloadFile(filename) {
     const downloadURL = await getDownloadURL(ref(storage, filename));
