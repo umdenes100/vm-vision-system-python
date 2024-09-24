@@ -9,7 +9,7 @@ from websocket_server import WebsocketServer
 
 from components import data
 from components.communications import client_server, jetson_server
-from components.machinelearning.ml import ml_processor
+from components.machinelearning import ml
 from components.communications.ping import ping
 from components.data import team_types, dr_op
 from components.vs_mission import get_mission_message
@@ -143,7 +143,7 @@ def message_received(client, server: WebsocketServer, message):
             else:
                 client_server.send_console_message(f'ML prediction from team {get_team_name(client)} requested. Waiting for response.')
         else:
-            ml_processor.enqueue(json.dumps({'op': 'prediction_request', 'ESPIP': client['address'], 'team_name': client['teamName'], 'model_index': message['modelIndex']}))
+            ml.ml_processor.enqueue(json.dumps({'op': 'prediction_request', 'ESPIP': client['address'], 'team_name': client['teamName'], 'model_index': message['modelIndex']}))
 
 def send_locations():
     # print(dr_op.aruco_markers[402])

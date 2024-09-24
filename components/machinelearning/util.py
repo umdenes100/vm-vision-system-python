@@ -2,8 +2,8 @@ import torch
 import torchvision.transforms as transforms
 import PIL.Image
 
-mean = torch.Tensor([0.485, 0.456, 0.406]).cuda()
-std = torch.Tensor([0.229, 0.224, 0.225]).cuda()
+mean = torch.Tensor([0.485, 0.456, 0.406]).cpu()
+std = torch.Tensor([0.229, 0.224, 0.225]).cpu()
 
 def preprocess(image):
     device = torch.device('cpu')

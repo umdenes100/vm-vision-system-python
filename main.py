@@ -15,7 +15,7 @@ logging.info("Starting main thread\n")
 from components import data
 from components.usb_reset import reset_usb
 from components.communications import client_server, esp_server, jetson_server
-from components.machinelearning.ml import start_ml
+from components.machinelearning import ml
 
 
 log_requests = {
@@ -44,7 +44,7 @@ def main():
     threading.Thread(name='ESP Server', target=esp_server.start_server, daemon=True).start()
     threading.Thread(name='Client Server', target=client_server.start_server, daemon=True).start()
     threading.Thread(name='Jetson Server', target=jetson_server.start_server, daemon=True).start()
-    start_ml()
+    ml.start_ml()
     # start image processing
     if not local:
         threading.Thread(name='image_processing', target=vs_opencv.start_image_processing, daemon=True).start()

@@ -10,10 +10,11 @@ import torchvision
 import torchvision.transforms as transforms
 import torch.nn.functional as F
 import queue
+import logging
 
 from components.machinelearning.util import preprocess
-
-ml_processor = None
+from components.communications import esp_server
+from components.communications import client_server
 
 class NpEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -28,12 +29,15 @@ class NpEncoder(json.JSONEncoder):
 def start_ml():
     global ml_processor
     ml_processor = MLProcessor()
+    logging.debug('ML OPEN')
 
 class MLProcessor:
 
-    model_dir = '~/Vision-System-Python/components/machinelearning/models/'
+    model_dir = '/home/visionsystem/Vision-System-Python/components/machinelearning/models/'
 
     def enqueue(self, message):
+
+        message = json.loads(message)
         ip = message['ESPIP'][0]
         team_name = message['team_name']
         model_index = message["model_index"]
@@ -50,19 +54,18 @@ class MLProcessor:
                 model_fi = entry.name
                 break
 
-            if model_fi is None:
-                print("model file not found" )
-                raise Exception(f"Cound not find model for team: {team_name} with model index: {model_index}; Available models: {', '.join([entry.name for entry in os.scandir(model_dir)])}")
-            
-            num_str = model_fi.split('_')[-1] # get last segment "#.pth"
-            num_str = os.path.splitext(num_str)[0] # get rid of ".pth"
-            dim = int(num_str)
+        if model_fi is None:
+            raise Exception(f"Cound not find model for team: {team_name} with model index: {model_index}; Available models: {', '.join([entry.name for entry in os.scandir(model_dir)])}")
+        
+        num_str = model_fi.split('_')[-1] # get last segment "#.pth"
+        num_str = os.path.splitext(num_str)[0] # get rid of ".pth"
+        dim = int(num_str)
             
         self.model.fc = torch.nn.Linear(512, dim)
         self.model = self.model.to(torch.device('cpu')) 
 
-        print(f"using model {model_fi}...")
-        self.model.load_state_dict(torch.load(self.model_dir + model_fi))
+        logging.debug(f"using model {model_fi}...")
+        self.model.load_state_dict(torch.load(self.model_dir + model_fi, map_location=torch.device('cpu')))
 
         self.model.eval()
         output = self.model(image)
@@ -71,36 +74,38 @@ class MLProcessor:
         return output.argmax()
 
     def processor(self):
-        request = self.task_queue.get(block=True, timeout=None)
+        while True:
+            request = self.task_queue.get(block=True, timeout=None)
 
-        ip = request["ip"]
-        team_name = request["team_name"]
-        model_index = request["model_index"]
-        print(f'Handling message from team {team_name}' )
+            ip = request["ip"]
+            team_name = request["team_name"]
+            model_index = request["model_index"]
+            logging.debug(f'Handling message from team {team_name}' )
 
-        start = time.perf_counter()
-        try:
-            cap = cv2.VideoCapture('http://' + ip + "/cam.jpg")
-            if cap.isOpened():
-                ret, frame = cap.read()
-            else:
-                print("failed capture" )
-                raise Exception("Could not get image from WiFiCam (cv2)")
-            
-            print('Entering preprocess...' )
-            picture = preprocess(frame)
-            results = self.handler(picture, team_name, model_index)
-        except Exception as e:
-            print('FAILED!!!!')
-            print(str(e))
-            return
+            start = time.perf_counter()
+            try:
+                cap = cv2.VideoCapture('http://' + ip + "/cam.jpg")
+                if cap.isOpened():
+                    ret, frame = cap.read()
+                else:
+                    raise Exception("Could not get image from WiFiCam (cv2)")
+                
+                logging.debug('Entering preprocess...' )
+                picture = preprocess(frame)
+                results = self.handler(picture, team_name, model_index)
+            except Exception as e:
+                logging.debug('ML FAILED :(')
+                logging.debug(str(e))
+                return
 
-        print('Results: ' + str(results) )
-        send = time.perf_counter() - start
+            logging.debug('Results: ' + str(results))
+            esp_server.send_prediction(team_name, str(results))
+            client_server.send_console_message(
+                f"ML prediction from team {team_name} finished in {(time.perf_counter() - start):.2f} seconds. Result (prediction: {results}) sent to the teams wifi module.")
 
     def __init__(self):
         self.task_queue = queue.Queue()
         self.model = torchvision.models.resnet18(pretrained=True)
 
         threading.Thread(name='task queue handler', args=(), target=self.processor).start()
-        self.run()
+        
