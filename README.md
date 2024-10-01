@@ -23,15 +23,20 @@ This also might entail updating the BIOS of the computer
     ```shell
    sudo cd Vision-System-Python
    ```
-6. Change permissions of the installer script.
+6. Change permissions of the installer scripts.
     ```shell
    sudo chmod +x installdependencies.sh
+   sudo chmod +x install-model-listener.sh
    ```
 7. Execute installation script.
     ```shell
    ./installdependencies.sh
    ```
-8. Then set the Wi-Fi stuff. Under Network -> Wired turn on the connection. Then click settings, go to IPv4.
+8. Install ML Model Downloader
+   ```shell
+   ./install-model-listener.sh
+   ```
+9. Then set the Wi-Fi stuff. Under Network -> Wired turn on the connection. Then click settings, go to IPv4.
 
 The IPv4 method should be Manual. Then set the addresses. The address is 192.168.1.2 The Netmask is 255.255.255.0, The
 Gateway is 192.168.1.1
