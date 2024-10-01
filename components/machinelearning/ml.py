@@ -55,7 +55,7 @@ class MLProcessor:
                 break
 
         if model_fi is None:
-            raise Exception(f"Cound not find model for team: {team_name} with model index: {model_index}; Available models: {', '.join([entry.name for entry in os.scandir(model_dir)])}")
+            raise Exception(f"Cound not find model for team: {team_name} with model index: {model_index}; Available models: {', '.join([entry.name for entry in os.scandir(self.model_dir)])}")
         
         num_str = model_fi.split('_')[-1] # get last segment "#.pth"
         num_str = os.path.splitext(num_str)[0] # get rid of ".pth"
@@ -65,7 +65,7 @@ class MLProcessor:
         self.model = self.model.to(torch.device('cpu')) 
 
         logging.debug(f"using model {model_fi}...")
-        self.model.load_state_dict(torch.load(self.model_dir + model_fi, map_location=torch.device('cpu')))
+        self.model.load_state_dict(torch.load(self.model_dir + model_fi, map_location=torch.device('cpu'), weights_only=True), weights_only=True)
 
         self.model.eval()
         output = self.model(image)
@@ -105,7 +105,7 @@ class MLProcessor:
 
     def __init__(self):
         self.task_queue = queue.Queue()
-        self.model = torchvision.models.resnet18(pretrained=True)
+        self.model = torchvision.models.resnet18(weights='IMAGENET1K_V1')
 
         threading.Thread(name='task queue handler', args=(), target=self.processor).start()
         

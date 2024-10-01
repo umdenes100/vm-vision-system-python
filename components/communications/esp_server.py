@@ -143,6 +143,8 @@ def message_received(client, server: WebsocketServer, message):
             else:
                 client_server.send_console_message(f'ML prediction from team {get_team_name(client)} requested. Waiting for response.')
         else:
+            client_server.send_console_message(
+                f'Client {get_team_name(client)} called prediction_request. Processing using VS Computer (CPU)')
             ml.ml_processor.enqueue(json.dumps({'op': 'prediction_request', 'ESPIP': client['address'], 'team_name': client['teamName'], 'model_index': message['modelIndex']}))
 
 def send_locations():
