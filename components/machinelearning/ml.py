@@ -65,7 +65,7 @@ class MLProcessor:
         self.model = self.model.to(torch.device('cpu')) 
 
         logging.debug(f"using model {model_fi}...")
-        self.model.load_state_dict(torch.load(self.model_dir + model_fi, map_location=torch.device('cpu'), weights_only=True), weights_only=True)
+        self.model.load_state_dict(torch.load(self.model_dir + model_fi, map_location=torch.device('cpu'), weights_only=True))
 
         self.model.eval()
         output = self.model(image)
