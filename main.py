@@ -44,7 +44,7 @@ def main():
     threading.Thread(name='ESP Server', target=esp_server.start_server, daemon=True).start()
     threading.Thread(name='Client Server', target=client_server.start_server, daemon=True).start()
     threading.Thread(name='Jetson Server', target=jetson_server.start_server, daemon=True).start()
-    ml.start_ml()
+    threading.Thread(name='ML Startup', target=ml.start_ml, daemon=True).start()
     # start image processing
     if not local:
         threading.Thread(name='image_processing', target=vs_opencv.start_image_processing, daemon=True).start()
