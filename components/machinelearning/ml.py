@@ -55,7 +55,7 @@ class MLProcessor:
                 break
 
         if model_fi is None:
-            raise Exception(f"Cound not find model for team: {team_name} with model index: {model_index}; Available models: {', '.join([entry.name for entry in os.scandir(self.model_dir)])}")
+            raise Exception(f"Could not find model for team: {team_name} with model index: {model_index}; Available models: {', '.join([entry.name for entry in os.scandir(self.model_dir)])}")
         
         num_str = model_fi.split('_')[-1] # get last segment "#.pth"
         num_str = os.path.splitext(num_str)[0] # get rid of ".pth"
@@ -96,6 +96,8 @@ class MLProcessor:
             except Exception as e:
                 logging.debug('ML FAILED :(')
                 logging.debug(str(e))
+                client_server.send_console_message(
+                    f"ML prediction from team {team_name} FAILED with error: {str(e)}.")
                 return
 
             logging.debug('Results: ' + str(results))

@@ -127,7 +127,6 @@ def message_received(client, server: WebsocketServer, message):
                                          get_mission_message(client['teamType'], message['type'], message['message']))
     if message['op'] == 'prediction_request':
         
-        # TODO TESTING VAR
         use_jetson = False
 
         if 'teamName' not in client:
