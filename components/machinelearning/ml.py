@@ -36,16 +36,19 @@ class MLProcessor:
     model_dir = '/home/visionsystem/Vision-System-Python/components/machinelearning/models/'
 
     def enqueue(self, message):
-
         message = json.loads(message)
         ip = message['ESPIP'][0]
         team_name = message['team_name']
         model_index = message["model_index"]
-        self.task_queue.put({
+        task = {
             'team_name': team_name,
             'ip': ip,
             'model_index' : model_index
-        })
+        }
+        # frame is optional, it is a jpeg encoded image.
+        if message['frame']:
+            task['frame'] = message['frame']
+        self.task_queue.put(task)
 
     def handler(self, image, team_name, model_index):
         model_fi = None
@@ -56,13 +59,13 @@ class MLProcessor:
 
         if model_fi is None:
             raise Exception(f"Could not find model for team: {team_name} with model index: {model_index}; Available models: {', '.join([entry.name for entry in os.scandir(self.model_dir)])}")
-        
+
         num_str = model_fi.split('_')[-1] # get last segment "#.pth"
         num_str = os.path.splitext(num_str)[0] # get rid of ".pth"
         dim = int(num_str)
-            
+
         self.model.fc = torch.nn.Linear(512, dim)
-        self.model = self.model.to(torch.device('cpu')) 
+        self.model = self.model.to(torch.device('cpu'))
 
         logging.debug(f"using model {model_fi}...")
         self.model.load_state_dict(torch.load(self.model_dir + model_fi, map_location=torch.device('cpu'), weights_only=True))
@@ -84,13 +87,18 @@ class MLProcessor:
 
             start = time.perf_counter()
             try:
-                cap = cv2.VideoCapture('http://' + ip + "/cam.jpg")
-                if cap.isOpened():
-                    ret, frame = cap.read()
+                if request.get('frame'):
+                    import base64
+                    frame_bytes = base64.b64decode(request['frame'].encode())
+                    frame = cv2.imdecode(np.frombuffer(frame_bytes, np.uint8), -1)
                 else:
-                    raise Exception("Could not get image from WiFiCam (cv2)")
-                
-                logging.debug('Entering preprocess...' )
+                    cap = cv2.VideoCapture('http://' + ip + "/cam.jpg")
+                    if cap.isOpened():
+                        ret, frame = cap.read()
+                    else:
+                        raise Exception("Could not get image from WiFiCam (cv2)")
+
+                logging.debug('Got frame. Preprocessing...' )
                 picture = preprocess(frame)
                 results = self.handler(picture, team_name, model_index)
             except Exception as e:
@@ -110,4 +118,4 @@ class MLProcessor:
         self.model = torchvision.models.resnet18(weights='IMAGENET1K_V1')
 
         threading.Thread(name='task queue handler', args=(), target=self.processor).start()
-        
+

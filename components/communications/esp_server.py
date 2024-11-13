@@ -126,7 +126,7 @@ def message_received(client, server: WebsocketServer, message):
         client_server.send_print_message(client['teamName'],
                                          get_mission_message(client['teamType'], message['type'], message['message']))
     if message['op'] == 'prediction_request':
-        
+
         use_jetson = False
 
         if 'teamName' not in client:
@@ -135,7 +135,7 @@ def message_received(client, server: WebsocketServer, message):
         if not message['modelIndex']:
             client_server.send_console_message(
                 f'Client {get_team_name(client)} called prediction_request without providing a model index')
-        
+
         if use_jetson:
             if not jetson_server.request_prediction(client['teamName'], client['address'], message['modelIndex']):
                 client_server.send_console_message(f'Team {get_team_name(client)} requested a prediction but no jetson could be found.')
