@@ -144,7 +144,11 @@ def message_received(client, server: WebsocketServer, message):
         else:
             client_server.send_console_message(
                 f'Client {get_team_name(client)} called prediction_request. Processing using VS Computer (CPU)')
-            ml.ml_processor.enqueue(json.dumps({'op': 'prediction_request', 'ESPIP': client['address'], 'team_name': client['teamName'], 'model_index': message['modelIndex']}))
+            task = {'ip': client['address'][0], 'team_name': client['teamName'], 'model_index': message['modelIndex']}
+            if message.get('frame'):
+                task['frame'] = message['frame']
+            ml.ml_processor.enqueue(task)
+
 
 def send_locations():
     # print(dr_op.aruco_markers[402])

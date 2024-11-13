@@ -36,19 +36,7 @@ class MLProcessor:
     model_dir = '/home/visionsystem/Vision-System-Python/components/machinelearning/models/'
 
     def enqueue(self, message):
-        message = json.loads(message)
-        ip = message['ESPIP'][0]
-        team_name = message['team_name']
-        model_index = message["model_index"]
-        task = {
-            'team_name': team_name,
-            'ip': ip,
-            'model_index' : model_index
-        }
-        # frame is optional, it is a jpeg encoded image.
-        if message['frame']:
-            task['frame'] = message['frame']
-        self.task_queue.put(task)
+        self.task_queue.put(message)
 
     def handler(self, image, team_name, model_index):
         model_fi = None
@@ -88,6 +76,7 @@ class MLProcessor:
             start = time.perf_counter()
             try:
                 if request.get('frame'):
+                    logging.debug('Got frame from request! No need to request from WifiCam')
                     import base64
                     frame_bytes = base64.b64decode(request['frame'].encode())
                     frame = cv2.imdecode(np.frombuffer(frame_bytes, np.uint8), -1)
@@ -99,6 +88,7 @@ class MLProcessor:
                         raise Exception("Could not get image from WiFiCam (cv2)")
 
                 logging.debug('Got frame. Preprocessing...' )
+                cv2.imwrite('/home/visionsystem/Desktop/frame.jpg', frame)
                 picture = preprocess(frame)
                 results = self.handler(picture, team_name, model_index)
             except Exception as e:
@@ -118,4 +108,3 @@ class MLProcessor:
         self.model = torchvision.models.resnet18(weights='IMAGENET1K_V1')
 
         threading.Thread(name='task queue handler', args=(), target=self.processor).start()
-
