@@ -16,6 +16,7 @@ from components.machinelearning.util import preprocess
 from components.communications import esp_server
 from components.communications import client_server
 
+
 class NpEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, np.integer):
@@ -26,13 +27,14 @@ class NpEncoder(json.JSONEncoder):
             return obj.tolist()
         return super(NpEncoder, self).default(obj)
 
+
 def start_ml():
     global ml_processor
     ml_processor = MLProcessor()
     logging.debug('ML OPEN')
 
-class MLProcessor:
 
+class MLProcessor:
     model_dir = '/home/visionsystem/Vision-System-Python/components/machinelearning/models/'
 
     def enqueue(self, message):
@@ -48,8 +50,8 @@ class MLProcessor:
         if model_fi is None:
             raise Exception(f"Could not find model for team: {team_name} with model index: {model_index}; Available models: {', '.join([entry.name for entry in os.scandir(self.model_dir)])}")
 
-        num_str = model_fi.split('_')[-1] # get last segment "#.pth"
-        num_str = os.path.splitext(num_str)[0] # get rid of ".pth"
+        num_str = model_fi.split('_')[-1]  # get last segment "#.pth"
+        num_str = os.path.splitext(num_str)[0]  # get rid of ".pth"
         dim = int(num_str)
 
         self.model.fc = torch.nn.Linear(512, dim)
@@ -71,7 +73,7 @@ class MLProcessor:
             ip = request["ip"]
             team_name = request["team_name"]
             model_index = request["model_index"]
-            logging.debug(f'Handling message from team {team_name}' )
+            logging.debug(f'Handling message from team {team_name}')
 
             start = time.perf_counter()
             try:
@@ -87,7 +89,7 @@ class MLProcessor:
                     else:
                         raise Exception("Could not get image from WiFiCam (cv2)")
 
-                logging.debug('Got frame. Preprocessing...' )
+                logging.debug('Got frame. Preprocessing...')
                 cv2.imwrite('/home/visionsystem/Desktop/frame.jpg', frame)
                 picture = preprocess(frame)
                 results = self.handler(picture, team_name, model_index)
@@ -96,7 +98,7 @@ class MLProcessor:
                 logging.debug(str(e))
                 client_server.send_console_message(
                     f"ML prediction from team {team_name} FAILED with error: {str(e)}.")
-                return
+                continue
 
             logging.debug('Results: ' + str(results))
             esp_server.send_prediction(team_name, str(results))
