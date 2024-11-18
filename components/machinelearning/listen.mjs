@@ -25,7 +25,7 @@ const rootref = ref(storage, '/studentmodels');
 // On startup, it should list files and see which ones need to be updated.
 // It will then listen to the realtimedatabase. When the root updates, it will check the files again.
 
-const outputdir = './components/machinelearning/models';
+const outputdir = './components/machinelearning/models/';
 
 async function downloadFile(filename) {
     const downloadURL = await getDownloadURL(ref(rootref, filename));
