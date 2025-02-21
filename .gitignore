@@ -5,3 +5,4 @@ teams.txt
 !/components/machinelearning/models/alextest_1_3.pth
 node_modules
 package*
+matt_paul_team_join_history.csv

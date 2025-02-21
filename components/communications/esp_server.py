@@ -104,6 +104,10 @@ def message_received(client, server: WebsocketServer, message):
         ignorable_disconnects.discard(client['address'][0])  # This client is now valid.
         hardware = message.get('hardware', 'WiFi Module')
         client_server.send_console_message(f'Team {get_team_name(client)} got begin statement ({hardware})')
+        with open('matt_paul_team_join_history.csv', 'a') as f:
+            # Append to file to keep track of team joins
+            f.write(f'{time.time()},{client["teamName"]},{client["teamType"]}\n')
+
         if data.dr_op.aruco_markers.get(client['aruco']['num']) is None:
             shown_markers = [str(marker) for marker in list(data.dr_op.aruco_markers.keys()) if marker > 3]
             msg = f'The visible aruco markers are {",".join(shown_markers)}.' if shown_markers else 'No aruco markers are visible.'
