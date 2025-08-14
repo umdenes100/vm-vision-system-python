@@ -35,12 +35,12 @@ def new_client(client, __):
 def client_left(client, _):
     logging.debug(f"WEB Client({client['id']:d}) disconnected")
 
-
 # Called when a client sends a message
 def message_received(client, _, message):
     message = json.loads(message)
     if message['type'] == 'register':
         logging.debug('register that baddie')
+        print("Received")
     if len(message) > 200:
         message = message[:200] + '..'
     logging.debug("Client(%d) said: %s" % (client['id'], message))
@@ -87,12 +87,12 @@ def start_server():
     if local:
         host = sys.argv[sys.argv.index('host') + 1] if 'host' in sys.argv else 'localhost'
     else:
-        host = '192.168.1.2'
+        host = '10.112.9.33'
     try:
         ws_server = WebsocketServer(host=host, port=9000)
     except OSError as e:
         if e.errno == 98:
-            logging.error('Program is already running on this computer. Please close other instance.')
+            logging.error('[Client Server] >>> Program is already running on this computer. Please close other instance.')
             exit(1)
     try:
         if ws_server is None:

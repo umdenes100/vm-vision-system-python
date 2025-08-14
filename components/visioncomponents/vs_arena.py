@@ -44,7 +44,7 @@ def getHomographyMatrix(marker_list, camera_width, camera_height):
             pt40 = center(corners)
 
     if pt00 is None or pt02 is None or pt40 is None or pt42 is None:
-        logging.debug("One of the markers is blocked - cannot generate homography matrix")
+        print("[WARN] One of the markers is blocked - cannot generate homography matrix")
         return None
     src_pts = np.float32([pt00, pt02, pt42, pt40])  # pixel coordinates of the markers. Clockwise from 0,0
     dst_pts = np.float32([[0.0, 0.0], [0.0, 2.0], [4.0, 2.0], [4.0, 0.0]])  # arena coordinates of markers, clockwise from 0,0

@@ -14,7 +14,6 @@ jetson_client = None
 
 local = 'local' in sys.argv
 
-
 # Called for every client connecting (after handshake)
 def new_client(client, server: WebsocketServer):
     client_server.send_console_message(
@@ -84,10 +83,10 @@ def start_server():
             else:
                 ws_server = WebsocketServer(port=7756)
         else:
-            ws_server = WebsocketServer(host='192.168.1.2', port=7756)
+            ws_server = WebsocketServer(host='10.112.9.33', port=7756)
     except OSError as e:
         if e.errno == 98:
-            logging.error('Program is already running on this computer. Please close other instance.')
+            logging.error('[Jetson Server] >>> Program is already running on this computer. Please close other instance.')
             exit(1)
     try:
         if ws_server is None:

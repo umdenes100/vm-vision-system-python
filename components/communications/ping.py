@@ -7,7 +7,7 @@ def ping(host):
     Returns True if host (str) responds to a ping request.
     Remember that a host may not respond to a ping (ICMP) request even if the host name is valid.
     """
-    timeout = 3.0  # in seconds
+    timeout = 3.0  # in seconds # ONCE ICMP IS WORKING ON THE NETWORK, THIS NUMBER SHOULD BE SMALL (3s)
 
     # Option for the number of packets as a function of
     param = '-n' if platform.system().lower() == 'windows' else '-c'

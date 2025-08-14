@@ -4,87 +4,85 @@ import os
 import subprocess
 import sys
 from dataclasses import dataclass, field
+import cv2
+import numpy as np
 
-# If running windows
-if os.name != 'nt':
-    import cv2
-from subprocess import Popen, PIPE, STDOUT
+class GStreamerCamera:
+    def __init__(self, port=554):
+        self.port = port
+        self.pipeline = (
+            "udpsrc port=554 caps=\"application/x-rtp, media=(string)video, "
+            "clock-rate=(int)90000, encoding-name=(string)JPEG, payload=26\" ! "
+            "rtpjpegdepay ! jpegdec ! videoconvert ! appsink"
+        )
 
-
-# Ok, so we need a way to store the connections from the esp ws_server and the client ws_server.
-# It needs to be queryable.
-
-class CameraManager:
-    def __init__(self):
         self.video = None
-        self.camera_num = None
+        self.start()
 
-    def set_cam(self, num):
-        try:
-            self.video.release()
-            p = Popen(["v4l2-ctl", f"--device=/dev/video{num}", "--all"], stdin=PIPE, stdout=PIPE, stderr=PIPE)
-            output, err = p.communicate()
-            if "brightness" in output.decode():
-                video = cv2.VideoCapture(num, cv2.CAP_V4L2)
-                video.set(cv2.CAP_PROP_FOURCC,
-                          cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))  # depends on fourcc available camera
-                video.set(cv2.CAP_PROP_FPS, 30.0)
-                video.set(cv2.CAP_PROP_FRAME_WIDTH, 1920.0)  # supported widths: 1920, 1280, 960
-                video.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080.0)  # supported heights: 1080, 720, 540
-                video.set(cv2.CAP_PROP_FPS, 30.0)  # supported FPS: 30, 15
-                print(f'camera set to {num}')
-                self.video = video
-                self.camera_num = int(num)
-        except KeyboardInterrupt:
-            exit()
-        except Exception as e:
-            print(f'EXCEPTION: {e}')
+    def start(self):
+        """Initializes the GStreamer video stream."""
+        if self.video:
+            self.video.release()  # Ensure any previous instance is closed
+        self.video = cv2.VideoCapture(self.pipeline, cv2.CAP_GSTREAMER)
+        if not self.video.isOpened():
+            logging.error("Failed to open GStreamer video stream.")
+        else:
+            ret, frame = self.video.read()
+            if ret and frame is not None:
+                logging.infor(f"Received frame: shape={frame.shape}")
+            else:
+                logging.warning("Stream opened but no frame received.")
 
-    def get_camera(self):
-        return self.video
+    def get_frame(self):
+        """Reads a frame from the video stream."""
+        if self.video and self.video.isOpened():
+            ret, frame = self.video.read()
+            if ret:
+                return frame
+        return None
 
     def restart_stream(self):
-        self.video.release()
-        self.video = cv2.VideoCapture(self.camera_num, cv2.CAP_V4L2)
-        self.video.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
-        self.video.set(cv2.CAP_PROP_FPS, 30.0)
-        self.video.set(cv2.CAP_PROP_FRAME_WIDTH, 1920.0)
-        self.video.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080.0)
-        return self.video
+        """Restarts the video stream if needed."""
+        self.start()
 
 
-    def begin(self):
-        logging.debug("Camera Manager initialized")
-        legit_cameras = []
-        cameras = os.listdir('/dev/')
-        cameras.sort()
-        for c in cameras:
-            if "video" in c:
-                process = subprocess.Popen(['v4l2-ctl', f'--device=/dev/{c}', '--all'], stdout=subprocess.PIPE,
-                                           stderr=subprocess.PIPE)
-                out, err = process.communicate()
-                if b"Format Video Capture:" in out:
-                    legit_cameras.append(c)
-                    logging.debug(f'Found legit camera: {c}')
+# Create a global camera instance
+# camera = GStreamerCamera()
 
-        if len(legit_cameras) == 2:
-            logging.debug(f'length of legit_cameras is 2, picking {legit_cameras[1]}')
-            self.camera_num = int(legit_cameras[1][-1])  # It is probably the second camera
-        elif len(legit_cameras) == 1:
-            logging.debug(f'length of legit_cameras is 1, picking {legit_cameras[0]}')
-            self.camera_num = int(legit_cameras[0][-1])  # otherwise pick the first one
-        try:
-            self.video = cv2.VideoCapture(int(self.camera_num), cv2.CAP_V4L2)
-        except Exception as e:
-            print(e)
+# Everything else remains unchanged
 
-        self.video.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
-        self.video.set(cv2.CAP_PROP_FPS, 30.0)
-        self.video.set(cv2.CAP_PROP_FRAME_WIDTH, 1920.0)
-        self.video.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080.0)
+class CameraManager:
+    def __init__(self, port=554):
+        self.port = port
+        self.pipeline = f"udpsrc port={self.port} ! application/x-rtp, encoding-name=jpeg, payload=26 ! rtpjpegdepay ! jpegdec ! videoconvert ! appsink"
+        self.video = None
+
+    def start(self):
+        # Initialize the video capture using GStreamer pipeline
+        self.video = cv2.VideoCapture(self.pipeline, cv2.CAP_GSTREAMER)
+        if not self.video.isOpened():
+            logging.error("Failed to open GStreamer video stream.")
+            logging.error(f"Failed to open GStreamer video stream on port {self.port}.\nPipeline: {self.pipeline}")
+            sys.exit(1)
+
+    def get_frame(self):
+        if self.video is None or not self.video.isOpened():
+            logging.debug("Stream not open, restarting stream")
+            self.restart_stream()
+        ret, frame = self.video.read()
+        if ret:
+            return frame
+        logging.debug("Failed to get frame")
+        return None
+
+    def restart_stream(self):
+        if self.video is not None:
+            logging.debug("Re-initializing the video stream.")
+            self.video.release()
+        self.start()
 
 
-# ProcessedMarker class
+
 @dataclass
 class ProcessedMarker:
     id: int
@@ -96,11 +94,9 @@ class ProcessedMarker:
     def __str__(self):
         return f'ID: {self.id}: ({self.x:.2f}, {self.y:.2f}, {self.theta:.2f})'
 
-
 @dataclass
 class DrawingOptions:
-    obstacle_presets: list = field(
-        default_factory=lambda: ['01A', '01B', '02A', '02B', '10A', '10B', '12A', '12B', '20A', '20B', '21A', '21B'])
+    obstacle_presets: list = field(default_factory=lambda: ['01A', '01B', '02A', '02B', '10A', '10B', '12A', '12B', '20A', '20B', '21A', '21B'])
     otv_start_loc: int = 0
     mission_loc: int = 1
     randomization: str = '01A'
@@ -113,9 +109,6 @@ class DrawingOptions:
     H = None
     camera_matrix = None
     inverse_matrix: list = field(default_factory=list)
-
-    # self.randomization = self.obstacle_presets[random.randrange(0, 12)]
-
 
 dr_op: DrawingOptions = DrawingOptions()
 
@@ -138,5 +131,9 @@ fake_esp_data: list = [
 esp_data: list = []
 
 local = 'local' in sys.argv
-if not local:
-    camera: CameraManager = CameraManager()
+
+if local:
+    camera = GStreamerCamera()
+else:
+    camera = CameraManager()
+    camera.start()

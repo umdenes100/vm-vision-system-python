@@ -49,6 +49,7 @@ def get_team_name(client):
 
 # Called for every client connecting (after handshake)
 def new_client(client, server: WebsocketServer):
+    print("Connected")
     logging.debug(f"New ESP client connected and was given id {client['id']:d}")
     if client['address'][0] in previous_connections:
         client_server.send_console_message(
@@ -62,6 +63,7 @@ def client_left(client, _):
     if client is None:
         return
     client_server.send_console_message(f'Team {get_team_name(client)} disconnected...')
+    print("Disconnected")
     if 'address' not in client or len(client['address']) == 0:
         return
     if client['address'][0] not in ignorable_disconnects:
@@ -71,7 +73,7 @@ def client_left(client, _):
 # Called when a Wi-Fi client sends a message
 def message_received(client, server: WebsocketServer, message):
     if client is None:
-        logging.debug(f'Unknown client sent a message - {message}')
+        print(f'Unknown client sent a message - {message}')
         return
 
     import main
@@ -153,21 +155,59 @@ def message_received(client, server: WebsocketServer, message):
                 task['frame'] = message['frame']
             ml.ml_processor.enqueue(task)
 
+def send_locations(server):
+    if server is None:
+        print("[ERROR] send_locations called with server=None, aborting")
+        return
 
-def send_locations():
-    # print(dr_op.aruco_markers[402])
-    for client in ws_server.clients:
-        if client and client.get('aruco') is not None and client['aruco']['num'] is not None:
-            if data.dr_op.aruco_markers.get(client['aruco']['num']):
-                aruco = data.dr_op.aruco_markers[client['aruco']['num']]
-                client['aruco']['visible'] = True
-                client['aruco']['x'] = round(float(aruco.x), 2)
-                client['aruco']['y'] = round(float(aruco.y), 2)
-                client['aruco']['theta'] = round(float(aruco.theta), 2)
-            else:
-                client['aruco']['visible'] = False
-                client['aruco'].update({'visible': False, 'x': -1, 'y': -1, 'theta': -1})
-            ws_server.send_message(client, json.dumps({'op': 'aruco', 'aruco': client['aruco']}))
+# TRYING SOMETHING
+    trybacks = 0
+# END OF NEW
+    while True:
+        for client in server.clients:
+            if client and client.get('aruco') is not None and client['aruco']['num'] is not None:
+                if data.dr_op.aruco_markers.get(client['aruco']['num']):
+                    aruco = data.dr_op.aruco_markers[client['aruco']['num']]
+                    client['aruco'].update({
+                        'visible': True,
+                        'x': round(float(aruco.x), 2),
+                        'y': round(float(aruco.y), 2),
+                        'theta': round(float(aruco.theta), 2),
+                    })
+                    trybacks = 0
+                elif trybacks < 5:
+                    trybacks = trybacks + 1;
+                else:
+                    client['aruco'].update({
+                        'visible': False,
+                        'x': -1,
+                        'y': -1,
+                        'theta': -1,
+                    })
+                    trybacks = 0
+
+                # send on the passed-in server, not a global
+                server.send_message(
+                    client,
+                    json.dumps({'op': 'aruco', 'aruco': client['aruco']})
+                )
+        # avoid a tight busy loop
+        time.sleep(0.05)
+
+#def send_locations():
+#    # print(dr_op.aruco_markers[402])
+#    for client in ws_server.clients:
+#        if client and client.get('aruco') is not None and client['aruco']['num'] is not None:
+#            if data.dr_op.aruco_markers.get(client['aruco']['num']):
+#                aruco = data.dr_op.aruco_markers[client['aruco']['num']]
+#                client['aruco']['visible'] = True
+#                client['aruco']['x'] = round(float(aruco.x), 2)
+#                client['aruco']['y'] = round(float(aruco.y), 2)
+#                client['aruco']['theta'] = round(float(aruco.theta), 2)
+#            else:
+#                client['aruco']['visible'] = False
+#                client['aruco'].update({'visible': False, 'x': -1, 'y': -1, 'theta': -1})
+#            ws_server.send_message(client, json.dumps({'op': 'aruco', 'aruco': client['aruco']}))
 
 
 # esp_server.send_prediction(client['teamName'], message['prediction'])
@@ -188,15 +228,16 @@ def start_server():
     ws_server = None
     try:
         if local:
+            # I CHANGED THE PORTS HERE FROM 7755 to 5900, I am putting it backto 7755 for now
             if 'host' in sys.argv:
                 ws_server = WebsocketServer(port=7755, host=sys.argv[sys.argv.index('host') + 1])
             else:
                 ws_server = WebsocketServer(port=7755)
         else:
-            ws_server = WebsocketServer(host='192.168.1.2', port=7755)
+            ws_server = WebsocketServer(host='0.0.0.0', port=7755)
     except OSError as e:
         if e.errno == 98:
-            logging.error('Program is already running on this computer. Please close other instance.')
+            logging.error('[ESP Server] >>> Program is already running on this computer. Please close other instance.')
             exit(1)
 
     try:
@@ -210,7 +251,7 @@ def start_server():
     ws_server.set_fn_new_client(new_client)
     ws_server.set_fn_client_left(client_left)
     ws_server.set_fn_message_received(message_received)
-    logging.debug(f'Starting client ws_server on port {ws_server.port:d}')
+    print(f'Starting client ws_server on port {ws_server.port:d}')
     threading.Thread(target=ws_server.run_forever, name='ESP WS Server', daemon=True).start()
 
     # We will ping all esp clients to make sure they haven't disconnected. Sadly, when ESP clients power off
@@ -226,4 +267,6 @@ def start_server():
             time.sleep(1)
 
     threading.Thread(target=check_connection, daemon=True, name='ESP Check Connection').start()
+    # THIS LINE IS NEW
+    return ws_server
 

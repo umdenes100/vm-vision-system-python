@@ -4,7 +4,7 @@ import logging
 def reset_usb():
     import subprocess
 
-    logging.debug('Resetting USB Devices...')
+    logging.debug('THIS SHOULD NEVER HAVE BEEN CALLED!!!!!!! BADBAD BADBAD BADBAD')
 
     process = subprocess.Popen(['lsusb'], stdout=subprocess.PIPE)
     out = process.communicate()[0].decode().strip().split('\n')
