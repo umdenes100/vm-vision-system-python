@@ -1,3 +1,4 @@
+15 TO 30 MINUTE PROCESS
 1) Fix permissions in your venv & uninstall the wheel
 ```bash
 # Make sure NO Python process is using cv2
