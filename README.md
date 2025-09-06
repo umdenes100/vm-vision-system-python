@@ -36,9 +36,9 @@ sudo apt install -y build-essential cmake ninja-build pkg-config git \
 3) Configure a fresh OpenCV build (with your venv active)
 ```bash
 # If you haven’t cloned yet, do this first:
-# mkdir -p ~/src && cd ~/src
-# git clone --depth 1 --branch 4.10.0 https://github.com/opencv/opencv.git
-# git clone --depth 1 --branch 4.10.0 https://github.com/opencv/opencv_contrib.git
+mkdir -p ~/src && cd ~/src
+git clone --depth 1 --branch 4.10.0 https://github.com/opencv/opencv.git
+git clone --depth 1 --branch 4.10.0 https://github.com/opencv/opencv_contrib.git
 
 cd ~/src/opencv
 rm -rf build && mkdir build && cd build
