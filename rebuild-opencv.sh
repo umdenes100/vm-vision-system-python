@@ -96,6 +96,24 @@ log "Using venv: $(python -c 'import sys,site; print(sys.executable)')"
 # Ensure pip + NumPy (before CMake!)
 # =========================
 log "Upgrading pip/setuptools/wheel…"
+SITE_PKGS_DIR="${VENV_PATH}/lib/python$(python -c 'import sys;print(f"{sys.version_info.major}.{sys.version_info.minor}")')/site-packages"
+
+# Ensure we can write inside the venv (common after accidental 'sudo pip')
+if [[ ! -w "${SITE_PKGS_DIR}" ]]; then
+  warn "site-packages is not writable: ${SITE_PKGS_DIR}"
+  if command -v sudo >/dev/null 2>&1; then
+    warn "Fixing ownership of the venv (sudo)…"
+    sudo chown -R "$USER":"$USER" "${VENV_PATH}"
+  else
+    error "No sudo available to fix ownership. Please run:
+      sudo chown -R \"$USER\":\"$USER\" \"${VENV_PATH}\""
+    exit 1
+  fi
+fi
+
+# extra safety: never allow pip outside the venv
+export PIP_REQUIRE_VIRTUALENV=1
+
 python -m pip install --upgrade pip setuptools wheel
 
 if [[ "$NUMPY_MAJOR" == "1" ]]; then
