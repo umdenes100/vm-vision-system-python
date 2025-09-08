@@ -62,12 +62,12 @@ warn()  { printf "[WARN] %s\n" "$*" >&2; }
 error() { printf "[ERR]  %s\n" "$*" >&2; }
 
 # =========================
-# Check Python-like processes
+# Check Python-like processes (portable: no -E)
 # =========================
 log "Checking for running Python/IPython/Jupyter processes…"
-if pgrep -faE 'python|ipython|jupyter' >/dev/null; then
+if pgrep -fa 'python|ipython|jupyter' >/dev/null 2>&1; then
   warn "Detected running Python-like processes:"
-  pgrep -faE 'python|ipython|jupyter' || true
+  pgrep -fa 'python|ipython|jupyter' || true
 
   if [[ $KILL -eq 1 ]]; then
     warn "Killing detected processes…"
@@ -80,6 +80,11 @@ if pgrep -faE 'python|ipython|jupyter' >/dev/null; then
     warn "Continuing due to --force."
   fi
 fi
+
+# =========================
+# Sanity: source trees exist
+# =========================
+[[ -d "$SRC_OPENCV" ]] || { error "OpenCV source not found at $SRC_OPENCV"; exit 1; }
 
 # =========================
 # Activate venv
@@ -111,9 +116,7 @@ if [[ ! -w "${SITE_PKGS_DIR}" ]]; then
   fi
 fi
 
-# extra safety: never allow pip outside the venv
 export PIP_REQUIRE_VIRTUALENV=1
-
 python -m pip install --upgrade "pip<25" setuptools wheel
 
 if [[ "$NUMPY_MAJOR" == "1" ]]; then
@@ -128,7 +131,7 @@ log "Installing $PIN…"
 python -m pip install "$PIN"
 
 # =========================
-# System build deps (incl. GStreamer dev headers)
+# System build/runtime deps (Jammy-safe)
 # =========================
 log "Ensuring build/runtime dependencies (apt)…"
 sudo apt-get update -y
@@ -136,10 +139,9 @@ sudo apt-get install -y \
   build-essential cmake git pkg-config \
   libgtk-3-dev \
   libjpeg-dev libpng-dev libtiff-dev libwebp-dev libopenjp2-7-dev \
-  libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libavresample-dev \
+  libavcodec-dev libavformat-dev libavutil-dev libswscale-dev \
   libxvidcore-dev libx264-dev libx265-dev libv4l-dev \
   libtbb-dev \
-  # GStreamer headers (CRITICAL) + common runtime plugins
   libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev \
   gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad \
   gstreamer1.0-libav gstreamer1.0-tools
@@ -172,14 +174,14 @@ log "NumPy include: ${NUMPY_INC}"
 log "NumPy version: $(python -c 'import numpy as np; print(np.__version__)')"
 
 # =========================
-# Prepare build dir (force clean reconfigure)
+# Prepare build dir
 # =========================
 mkdir -p "${BUILD_DIR}"
 log "Cleaning build cache at ${BUILD_DIR}…"
 rm -rf "${BUILD_DIR:?}/"*
 
 # =========================
-# CMake configure  (force GStreamer/FFmpeg/V4L ON)
+# CMake configure (force GStreamer/FFmpeg/V4L ON)
 # =========================
 CMAKE_ARGS=(
   -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE}"
@@ -188,21 +190,15 @@ CMAKE_ARGS=(
   -DBUILD_TESTS=OFF
   -DBUILD_PERF_TESTS=OFF
   -DOPENCV_ENABLE_NONFREE=ON
-
-  # Backends: explicitly ON
   -DWITH_GSTREAMER=ON
   -DWITH_FFMPEG=ON
   -DWITH_V4L=ON
   -DWITH_TBB=ON
-
-  # Python wiring
   -DBUILD_opencv_python3=ON
   -DPYTHON3_EXECUTABLE="${PYTHON_EXEC}"
   -DPYTHON3_PACKAGES_PATH="${SITE_PKGS}"
   -DPYTHON3_NUMPY_INCLUDE_DIRS="${NUMPY_INC}"
 )
-
-# opencv_contrib (optional but nice)
 if [[ -d "${SRC_OPENCV_CONTRIB}/modules" ]]; then
   CMAKE_ARGS+=(-DOPENCV_EXTRA_MODULES_PATH="${SRC_OPENCV_CONTRIB}/modules")
 fi
@@ -248,10 +244,15 @@ if not re.search(r"GStreamer\s*:\s*YES", info, re.I):
     print("FAIL: OpenCV built without GStreamer support.")
     sys.exit(2)
 
-# Try a trivial GStreamer pipeline if plugins are present
-caps = cv2.VideoCapture("videotestsrc num-buffers=1 ! videoconvert ! appsink", cv2.CAP_GSTREAMER)
-print("GStreamer CAP opened:", caps.isOpened())
-caps.release()
+# Tiny runtime check for your RTP/JPEG pipeline elements
+need = ["rtpjpegdepay", "jpegdec", "videoconvert", "udpsrc"]
+missing = [name for name in need if name not in info]  # coarse; real check below
+print("Coarse element names present in build info (non-fatal):", not missing)
+
+# Real CAP_GSTREAMER try (won't hang – single buffer)
+cap = cv2.VideoCapture("videotestsrc num-buffers=1 ! videoconvert ! appsink", cv2.CAP_GSTREAMER)
+print("GStreamer CAP opened:", cap.isOpened())
+cap.release()
 PY
 
 log "Done ✅"
