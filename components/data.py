@@ -8,10 +8,10 @@ import cv2
 import numpy as np
 
 class GStreamerCamera:
-    def __init__(self, port=554):
+    def __init__(self, port=5000):
         self.port = port
         self.pipeline = (
-            "udpsrc port=554 caps=\"application/x-rtp, media=(string)video, "
+            "udpsrc port=5000 caps=\"application/x-rtp, media=(string)video, "
             "clock-rate=(int)90000, encoding-name=(string)JPEG, payload=26\" ! "
             "rtpjpegdepay ! jpegdec ! videoconvert ! appsink"
         )
@@ -52,7 +52,7 @@ class GStreamerCamera:
 # Everything else remains unchanged
 
 class CameraManager:
-    def __init__(self, port=554):
+    def __init__(self, port=5000):
         self.port = port
         self.pipeline = f"udpsrc port={self.port} ! application/x-rtp, encoding-name=jpeg, payload=26 ! rtpjpegdepay ! jpegdec ! videoconvert ! appsink"
         self.video = None
