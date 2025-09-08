@@ -1,308 +1,198 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-### ---------------------------------------------------------------------------
-### Configuration (defaults; can be overridden via flags or env vars)
-### ---------------------------------------------------------------------------
-PROJECT_DIR="${PROJECT_DIR:-$HOME/dev/vm-vision-system-python}"
-VENV_DIR_DEFAULT="$PROJECT_DIR/.venv"
-SRC_DIR="${SRC_DIR:-$HOME/src}"
-OPENCV_VERSION="${OPENCV_VERSION:-4.10.0}"
+# =========================
+# Config (sane defaults)
+# =========================
+VENV_PATH="${VENV_PATH:-.venv}"
+SRC_OPENCV="${SRC_OPENCV:-$HOME/opencv}"                 # path to opencv source
+SRC_OPENCV_CONTRIB="${SRC_OPENCV_CONTRIB:-$HOME/opencv_contrib}" # path to opencv_contrib source
+BUILD_DIR="${BUILD_DIR:-$SRC_OPENCV/build}"
+INSTALL_PREFIX="${INSTALL_PREFIX:-/usr/local}"
+CMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE:-Release}"
 JOBS="${JOBS:-$(nproc)}"
-BUILD_TYPE="${BUILD_TYPE:-Release}"
-CMAKE_GENERATOR="${CMAKE_GENERATOR:-Ninja}"
 
-### Flags
-FORCE=false           # proceed even if python/jupyter are running
-CLEAN_ONLY=false      # just clean OpenCV from venv and exit
-VENV_DIR="$VENV_DIR_DEFAULT"
+# Behavior flags
+FORCE=0        # continue even if python-like processes running
+KILL=0         # kill python-like processes
+NUMPY_MAJOR="${NUMPY_MAJOR:-2}"  # 1 = install numpy<2, 2 = install numpy>=2
 
+# =========================
+# Args
+# =========================
 usage() {
-  cat <<USAGE
-Usage: $(basename "$0") [options]
+  cat <<EOF
+Usage: $0 [options]
 
 Options:
-  --project-dir DIR         Project directory (default: $PROJECT_DIR)
-  --venv-dir DIR            Virtualenv directory (default: $VENV_DIR_DEFAULT)
-  --src-dir DIR             Source checkout directory (default: $SRC_DIR)
-  --opencv-version VER      OpenCV version tag/branch (default: $OPENCV_VERSION)
-  --jobs N                  Parallel build jobs for ninja (default: $(nproc))
-  --force                   Continue even if python/ipython/jupyter are running
-  --clean-only              Only remove OpenCV from venv, then exit
-  -h, --help                Show this help
-
-Env overrides (same names): PROJECT_DIR, SRC_DIR, OPENCV_VERSION, JOBS, BUILD_TYPE, CMAKE_GENERATOR
-USAGE
+  --venv PATH                 Virtualenv path (default: ${VENV_PATH})
+  --src-opencv PATH           OpenCV source directory (default: ${SRC_OPENCV})
+  --src-opencv-contrib PATH   opencv_contrib source directory (default: ${SRC_OPENCV_CONTRIB})
+  --build-dir PATH            Build directory (default: ${BUILD_DIR})
+  --install-prefix PATH       CMAKE_INSTALL_PREFIX (default: ${INSTALL_PREFIX})
+  --type {Release|Debug}      CMAKE_BUILD_TYPE (default: ${CMAKE_BUILD_TYPE})
+  -j, --jobs N                Parallel build jobs (default: CPU cores)
+  --numpy-major {1|2}         Pin NumPy major version (default: ${NUMPY_MAJOR})
+  --force                     Ignore running Python/Jupyter processes
+  --kill                      Kill running Python/Jupyter processes
+  -h, --help                  Show this help
+EOF
+  exit 0
 }
 
-### Parse args
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --project-dir) PROJECT_DIR="$2"; shift 2;;
-    --venv-dir) VENV_DIR="$2"; shift 2;;
-    --src-dir) SRC_DIR="$2"; shift 2;;
-    --opencv-version) OPENCV_VERSION="$2"; shift 2;;
-    --jobs) JOBS="$2"; shift 2;;
-    --force) FORCE=true; shift;;
-    --clean-only) CLEAN_ONLY=true; shift;;
-    -h|--help) usage; exit 0;;
-    *) echo "Unknown option: $1"; usage; exit 2;;
+    --venv) VENV_PATH="$2"; shift 2;;
+    --src-opencv) SRC_OPENCV="$2"; shift 2;;
+    --src-opencv-contrib) SRC_OPENCV_CONTRIB="$2"; shift 2;;
+    --build-dir) BUILD_DIR="$2"; shift 2;;
+    --install-prefix) INSTALL_PREFIX="$2"; shift 2;;
+    --type) CMAKE_BUILD_TYPE="$2"; shift 2;;
+    -j|--jobs) JOBS="$2"; shift 2;;
+    --numpy-major) NUMPY_MAJOR="$2"; shift 2;;
+    --force) FORCE=1; shift;;
+    --kill) KILL=1; shift;;
+    -h|--help) usage;;
+    *) echo "[ERR] Unknown option: $1" >&2; usage;;
   esac
 done
 
-VENV_DIR="${VENV_DIR:-$VENV_DIR_DEFAULT}"
+log()   { printf "[INFO] %s\n" "$*"; }
+warn()  { printf "[WARN] %s\n" "$*" >&2; }
+error() { printf "[ERR]  %s\n" "$*" >&2; }
 
-### ---------------------------------------------------------------------------
-### Helpers
-### ---------------------------------------------------------------------------
-log() { printf "\n\033[1;34m[INFO]\033[0m %s\n" "$*"; }
-warn() { printf "\n\033[1;33m[WARN]\033[0m %s\n" "$*"; }
-err() { printf "\n\033[1;31m[ERR]\033[0m %s\n" "$*" >&2; }
-require_cmd() { command -v "$1" >/dev/null 2>&1 || { err "Missing command: $1"; exit 1; }; }
+# =========================
+# Check Python-like processes
+# =========================
+log "Checking for running Python/IPython/Jupyter processes…"
+if pgrep -faE 'python|ipython|jupyter' >/dev/null; then
+  warn "Detected running Python-like processes:"
+  pgrep -faE 'python|ipython|jupyter' || true
 
-### ---------------------------------------------------------------------------
-### 0) Ensure no Python processes are running (that might be using cv2)
-### ---------------------------------------------------------------------------
-check_running_python() {
-  log "Checking for running Python/IPython/Jupyter processes…"
-  if ps aux | grep -E "[p]ython|[i]python|[j]upyter" >/dev/null 2>&1; then
-    warn "Detected running Python-like processes:"
-    ps aux | grep -E "[p]ython|[i]python|[j]upyter" || true
-    if [ "$FORCE" = false ]; then
-      err "Please stop these processes or rerun with --force."
-      exit 1
-    else
-      warn "--force specified; proceeding anyway."
-    fi
-  else
-    log "No running Python/IPython/Jupyter processes found."
-  fi
-}
-
-### ---------------------------------------------------------------------------
-### 1) Ensure project dir & venv
-### ---------------------------------------------------------------------------
-ensure_project_and_venv() {
-  if [ ! -d "$PROJECT_DIR" ]; then
-    err "Project dir not found: $PROJECT_DIR"
+  if [[ $KILL -eq 1 ]]; then
+    warn "Killing detected processes…"
+    # shellcheck disable=SC2009
+    ps -eo pid,command | awk '/python|ipython|jupyter/ && $2 !~ /grep/ {print $1}' | xargs -r kill -9 || true
+  elif [[ $FORCE -ne 1 ]]; then
+    error "Please stop these processes or rerun with --force or --kill."
     exit 1
+  else
+    warn "Continuing due to --force."
   fi
+fi
 
-  if [ ! -d "$VENV_DIR" ]; then
-    log "Creating venv at $VENV_DIR …"
-    require_cmd python3
-    python3 -m venv "$VENV_DIR"
-  fi
+# =========================
+# Activate venv
+# =========================
+if [[ ! -f "${VENV_PATH}/bin/activate" ]]; then
+  error "Venv not found at ${VENV_PATH}. Create it first (python -m venv ${VENV_PATH})."
+  exit 1
+fi
+# shellcheck disable=SC1090
+source "${VENV_PATH}/bin/activate"
+log "Using venv: $(python -c 'import sys,site; print(sys.executable)')"
 
-  log "Fixing ownership for venv (sudo may prompt)…"
-  sudo chown -R "$USER":"$USER" "$VENV_DIR"
+# =========================
+# Ensure pip + NumPy (before CMake!)
+# =========================
+log "Upgrading pip/setuptools/wheel…"
+python -m pip install --upgrade pip setuptools wheel
 
-  # shellcheck source=/dev/null
-  source "$VENV_DIR/bin/activate"
-  log "Python: $(python -V 2>&1)"
-  log "Using python: $(command -v python)"
-  log "Using pip:    $(command -v pip)"
-  python - <<'PY'
+if [[ "$NUMPY_MAJOR" == "1" ]]; then
+  PIN='numpy<2'
+elif [[ "$NUMPY_MAJOR" == "2" ]]; then
+  PIN='numpy>=2'
+else
+  error "--numpy-major must be 1 or 2"
+  exit 1
+fi
+log "Installing $PIN…"
+python -m pip install "$PIN"
+
+# Helpful build deps (adjust as you like)
+log "Ensuring common build dependencies…"
+sudo apt-get update -y
+sudo apt-get install -y build-essential cmake git pkg-config \
+  libgtk-3-dev libavcodec-dev libavformat-dev libswscale-dev \
+  libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+  libtbb2 libtbb-dev libjpeg-dev libpng-dev libtiff-dev libdc1394-22-dev \
+  libopenexr-dev libwebp-dev
+
+# =========================
+# Resolve Python + NumPy paths
+# =========================
+PYTHON_EXEC="$(which python)"
+SITE_PKGS="$(python - <<'PY'
+import site, sys
+# Prefer purelib if available (PEP 632), else site-packages[0]
+sp = getattr(site, 'getsitepackages', lambda: [])()
+print(sp[0] if sp else site.getusersitepackages())
+PY
+)"
+NUMPY_INC="$(python - <<'PY'
+import numpy as np
+print(np.get_include())
+PY
+)"
+
+log "Python: ${PYTHON_EXEC}"
+log "Python site-packages: ${SITE_PKGS}"
+log "NumPy include: ${NUMPY_INC}"
+log "NumPy version: $(python -c 'import numpy as np; print(np.__version__)')"
+
+# =========================
+# Prepare build dir (force clean reconfigure)
+# =========================
+mkdir -p "${BUILD_DIR}"
+log "Cleaning build cache at ${BUILD_DIR}…"
+rm -rf "${BUILD_DIR:?}/"*
+
+# =========================
+# CMake configure
+# =========================
+CMAKE_ARGS=(
+  -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE}"
+  -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}"
+  -DBUILD_opencv_python3=ON
+  -DPYTHON3_EXECUTABLE="${PYTHON_EXEC}"
+  -DPYTHON3_PACKAGES_PATH="${SITE_PKGS}"
+  -DPYTHON3_NUMPY_INCLUDE_DIRS="${NUMPY_INC}"
+  -DOPENCV_GENERATE_PKGCONFIG=ON
+)
+
+# opencv_contrib (optional but nice)
+if [[ -d "${SRC_OPENCV_CONTRIB}/modules" ]]; then
+  CMAKE_ARGS+=(-DOPENCV_EXTRA_MODULES_PATH="${SRC_OPENCV_CONTRIB}/modules")
+fi
+
+log "Configuring OpenCV with CMake…"
+(
+  cd "${BUILD_DIR}"
+  cmake "${CMAKE_ARGS[@]}" "${SRC_OPENCV}"
+)
+
+# =========================
+# Build & install
+# =========================
+log "Building OpenCV (jobs: ${JOBS})…"
+cmake --build "${BUILD_DIR}" -- -j"${JOBS}"
+
+log "Installing to ${INSTALL_PREFIX} (sudo may prompt)…"
+sudo cmake --install "${BUILD_DIR}"
+sudo ldconfig
+
+# =========================
+# Verify import & GStreamer
+# =========================
+log "Verifying OpenCV Python import + GStreamer…"
+python - <<'PY'
 import sys
-print("sys.prefix:", sys.prefix)
+import numpy as np
+import cv2
+print("numpy:", np.__version__)
+print("opencv:", cv2.__version__)
+gst = cv2.getBuildInformation()
+print("GStreamer built-in:", "GStreamer" in gst and "YES" in gst.split("GStreamer")[1][:40])
 PY
 
-  # Make sure pip/setuptools/wheel are recent
-  python -m pip install --upgrade pip setuptools wheel >/dev/null
-  # Ensure numpy exists for OpenCV build
-  python -m pip install --upgrade numpy >/dev/null
-}
-
-### ---------------------------------------------------------------------------
-### 2) Scrub OpenCV from venv
-### ---------------------------------------------------------------------------
-scrub_opencv_from_venv() {
-  log "OpenCV packages present (before uninstall):"
-  pip freeze | grep -i '^opencv' || echo "(none)"
-
-  log "Uninstalling possible OpenCV wheels (ignoring missing)…"
-  pip uninstall -y \
-    opencv-python \
-    opencv-contrib-python \
-    opencv-python-headless \
-    opencv-contrib-python-headless \
-    opencv-python-inference-engine \
-    opencv-contrib \
-    opencv || true
-
-  log "Removing leftover cv2/opencv artifacts from purelib & platlib…"
-  PUREPKG=$(python -c "import sysconfig;print(sysconfig.get_paths()['purelib'])")
-  PLATPKG=$(python -c "import sysconfig;print(sysconfig.get_paths()['platlib'])")
-  echo "purelib: $PUREPKG"
-  echo "platlib: $PLATPKG"
-
-  for SP in "$PUREPKG" "$PLATPKG"; do
-    [ -d "$SP" ] || continue
-    rm -rf \
-      "$SP/cv2" \
-      "$SP"/cv2.*.so \
-      "$SP"/cv2*.so \
-      "$SP"/cv2*.pyd \
-      "$SP"/opencv* \
-      "$SP"/opencv*dist-info \
-      "$SP"/opencv*egg-info 2>/dev/null || true
-  done
-
-  log "Clearing pip cache…"
-  pip cache purge || true
-
-  log "Verifying cv2 is NOT importable…"
-  if python - <<'PY'
-try:
-    import cv2  # noqa
-    raise SystemExit(0)
-except Exception:
-    raise SystemExit(1)
-PY
-  then
-    err "cv2 is still importable in this venv."
-    exit 1
-  else
-    log "✅ cv2 is NOT importable in this venv."
-  fi
-
-  log "OpenCV packages present (after cleanup):"
-  pip freeze | grep -i '^opencv' || echo "(none)"
-}
-
-### ---------------------------------------------------------------------------
-### 3) Install build tools & dev packages
-### ---------------------------------------------------------------------------
-install_build_deps() {
-  require_cmd sudo
-  log "Installing build dependencies via apt… (sudo may prompt)"
-  sudo apt update
-  sudo apt install -y \
-    build-essential cmake ninja-build pkg-config git \
-    python3-dev python3-numpy \
-    libgtk-3-dev \
-    libjpeg-dev libpng-dev libtiff-dev libwebp-dev \
-    libopenexr-dev \
-    libv4l-dev \
-    libavcodec-dev libavformat-dev libswscale-dev libswresample-dev \
-    libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-tools \
-    gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly
-}
-
-### ---------------------------------------------------------------------------
-### 4) Clone OpenCV + contrib
-### ---------------------------------------------------------------------------
-clone_opencv() {
-  mkdir -p "$SRC_DIR"
-  cd "$SRC_DIR"
-
-  if [ ! -d opencv ]; then
-    log "Cloning OpenCV $OPENCV_VERSION …"
-    git clone --depth 1 --branch "$OPENCV_VERSION" https://github.com/opencv/opencv.git
-  else
-    log "opencv repo exists; ensuring correct version/tag…"
-    (cd opencv && git fetch --depth 1 origin "$OPENCV_VERSION" && git checkout -f "$OPENCV_VERSION")
-  fi
-
-  if [ ! -d opencv_contrib ]; then
-    log "Cloning opencv_contrib $OPENCV_VERSION …"
-    git clone --depth 1 --branch "$OPENCV_VERSION" https://github.com/opencv/opencv_contrib.git
-  else
-    log "opencv_contrib repo exists; ensuring correct version/tag…"
-    (cd opencv_contrib && git fetch --depth 1 origin "$OPENCV_VERSION" && git checkout -f "$OPENCV_VERSION")
-  fi
-}
-
-### ---------------------------------------------------------------------------
-### 5) Configure CMake
-### ---------------------------------------------------------------------------
-configure_build() {
-  cd "$SRC_DIR/opencv"
-  rm -rf build
-  mkdir build
-  cd build
-
-  PY_INSTALL=$(python -c "import sysconfig; print(sysconfig.get_paths()['platlib'])")
-  log "Python install path for cv2: $PY_INSTALL"
-
-  cmake -G "$CMAKE_GENERATOR" \
-    -D CMAKE_BUILD_TYPE="$BUILD_TYPE" \
-    -D CMAKE_INSTALL_PREFIX=/usr/local \
-    -D OPENCV_EXTRA_MODULES_PATH="$SRC_DIR/opencv_contrib/modules" \
-    -D OPENCV_GENERATE_PKGCONFIG=ON \
-    -D BUILD_EXAMPLES=OFF \
-    -D BUILD_TESTS=OFF \
-    -D BUILD_DOCS=OFF \
-    -D WITH_GSTREAMER=ON \
-    -D WITH_FFMPEG=ON \
-    -D WITH_V4L=ON \
-    -D WITH_OPENGL=ON \
-    -D BUILD_opencv_python3=ON \
-    -D PYTHON3_EXECUTABLE="$(command -v python)" \
-    -D OPENCV_PYTHON3_INSTALL_PATH="$PY_INSTALL" \
-    ..
-}
-
-### ---------------------------------------------------------------------------
-### 6) Build & install
-### ---------------------------------------------------------------------------
-build_and_install() {
-  cd "$SRC_DIR/opencv/build"
-  log "Building OpenCV with $JOBS jobs…"
-  if [[ "$CMAKE_GENERATOR" =~ [Nn]inja ]]; then
-    require_cmd ninja
-    ninja -j"$JOBS"
-    log "Installing (sudo may prompt)…"
-    sudo ninja install
-  else
-    require_cmd make
-    make -j"$JOBS"
-    sudo make install
-  fi
-  log "Running ldconfig…"
-  sudo ldconfig
-}
-
-### ---------------------------------------------------------------------------
-### 7) Verify
-### ---------------------------------------------------------------------------
-verify_opencv() {
-  log "Verifying OpenCV Python import and GStreamer support…"
-  python - <<'PY'
-import cv2, sys
-print("cv2 version:", cv2.__version__)
-print("cv2 path:", cv2.__file__)
-bi = cv2.getBuildInformation()
-# Quick check for GStreamer flag line
-gst_line = next((ln for ln in bi.splitlines() if "GStreamer:" in ln), "")
-print("GStreamer line:", gst_line)
-if "GStreamer:" in gst_line and "YES" in gst_line:
-    print("GStreamer enabled: YES")
-else:
-    print("GStreamer enabled: NO")
-PY
-}
-
-### ---------------------------------------------------------------------------
-### Main
-### ---------------------------------------------------------------------------
-main() {
-  check_running_python
-  ensure_project_and_venv
-  scrub_opencv_from_venv
-
-  if [ "$CLEAN_ONLY" = true ]; then
-    log "--clean-only specified; stopping after cleanup."
-    exit 0
-  fi
-
-  install_build_deps
-  clone_opencv
-  configure_build
-  build_and_install
-  verify_opencv
-
-  log "✅ Done. OpenCV $OPENCV_VERSION is built from source, installed, and importable in your venv."
-}
-
-main "$@"
+log "Done ✅"
