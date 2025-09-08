@@ -114,7 +114,7 @@ fi
 # extra safety: never allow pip outside the venv
 export PIP_REQUIRE_VIRTUALENV=1
 
-python -m pip install --upgrade pip setuptools wheel
+python -m pip install --upgrade "pip<25" setuptools wheel
 
 if [[ "$NUMPY_MAJOR" == "1" ]]; then
   PIN='numpy<2'
@@ -127,22 +127,35 @@ fi
 log "Installing $PIN…"
 python -m pip install "$PIN"
 
-# Helpful build deps (adjust as you like)
-log "Ensuring common build dependencies…"
+# =========================
+# System build deps (incl. GStreamer dev headers)
+# =========================
+log "Ensuring build/runtime dependencies (apt)…"
 sudo apt-get update -y
-sudo apt-get install -y build-essential cmake git pkg-config \
-  libgtk-3-dev libavcodec-dev libavformat-dev libswscale-dev \
-  libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
-  libtbb2 libtbb-dev libjpeg-dev libpng-dev libtiff-dev libdc1394-22-dev \
-  libopenexr-dev libwebp-dev
+sudo apt-get install -y \
+  build-essential cmake git pkg-config \
+  libgtk-3-dev \
+  libjpeg-dev libpng-dev libtiff-dev libwebp-dev libopenjp2-7-dev \
+  libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libavresample-dev \
+  libxvidcore-dev libx264-dev libx265-dev libv4l-dev \
+  libtbb-dev \
+  # GStreamer headers (CRITICAL) + common runtime plugins
+  libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev \
+  gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad \
+  gstreamer1.0-libav gstreamer1.0-tools
+
+if ! pkg-config --exists gstreamer-1.0; then
+  error "pkg-config cannot find gstreamer-1.0; GStreamer dev headers missing."
+  exit 1
+fi
+log "GStreamer version: $(pkg-config --modversion gstreamer-1.0)"
 
 # =========================
 # Resolve Python + NumPy paths
 # =========================
-PYTHON_EXEC="$(which python)"
+PYTHON_EXEC="$(command -v python)"
 SITE_PKGS="$(python - <<'PY'
 import site, sys
-# Prefer purelib if available (PEP 632), else site-packages[0]
 sp = getattr(site, 'getsitepackages', lambda: [])()
 print(sp[0] if sp else site.getusersitepackages())
 PY
@@ -166,16 +179,27 @@ log "Cleaning build cache at ${BUILD_DIR}…"
 rm -rf "${BUILD_DIR:?}/"*
 
 # =========================
-# CMake configure
+# CMake configure  (force GStreamer/FFmpeg/V4L ON)
 # =========================
 CMAKE_ARGS=(
   -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE}"
   -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}"
+  -DOPENCV_GENERATE_PKGCONFIG=ON
+  -DBUILD_TESTS=OFF
+  -DBUILD_PERF_TESTS=OFF
+  -DOPENCV_ENABLE_NONFREE=ON
+
+  # Backends: explicitly ON
+  -DWITH_GSTREAMER=ON
+  -DWITH_FFMPEG=ON
+  -DWITH_V4L=ON
+  -DWITH_TBB=ON
+
+  # Python wiring
   -DBUILD_opencv_python3=ON
   -DPYTHON3_EXECUTABLE="${PYTHON_EXEC}"
   -DPYTHON3_PACKAGES_PATH="${SITE_PKGS}"
   -DPYTHON3_NUMPY_INCLUDE_DIRS="${NUMPY_INC}"
-  -DOPENCV_GENERATE_PKGCONFIG=ON
 )
 
 # opencv_contrib (optional but nice)
@@ -187,6 +211,8 @@ log "Configuring OpenCV with CMake…"
 (
   cd "${BUILD_DIR}"
   cmake "${CMAKE_ARGS[@]}" "${SRC_OPENCV}"
+  echo "----- Backend summary (grep) -----"
+  grep -E "GStreamer|FFMPEG|V4L|TBB" CMakeCache.txt || true
 )
 
 # =========================
@@ -204,13 +230,28 @@ sudo ldconfig
 # =========================
 log "Verifying OpenCV Python import + GStreamer…"
 python - <<'PY'
-import sys
+import re, sys
 import numpy as np
-import cv2
+try:
+    import cv2
+except Exception as e:
+    print("FAILED to import cv2:", e)
+    sys.exit(1)
+
 print("numpy:", np.__version__)
 print("opencv:", cv2.__version__)
-gst = cv2.getBuildInformation()
-print("GStreamer built-in:", "GStreamer" in gst and "YES" in gst.split("GStreamer")[1][:40])
+
+info = cv2.getBuildInformation()
+gst_line = next((l for l in info.splitlines() if "GStreamer" in l), "")
+print(gst_line or "No 'GStreamer' line found in build info.")
+if not re.search(r"GStreamer\s*:\s*YES", info, re.I):
+    print("FAIL: OpenCV built without GStreamer support.")
+    sys.exit(2)
+
+# Try a trivial GStreamer pipeline if plugins are present
+caps = cv2.VideoCapture("videotestsrc num-buffers=1 ! videoconvert ! appsink", cv2.CAP_GSTREAMER)
+print("GStreamer CAP opened:", caps.isOpened())
+caps.release()
 PY
 
 log "Done ✅"
