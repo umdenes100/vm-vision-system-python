@@ -19,6 +19,100 @@ SITEPKG=$(python -c "import sysconfig;print(sysconfig.get_paths()['platlib'])")
 rm -rf "$SITEPKG/cv2" "$SITEPKG/opencv*"
 ```
 
+NEW 1
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+# 0) Don’t match the grep process itself
+ps aux | grep -E "[p]ython|[i]python|[j]upyter" || true
+
+# 1) Project & venv (fixed path)
+PROJECT_DIR="$HOME/dev/vm-vision-system-python"
+VENV_DIR="$PROJECT_DIR/.venv"
+
+# 2) Make sure the project dir exists
+if [ ! -d "$PROJECT_DIR" ]; then
+  echo "❌ Project dir not found: $PROJECT_DIR"
+  exit 1
+fi
+
+# 3) Create venv if missing (use python3 explicitly)
+if [ ! -d "$VENV_DIR" ]; then
+  echo "Creating venv at $VENV_DIR ..."
+  python3 -m venv "$VENV_DIR"
+fi
+
+# 4) Make sure you own it (ok if already correct)
+sudo chown -R "$USER":"$USER" "$VENV_DIR"
+
+# 5) Activate and sanity check
+source "$VENV_DIR/bin/activate"
+python -V
+echo "Using python: $(command -v python)"
+echo "Using pip:    $(command -v pip)"
+python - <<'PY'
+import sys
+print("sys.prefix:", sys.prefix)
+PY
+
+# 6) Show any opencv wheels installed
+echo "Before uninstall:"
+pip freeze | grep -i '^opencv' || echo "(none)"
+
+# 7) Uninstall ALL known OpenCV wheel names (some may not exist -> fine)
+pip uninstall -y \
+  opencv-python \
+  opencv-contrib-python \
+  opencv-python-headless \
+  opencv-contrib-python-headless \
+  opencv-python-inference-engine \
+  opencv-contrib \
+  opencv || true
+
+# 8) Remove leftover files from both purelib and platlib
+PUREPKG=$(python -c "import sysconfig;print(sysconfig.get_paths()['purelib'])")
+PLATPKG=$(python -c "import sysconfig;print(sysconfig.get_paths()['platlib'])")
+echo "purelib: $PUREPKG"
+echo "platlib: $PLATPKG"
+
+for SP in "$PUREPKG" "$PLATPKG"; do
+  [ -d "$SP" ] || continue
+  rm -rf \
+    "$SP/cv2" \
+    "$SP"/cv2.*.so \
+    "$SP"/cv2*.so \
+    "$SP"/cv2*.pyd \
+    "$SP"/opencv* \
+    "$SP"/opencv*dist-info \
+    "$SP"/opencv*egg-info 2>/dev/null || true
+done
+
+# 9) (Optional) Clean pip cache
+pip cache purge || true
+
+# 10) Verify that cv2 cannot be imported
+if python - <<'PY'
+try:
+    import cv2  # noqa
+    raise SystemExit(0)
+except Exception:
+    raise SystemExit(1)
+PY
+then
+  echo "❌ cv2 still importable in this venv."
+  exit 1
+else
+  echo "✅ cv2 is NOT importable in this venv."
+fi
+
+# 11) Confirm nothing left in pip
+echo "After cleanup:"
+pip freeze | grep -i '^opencv' || echo "(none)"
+
+```
+
+
 2) Install missing build tools & correct dev packages
 ```bash
 sudo apt update
