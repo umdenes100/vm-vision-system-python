@@ -55,83 +55,72 @@ apt_lock_aware() {
 py_fix_cv2_loader_and_test() {
   python - <<'PY'
 import sys, sysconfig, pathlib, importlib.machinery, importlib.util
-from glob import glob
-
 def site_candidates():
     cand = []
     paths = sysconfig.get_paths()
     for key in ("purelib","platlib","stdlib","data"):
         p = paths.get(key)
         if p:
-            cand.append(pathlib.Path(p))
-    # venv prefix explicit fallbacks
-    pyver = f"python{sys.version_info.major}.{sys.version_info.minor}"
-    cand += [
-        pathlib.Path(sys.prefix)/"lib"/pyver/"site-packages",
-        pathlib.Path(sys.prefix)/"lib"/pyver/"dist-packages",
-    ]
-    # de-dup, keep existing only
-    out = []
-    seen = set()
+            pth = pathlib.Path(p)
+            if pth.exists(): cand.append(pth)
+    pyver = "python%d.%d" % (sys.version_info.major, sys.version_info.minor)
+    for d in (pathlib.Path(sys.prefix)/"lib"/pyver/"site-packages",
+              pathlib.Path(sys.prefix)/"lib"/pyver/"dist-packages"):
+        if d.exists(): cand.append(d)
+    seen,setout=set(),[]
     for c in cand:
-        if c not in seen and c.exists():
-            seen.add(c); out.append(c)
-    return out
+        if c not in seen:
+            seen.add(c); setout.append(c)
+    return setout
+
+def write_loader(pkg):
+    init = pkg/"__init__.py"
+    if not init.exists():
+        init.write_text('''import sys, pathlib, importlib.machinery, importlib.util
+_pkg = pathlib.Path(__file__).resolve().parent
+_dirs = [_pkg / ('python-%d.%d' % (sys.version_info.major, sys.version_info.minor)), _pkg]
+_so = None
+for d in _dirs:
+    if d.exists():
+        cands = sorted(d.glob('cv2*.so'))
+        if cands:
+            _so = cands[0]; break
+if _so is None:
+    raise ImportError('OpenCV binary .so not found for this Python version')
+_ldr = importlib.machinery.ExtensionFileLoader('cv2', str(_so))
+_spec = importlib.util.spec_from_file_location('cv2', str(_so), loader=_ldr)
+_mod = importlib.util.module_from_spec(_spec)
+_ldr.exec_module(_mod)
+globals().update(_mod.__dict__)
+''')
+        print("Wrote loader:", init)
 
 def ensure_loader_and_test():
-    ok=False
+    import traceback
     last_err=None
     for s in site_candidates():
         pkg = s/"cv2"
-        bin_dir = pkg/f"python-{sys.version_info.major}.{sys.version_info.minor}"
-        # Common wheel layout includes cv2/__init__.py already; source install puts .so under python-X.Y
+        bin_dir = pkg/("python-%d.%d" % (sys.version_info.major, sys.version_info.minor))
         sos = []
-        if bin_dir.exists():
-            sos = list(bin_dir.glob("cv2*.so"))
-        # Some builds might drop the .so directly under cv2/
-        if not sos and pkg.exists():
-            sos = list(pkg.glob("cv2*.so"))
-        if not sos:
-            continue
-        # Guarantee package dir exists and has a loader
+        if bin_dir.exists(): sos += list(bin_dir.glob("cv2*.so"))
+        if pkg.exists(): sos += list(pkg.glob("cv2*.so"))
+        if not sos: continue
         pkg.mkdir(parents=True, exist_ok=True)
-        init = pkg/"__init__.py"
-        if not init.exists():
-            init.write_text(
-                "import sys, pathlib, importlib.machinery, importlib.util\n"
-                "_pkg = pathlib.Path(__file__).resolve().parent\n"
-                f"_dirs = [_pkg / f\"python-{{sys.version_info.major}}.{{sys.version_info.minor}}\", _pkg]\n"
-                "_so = None\n"
-                "import re\n"
-                "for d in _dirs:\n"
-                "    if d.exists():\n"
-                "        cands = sorted([p for p in d.glob('cv2*.so')])\n"
-                "        if cands:\n"
-                "            _so = cands[0]; break\n"
-                "if _so is None:\n"
-                "    raise ImportError('OpenCV binary .so not found for this Python version')\n"
-                "_ldr = importlib.machinery.ExtensionFileLoader('cv2', str(_so))\n"
-                "_spec = importlib.util.spec_from_file_location('cv2', str(_so), loader=_ldr)\n"
-                "_mod = importlib.util.module_from_spec(_spec)\n"
-                "_ldr.exec_module(_mod)\n"
-                "globals().update(_mod.__dict__)\n"
-            )
-            print(f\"Wrote loader: {init}\")
+        write_loader(pkg)
         try:
-            import cv2  # noqa: F401
+            import cv2
             cap = cv2.VideoCapture('videotestsrc num-buffers=1 ! videoconvert ! appsink', cv2.CAP_GSTREAMER)
-            ok = bool(cap.isOpened())
-            cap.release()
-            print('CAP_GSTREAMER opened:', ok)
+            ok = bool(cap.isOpened()); cap.release()
+            print("CAP_GSTREAMER opened:", ok)
             return ok
         except Exception as e:
-            last_err = e
-    if not ok and last_err:
-        print('cv2 import/test failed:', last_err)
-    return ok
+            last_err=e
+    if last_err:
+        print("cv2 import/test failed:", last_err)
+    return False
 
-if not ensure_loader_and_test():
-    sys.exit(2)
+ok = ensure_loader_and_test()
+sys.exit(0 if ok else 2)
 PY
 }
 
@@ -189,7 +178,7 @@ fi
 source "${VENV_PATH}/bin/activate"
 export PIP_REQUIRE_VIRTUALENV=1
 
-# Upgrade pip/setuptools/wheel (pip<25 is safe across py3.10)
+# Upgrade pip/setuptools/wheel
 python - <<'PY'
 import subprocess, sys
 subprocess.run([sys.executable, "-m", "pip", "install", "-q", "--upgrade", "pip<25", "setuptools", "wheel"], check=True)
@@ -335,7 +324,6 @@ if [[ -f "${REPO_DIR}/runner.desktop" ]]; then
   echo ">>> Copying desktop shortcut to ~/Desktop…"
   mkdir -p "${HOME}/Desktop"
   cp -f "${REPO_DIR}/runner.desktop" "${HOME}/Desktop/runner.desktop"
-  # Rewrite Exec to absolute RunVisionSystem.sh path if present
   if command -v sed >/dev/null 2>&1; then
     sed -i "s|^Exec=.*|Exec=${REPO_DIR}/RunVisionSystem.sh|g" "${HOME}/Desktop/runner.desktop" || true
   fi
