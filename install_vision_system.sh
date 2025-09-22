@@ -4,26 +4,23 @@ set -euo pipefail
 # ============================================================
 # Vision System — One-Command Installer (Ubuntu 22.04 Jammy)
 # ============================================================
-# This script prepares system deps, a Python venv, Python deps,
-# sanity-checks OpenCV + GStreamer, and (if needed) builds
-# OpenCV from source with GStreamer enabled (contrib modules).
+# Preps system deps, Python venv, Python deps, verifies
+# OpenCV+GStreamer, and builds OpenCV from source (contrib)
+# with a robust cv2 loader fix for venvs.
 #
 # Usage:
 #   chmod +x install_vision_system.sh
 #   ./install_vision_system.sh
 #
-# Options (env vars):
-#   VENV_PATH            Path to the Python venv (default: .venv)
-#   BUILD_OPENCV         "auto" (default), "always", or "never"
-#   OPENCV_VERSION       Git tag or branch to build (default: 4.8.1)
-#   OPENCV_JOBS          Parallel build jobs (default: nproc)
+# Env options:
+#   VENV_PATH       (default: .venv)
+#   BUILD_OPENCV    auto|always|never (default: auto)
+#   OPENCV_VERSION  (default: 4.8.1)
+#   OPENCV_JOBS     (default: nproc)
 # ============================================================
 
-# ----------------------------
-# Config
-# ----------------------------
 VENV_PATH="${VENV_PATH:-.venv}"
-BUILD_OPENCV="${BUILD_OPENCV:-auto}"           # auto | always | never
+BUILD_OPENCV="${BUILD_OPENCV:-auto}"
 OPENCV_VERSION="${OPENCV_VERSION:-4.8.1}"
 OPENCV_JOBS="${OPENCV_JOBS:-$(nproc)}"
 
@@ -53,6 +50,89 @@ apt_lock_aware() {
   done
   echo "Gave up waiting for APT lock."
   return 1
+}
+
+py_fix_cv2_loader_and_test() {
+  python - <<'PY'
+import sys, sysconfig, pathlib, importlib.machinery, importlib.util
+from glob import glob
+
+def site_candidates():
+    cand = []
+    paths = sysconfig.get_paths()
+    for key in ("purelib","platlib","stdlib","data"):
+        p = paths.get(key)
+        if p:
+            cand.append(pathlib.Path(p))
+    # venv prefix explicit fallbacks
+    pyver = f"python{sys.version_info.major}.{sys.version_info.minor}"
+    cand += [
+        pathlib.Path(sys.prefix)/"lib"/pyver/"site-packages",
+        pathlib.Path(sys.prefix)/"lib"/pyver/"dist-packages",
+    ]
+    # de-dup, keep existing only
+    out = []
+    seen = set()
+    for c in cand:
+        if c not in seen and c.exists():
+            seen.add(c); out.append(c)
+    return out
+
+def ensure_loader_and_test():
+    ok=False
+    last_err=None
+    for s in site_candidates():
+        pkg = s/"cv2"
+        bin_dir = pkg/f"python-{sys.version_info.major}.{sys.version_info.minor}"
+        # Common wheel layout includes cv2/__init__.py already; source install puts .so under python-X.Y
+        sos = []
+        if bin_dir.exists():
+            sos = list(bin_dir.glob("cv2*.so"))
+        # Some builds might drop the .so directly under cv2/
+        if not sos and pkg.exists():
+            sos = list(pkg.glob("cv2*.so"))
+        if not sos:
+            continue
+        # Guarantee package dir exists and has a loader
+        pkg.mkdir(parents=True, exist_ok=True)
+        init = pkg/"__init__.py"
+        if not init.exists():
+            init.write_text(
+                "import sys, pathlib, importlib.machinery, importlib.util\n"
+                "_pkg = pathlib.Path(__file__).resolve().parent\n"
+                f"_dirs = [_pkg / f\"python-{{sys.version_info.major}}.{{sys.version_info.minor}}\", _pkg]\n"
+                "_so = None\n"
+                "import re\n"
+                "for d in _dirs:\n"
+                "    if d.exists():\n"
+                "        cands = sorted([p for p in d.glob('cv2*.so')])\n"
+                "        if cands:\n"
+                "            _so = cands[0]; break\n"
+                "if _so is None:\n"
+                "    raise ImportError('OpenCV binary .so not found for this Python version')\n"
+                "_ldr = importlib.machinery.ExtensionFileLoader('cv2', str(_so))\n"
+                "_spec = importlib.util.spec_from_file_location('cv2', str(_so), loader=_ldr)\n"
+                "_mod = importlib.util.module_from_spec(_spec)\n"
+                "_ldr.exec_module(_mod)\n"
+                "globals().update(_mod.__dict__)\n"
+            )
+            print(f\"Wrote loader: {init}\")
+        try:
+            import cv2  # noqa: F401
+            cap = cv2.VideoCapture('videotestsrc num-buffers=1 ! videoconvert ! appsink', cv2.CAP_GSTREAMER)
+            ok = bool(cap.isOpened())
+            cap.release()
+            print('CAP_GSTREAMER opened:', ok)
+            return ok
+        except Exception as e:
+            last_err = e
+    if not ok and last_err:
+        print('cv2 import/test failed:', last_err)
+    return ok
+
+if not ensure_loader_and_test():
+    sys.exit(2)
+PY
 }
 
 # ----------------------------
@@ -149,7 +229,6 @@ import sys
 ok=False
 try:
     import cv2
-    # Directly test CAP_GSTREAMER — most reliable
     cap = cv2.VideoCapture("videotestsrc num-buffers=1 ! videoconvert ! appsink", cv2.CAP_GSTREAMER)
     ok = bool(cap.isOpened())
     cap.release()
@@ -195,7 +274,7 @@ if [[ $NEED_BUILD -eq 1 ]]; then
   # Resolve Python paths for binding
   PY_EXEC="$(command -v python)"
   SITE_PKGS="$(python - <<'PY'
-import site; sp = getattr(site, 'getsitepackages', lambda: [])(); print(sp[0] if sp else site.getusersitepackages())
+import sysconfig; print(sysconfig.get_paths().get("purelib",""))
 PY
 )"
   NUMPY_INC="$(python - <<'PY'
@@ -232,98 +311,19 @@ PY
   python -m pip uninstall -y opencv-python opencv-contrib-python || true
 
   echo ">>> Verifying OpenCV + GStreamer after build…"
-  # Create loader if needed and smoke-test GStreamer capture
-  python - <<'PY'
-import sys, pathlib, importlib, importlib.machinery, importlib.util
-# Locate site-packages from current venv's python
-sp = pathlib.Path(sys.executable).resolve()
-site = None
-for parent in sp.parents:
-    cand = parent / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}" / "site-packages"
-    if cand.exists():
-        site = cand; break
-if site is not None:
-    pkg = site / "cv2"
-    bin_dir = pkg / f"python-{sys.version_info.major}.{sys.version_info.minor}"
-    so = next(iter(sorted(bin_dir.glob("cv2*.so"))), None)
-    if so:
-        pkg.mkdir(parents=True, exist_ok=True)
-        init = pkg / "__init__.py"
-        if not init.exists():
-            init.write_text(
-                "import sys, pathlib, importlib.machinery, importlib.util\n"
-                "_pkg = pathlib.Path(__file__).resolve().parent\n"
-                f"_bin_dir = _pkg / f\"python-{{sys.version_info.major}}.{{sys.version_info.minor}}\"\n"
-                "_so = next(iter(sorted(_bin_dir.glob(\"cv2*.so\"))), None)\n"
-                "if _so is None:\n    raise ImportError(\"OpenCV binary for this Python version not found\")\n"
-                "_ldr = importlib.machinery.ExtensionFileLoader(\"cv2\", str(_so))\n"
-                "_spec = importlib.util.spec_from_file_location(\"cv2\", str(_so), loader=_ldr)\n"
-                "_mod = importlib.util.module_from_spec(_spec)\n"
-                "_ldr.exec_module(_mod)\n"
-                "globals().update(_mod.__dict__)\n"
-            )
-            print("Wrote cv2/__init__.py loader to fix import")
-    else:
-        print("cv2 binary not found under site-packages; skipping loader creation")
-else:
-    print("site-packages path not found; cannot create loader")
-
-try:
-    import cv2
-    cap = cv2.VideoCapture("videotestsrc num-buffers=1 ! videoconvert ! appsink", cv2.CAP_GSTREAMER)
-    ok = cap.isOpened()
-    print("CAP_GSTREAMER opened:", ok)
-    cap.release()
-    sys.exit(0 if ok else 2)
-except Exception as e:
-    print("cv2 import/test failed:", e)
-    sys.exit(2)
-PY
+  if ! py_fix_cv2_loader_and_test; then
+    echo "OpenCV Python binding test failed."
+    exit 2
+  fi
 fi
 
 # ----------------------------
 # Fix cv2 loader if OpenCV installed but Python import is broken
 # ----------------------------
-python - <<'PY'
-import sys, pathlib, importlib, importlib.machinery, importlib.util
-try:
-    import cv2  # try
-    _ok = hasattr(cv2, "VideoCapture")
-except Exception:
-    _ok = False
-
-if not _ok:
-    # attempt to locate source-style cv2 binary and create a loader
-    sp = pathlib.Path(sys.executable).resolve()
-    site = None
-    for parent in sp.parents:
-        cand = parent / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}" / "site-packages"
-        if cand.exists():
-            site = cand; break
-    if site is not None:
-        pkg = site / "cv2"
-        bin_dir = pkg / f"python-{sys.version_info.major}.{sys.version_info.minor}"
-        so = next(iter(sorted(bin_dir.glob("cv2*.so"))), None)
-        if so:
-            pkg.mkdir(parents=True, exist_ok=True)
-            (pkg / "__init__.py").write_text(
-                "import sys, pathlib, importlib.machinery, importlib.util\n"
-                "_pkg = pathlib.Path(__file__).resolve().parent\n"
-                f"_bin_dir = _pkg / f\"python-{{sys.version_info.major}}.{{sys.version_info.minor}}\"\n"
-                "_so = next(iter(sorted(_bin_dir.glob(\"cv2*.so\"))), None)\n"
-                "if _so is None:\n    raise ImportError(\"OpenCV binary for this Python version not found\")\n"
-                "_ldr = importlib.machinery.ExtensionFileLoader(\"cv2\", str(_so))\n"
-                "_spec = importlib.util.spec_from_file_location(\"cv2\", str(_so), loader=_ldr)\n"
-                "_mod = importlib.util.module_from_spec(_spec)\n"
-                "_ldr.exec_module(_mod)\n"
-                "globals().update(_mod.__dict__)\n"
-            )
-            print("Wrote cv2/__init__.py loader to fix import")
-        else:
-            print("cv2 binary not found; skipping loader creation")
-    else:
-        print("site-packages not found; cannot create loader")
-PY
+if ! py_fix_cv2_loader_and_test; then
+  echo "OpenCV Python binding test failed."
+  exit 2
+fi
 
 # ----------------------------
 # Desktop integration & runner
