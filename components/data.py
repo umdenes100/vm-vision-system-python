@@ -10,34 +10,40 @@ import numpy as np
 class GStreamerCamera:
     def __init__(self, port=5000):
         self.port = port
+        # Match the working gst-launch pipeline as closely as possible (low-latency)
         self.pipeline = (
-            "udpsrc port=5000 caps=\"application/x-rtp, media=(string)video, "
-            "clock-rate=(int)90000, encoding-name=(string)JPEG, payload=26\" ! "
-            "rtpjpegdepay ! jpegdec ! videoconvert ! appsink"
+            f'udpsrc port={self.port} caps="application/x-rtp,media=(string)video,'
+            'encoding-name=(string)H264,clock-rate=(int)90000,payload=(int)96" ! '
+            'rtpjitterbuffer latency=250 ! '
+            'rtph264depay ! h264parse ! avdec_h264 ! videoconvert ! '
+            'queue max-size-buffers=1 leaky=downstream ! '
+            'video/x-raw,format=(string)BGR ! '
+            'appsink sync=false drop=true max-buffers=1'
         )
-
         self.video = None
         self.start()
 
     def start(self):
         """Initializes the GStreamer video stream."""
         if self.video:
-            self.video.release()  # Ensure any previous instance is closed
+            self.video.release()
         self.video = cv2.VideoCapture(self.pipeline, cv2.CAP_GSTREAMER)
         if not self.video.isOpened():
             logging.error("Failed to open GStreamer video stream.")
         else:
-            ret, frame = self.video.read()
-            if ret and frame is not None:
-                logging.infor(f"Received frame: shape={frame.shape}")
+            # Prime the stream so we don't sit on an old preroll buffer
+            _ = self.video.read()
+            ok, frame = self.video.read()
+            if ok and frame is not None:
+                logging.info(f"Received frame: shape={frame.shape}")
             else:
                 logging.warning("Stream opened but no frame received.")
 
     def get_frame(self):
         """Reads a frame from the video stream."""
         if self.video and self.video.isOpened():
-            ret, frame = self.video.read()
-            if ret:
+            ok, frame = self.video.read()
+            if ok:
                 return frame
         return None
 
@@ -46,31 +52,36 @@ class GStreamerCamera:
         self.start()
 
 
-# Create a global camera instance
-# camera = GStreamerCamera()
-
-# Everything else remains unchanged
-
 class CameraManager:
     def __init__(self, port=5000):
         self.port = port
-        self.pipeline = f"udpsrc port={self.port} ! application/x-rtp, encoding-name=jpeg, payload=26 ! rtpjpegdepay ! jpegdec ! videoconvert ! appsink"
+        # Same low-latency H.264 pipeline (mirrors gst-launch behavior)
+        self.pipeline = (
+            f'udpsrc port={self.port} caps="application/x-rtp,media=(string)video,'
+            'encoding-name=(string)H264,clock-rate=(int)90000,payload=(int)96" ! '
+            'rtpjitterbuffer latency=250 ! '
+            'rtph264depay ! h264parse ! avdec_h264 ! videoconvert ! '
+            'queue max-size-buffers=1 leaky=downstream ! '
+            'video/x-raw,format=(string)BGR ! '
+            'appsink sync=false drop=true max-buffers=1'
+        )
         self.video = None
 
     def start(self):
-        # Initialize the video capture using GStreamer pipeline
         self.video = cv2.VideoCapture(self.pipeline, cv2.CAP_GSTREAMER)
         if not self.video.isOpened():
             logging.error("Failed to open GStreamer video stream.")
             logging.error(f"Failed to open GStreamer video stream on port {self.port}.\nPipeline: {self.pipeline}")
             sys.exit(1)
+        # Drop any stale preroll frame
+        _ = self.video.read()
 
     def get_frame(self):
         if self.video is None or not self.video.isOpened():
             logging.debug("Stream not open, restarting stream")
             self.restart_stream()
-        ret, frame = self.video.read()
-        if ret:
+        ok, frame = self.video.read()
+        if ok:
             return frame
         logging.debug("Failed to get frame")
         return None
@@ -82,7 +93,6 @@ class CameraManager:
         self.start()
 
 
-
 @dataclass
 class ProcessedMarker:
     id: int
@@ -90,7 +100,6 @@ class ProcessedMarker:
     y: float
     pixels: tuple[int, int]
     theta: float = 0
-
     def __str__(self):
         return f'ID: {self.id}: ({self.x:.2f}, {self.y:.2f}, {self.theta:.2f})'
 
@@ -104,7 +113,7 @@ class DrawingOptions:
     draw_dest: bool = False
     draw_obstacles: bool = False
     draw_coordinate: bool = False
-    aruco_markers: dict[int, ProcessedMarker] = field(default_factory=dict)
+    aruco_markers: dict[int, "ProcessedMarker"] = field(default_factory=dict)
     first: bool = True
     H = None
     camera_matrix = None
@@ -122,9 +131,9 @@ team_types: dict = {
 }
 
 fake_esp_data: list = [
-    {'name': 'Forrest\'s Team', 'mission': 'Data',
+    {'name': "Forrest's Team", 'mission': 'Data',
      'aruco': {'num': 2, 'visible': True, 'x': 1, 'y': 2, 'theta': 3.14 / 2}},
-    {'name': 'Gary\'s Team', 'mission': 'Water',
+    {'name': "Gary's Team", 'mission': 'Water',
      'aruco': {'num': 3, 'visible': False, 'x': None, 'y': None, 'theta': None}},
 ]
 
