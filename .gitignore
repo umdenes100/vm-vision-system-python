@@ -9,3 +9,12 @@ matt_paul_team_join_history.csv.venv/
 node_modules/
 __pycache__/
 listener-output/
+.venv/
+__pycache__/
+*.pyc
+build/
+dist/
+*.mp4
+*.mkv
+*.pt
+*.onnx
