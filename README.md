@@ -1,6 +1,8 @@
 DO 
 
-git clone git@github.com:umdenes100/vm-vision-system-python.git
+sudo apt update
+
+git clone https://github.com/umdenes100/vm-vision-system-python.git
 
 cd vm-vision-system-python/
 
