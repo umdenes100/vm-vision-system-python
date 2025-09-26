@@ -2,7 +2,7 @@ DO
 
 sudo apt update
 
-git clone [git@github.com:umdenes100/vm-vision-system-python.git](https://github.com/umdenes100/vm-vision-system-python.git)
+git clone https://github.com/umdenes100/vm-vision-system-python.git)
 
 cd vm-vision-system-python/
 
