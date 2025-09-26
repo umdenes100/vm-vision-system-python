@@ -2,6 +2,8 @@ DO
 
 sudo apt update
 
+sudo apt install git
+
 git clone https://github.com/umdenes100/vm-vision-system-python.git
 
 cd vm-vision-system-python/
