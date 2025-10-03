@@ -109,6 +109,40 @@ def get_mission_message(mission: str, mission_message_type: int, msg: str):
                 mission_string += f"The location of the anomaly is {msg}"
             if mission_message_type == 1:  # Percentage
                 mission_string += f"The percentage of the anomaly is {str(msg)}"
+
+        elif mission == "HYDROGEN":  # Hydrogen fuel cell
+            if mission_message_type == 0:  # VOLTAGE
+                mission_string += "The voltage output is "
+                if msg == 0:
+                    mission_string += "1 VOLT"
+                elif msg == 1:
+                    mission_string += "2 VOLTS"
+                elif msg == 2:
+                    mission_string += "3 VOLTS"
+                elif msg == 3:
+                    mission_string += "4 VOLTS"
+                elif msg == 4:
+                    mission_string += "5 VOLTS"
+                else:
+                    mission_string += "?????"
+                mission_string += "."
+            elif mission_message_type == 1:  # LED COLOR
+                mission_string += "The LED color is "
+                if msg == 0:
+                    mission_string += "WHITE"
+                elif msg == 1:
+                    mission_string += "RED"
+                elif msg == 2:
+                    mission_string += "YELLOW"
+                elif msg == 3:
+                    mission_string += "GREEN"
+                elif msg == 4:
+                    mission_string += "BLUE"
+                else:
+                    mission_string += "?????"
+                mission_string += "."
+            else:
+                mission_string += "Not a valid mission type!"
         else:
             mission_string = f"ERROR - invalid mission type ({mission})"
 
