@@ -67,5 +67,7 @@ if [[ -s "$HOME/.nvm/nvm.sh" ]]; then
   nvm use 18 >/dev/null || true
 fi
 
+export QT_QPA_PLATFORM=offscreen
+
 # Run the app
 exec python main.py "$@"
