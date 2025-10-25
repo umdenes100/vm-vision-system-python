@@ -115,8 +115,6 @@ def message_received(client, server: WebsocketServer, message):
             msg = f'The visible aruco markers are {",".join(shown_markers)}.' if shown_markers else 'No aruco markers are visible.'
             client_server.send_console_message(f'Warning: Team {get_team_name(client)} registered with ArUco num {client["aruco"]["num"]} but it is not visible! ' + msg)
     if message['op'] == 'print':
-        # if random.random() < 0.00005 and message['message'].endswith('\n'):
-        #     message['message'] += 'LTF > UTF :)\n'
         if 'teamName' in client:
             client_server.send_print_message(client['teamName'], message['message'])
         else:
@@ -185,22 +183,6 @@ def send_locations(server):
                 )
         # avoid a tight busy loop
         time.sleep(0.05)
-
-#def send_locations():
-#    # print(dr_op.aruco_markers[402])
-#    for client in ws_server.clients:
-#        if client and client.get('aruco') is not None and client['aruco']['num'] is not None:
-#            if data.dr_op.aruco_markers.get(client['aruco']['num']):
-#                aruco = data.dr_op.aruco_markers[client['aruco']['num']]
-#                client['aruco']['visible'] = True
-#                client['aruco']['x'] = round(float(aruco.x), 2)
-#                client['aruco']['y'] = round(float(aruco.y), 2)
-#                client['aruco']['theta'] = round(float(aruco.theta), 2)
-#            else:
-#                client['aruco']['visible'] = False
-#                client['aruco'].update({'visible': False, 'x': -1, 'y': -1, 'theta': -1})
-#            ws_server.send_message(client, json.dumps({'op': 'aruco', 'aruco': client['aruco']}))
-
 
 # esp_server.send_prediction(client['teamName'], message['prediction'])
 def send_prediction(team_name, prediction):
