@@ -9,12 +9,11 @@ print(">>> Vision System Starting")
 me = singleton.SingleInstance()
 
 from components import data
-from components.communications import client_server, esp_server, jetson_server
+from components.communications import client_server, esp_server
 from components.machinelearning import ml
 
 log_requests = {
     'esp': True,
-    'jetson': True,
     'client': False,
 }
 
@@ -43,8 +42,6 @@ def main():
     threading.Thread(name='Client Server', target=client_server.start_server, daemon=True).start()
     print(">>> Client Server Started")
     threading.Thread(name='Jetson Server', target=jetson_server.start_server, daemon=True).start()
-    print(">>> Jetson Server Started")
-    threading.Thread(name='ML Startup', target=ml.start_ml, daemon=True).start()
     print(">>> ML Startup Started")
 
     # Start image processing with the GStreamer-based UDP stream
