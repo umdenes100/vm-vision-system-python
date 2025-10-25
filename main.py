@@ -38,10 +38,11 @@ def main():
         print(">>> ESP Server failed to start!")
         return
     threading.Thread(name='Send Locations',target=esp_server.send_locations,args=(ws_server,),daemon=True).start()
+    threading.Thread(name='Send Locations',target=esp_server.send_locations,args=(ws_server,),daemon=True).start()
     print(">>> ESP Server Started")
     threading.Thread(name='Client Server', target=client_server.start_server, daemon=True).start()
     print(">>> Client Server Started")
-    threading.Thread(name='Jetson Server', target=jetson_server.start_server, daemon=True).start()
+    threading.Thread(name='ML Startup', target=ml.start_ml, daemon=True).start()
     print(">>> ML Startup Started")
 
     # Start image processing with the GStreamer-based UDP stream
