@@ -252,8 +252,6 @@
         console_window.scrollTop = console_window.scrollHeight;
     }
 
-    let images;
-
     window.onload = () => {
         teamSelect.onchange = changePort;
 
@@ -279,16 +277,8 @@
                 // console.log(message.data)
                 if (paused) return;
                 // take the bytes in message.data and put them in the image
-                if (Math.random() > .99999) {
-                    paused = true;
-                    document.getElementById('stream').src = images[Math.floor(Math.random() * images.length)];
-                    setTimeout(() => {
-                        paused = false;
-                    }, 1000)
-                } else {
-                    URL.revokeObjectURL(document.getElementById('stream').src);
-                    document.getElementById('stream').src = URL.createObjectURL(message.data);
-                }
+                URL.revokeObjectURL(document.getElementById('stream').src);
+                document.getElementById('stream').src = URL.createObjectURL(message.data);
                 return
             }
             message = JSON.parse(message.data)
@@ -308,25 +298,8 @@
                 case 'error':
                     errorLog(message);
                     break
-                case 'jpegs':
-                    images = message.data;
-                    console.log('got images', images)
-                    break
             }
         }
         window.onunload = ws.close;
-    }
-    const keys = [];
-    window.onkeydown = e => {
-        keys.push(e.key);
-        console.log(keys)
-        if (JSON.stringify(keys) === JSON.stringify(['l', 't', 'f', 'Shift', '>', 'u', 't', 'f'])) {
-            paused = true;
-            document.getElementById('stream').src = images[Math.floor(Math.random() * images.length)];
-            setTimeout(() => {
-                paused = false;
-            }, 500)
-            keys.length = 0;
-        }
     }
 </script>
