@@ -23,11 +23,6 @@ usb_results = None
 # Called for every client connecting (after handshake)
 def new_client(client, __):
     logging.debug("New WEB client connected.")
-    jpegs = []
-    for file in os.listdir('static'):
-        if file.endswith('.jpg') or file.endswith('.jpeg') or file.endswith('.png') or file.endswith('.gif'):
-            jpegs.append(file)
-    ws_server.send_message(client, json.dumps({'type': 'jpegs', 'data': jpegs}))
     send_console_message(usb_results if usb_results is not None else 'No USB results yet.')
 
 
