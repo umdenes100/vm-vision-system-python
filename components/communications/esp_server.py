@@ -225,7 +225,6 @@ def start_server():
     ws_server.set_fn_new_client(new_client)
     ws_server.set_fn_client_left(client_left)
     ws_server.set_fn_message_received(message_received)
-    print(f'Starting client ws_server on port {ws_server.port:d}')
     threading.Thread(target=ws_server.run_forever, name='ESP WS Server', daemon=True).start()
 
     # We will ping all esp clients to make sure they haven't disconnected. Sadly, when ESP clients power off
@@ -241,6 +240,5 @@ def start_server():
             time.sleep(1)
 
     threading.Thread(target=check_connection, daemon=True, name='ESP Check Connection').start()
-    # THIS LINE IS NEW
     return ws_server
 
