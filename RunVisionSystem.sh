@@ -73,9 +73,6 @@ export QT_QPA_PLATFORM=offscreen
 export OPENCV_LOG_LEVEL=ERROR
 # Optional: also hush GStreamer itself
 export GST_DEBUG=0
-# Hush QT
-export QT_LOGGING_RULES="*.debug=false;qt.qpa.*=false"
-export QT_LOGGING_RULES="*=false"
 
 # Run the app
 exec python main.py "$@"
