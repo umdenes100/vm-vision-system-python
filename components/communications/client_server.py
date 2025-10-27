@@ -101,7 +101,6 @@ def start_server():
     ws_server.set_fn_new_client(new_client)
     ws_server.set_fn_client_left(client_left)
     ws_server.set_fn_message_received(message_received)
-    logging.debug(f'Starting client ws_server on port {ws_server.port:d}')
     threading.Thread(target=ws_server.run_forever, daemon=True, name='Web WS Server').start()
 
     static_server = ThreadingHTTPServer((host, 8080), MyHttpRequestHandler)
