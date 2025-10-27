@@ -104,7 +104,6 @@ def start_server():
     threading.Thread(target=ws_server.run_forever, daemon=True, name='Web WS Server').start()
 
     static_server = ThreadingHTTPServer((host, 8080), MyHttpRequestHandler)
-    logging.debug(f'Starting client static_server on port http://{host}:{static_server.server_port:d}')
     threading.Thread(target=static_server.serve_forever, daemon=True, name='Web Static Server').start()
 
     while True:
