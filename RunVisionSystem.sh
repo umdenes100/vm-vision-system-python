@@ -69,5 +69,10 @@ fi
 
 export QT_QPA_PLATFORM=offscreen
 
+# Only show OpenCV errors (or use SILENT to hide everything)
+export OPENCV_LOG_LEVEL=ERROR
+# Optional: also hush GStreamer itself
+export GST_DEBUG=0
+
 # Run the app
 exec python main.py "$@"
