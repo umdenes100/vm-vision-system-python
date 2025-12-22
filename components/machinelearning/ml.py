@@ -4,7 +4,6 @@ import os
 import numpy as np
 import cv2
 import threading
-from time import sleep
 import torch
 import torchvision
 import torchvision.transforms as transforms

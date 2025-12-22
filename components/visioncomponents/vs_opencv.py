@@ -1,120 +1,130 @@
-import json
-import logging
-import os
-import sys
-import threading
 import time
+
 import cv2
 import numpy as np
 
-import components.communications.client_server
-
-from components.data import dr_op, camera
-from components.visioncomponents.vs_arena import getHomographyMatrix, processMarkers, createObstacles, createMission
+from components.data import dr_op, StreamCamera
+from components.visioncomponents.vs_arena import (
+    getHomographyMatrix,
+    processMarkers,
+)
 from components.communications.client_server import send_frame
-from components.communications.esp_server import send_locations
 
 
-config = {}
-if os.path.isfile(os.path.expanduser('~/config.json')):
-    with open(os.path.expanduser('~/config.json')) as f:
-        config = json.load(f)
+# ---- ArUco setup ----
+dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+params = cv2.aruco.DetectorParameters()
+detector = cv2.aruco.ArucoDetector(dictionary, params)
 
-dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_1000)
-parameters = cv2.aruco.DetectorParameters()
-detector = cv2.aruco.ArucoDetector(dictionary, parameters)
-camera_bounds = None
-
-target_fps = 40 # Was originally 15 fps. Stream seems to only get 15fps anyways - this might be the RPI tho! Test this!!
+# ---- Streaming ----
+target_fps = 15
 last_sleep = time.perf_counter()
 
-img_info = {
-    'bytes_sent': 0,
-    'frames_sent': 0,
-}
 
-def corners_found(ids):
-    return len(ids) >= 4 and all([i in ids for i in range(4)])
+def _try_compute_homography(raw_frame) -> None:
+    """
+    Compute homography and camera_matrix once markers 0..3 are visible.
+    Also compute inverse_matrix (kept for compatibility with other modules).
+    """
+    if dr_op.H is not None and dr_op.camera_matrix is not None:
+        return
 
+    corners, ids, _ = detector.detectMarkers(raw_frame)
+    if ids is None or corners is None:
+        return
 
-def render_issue(issue: str, frame):
-    components.communications.client_server.send_console_message(issue)
-    for y in range(50, frame.shape[0], 50):
-        frame = cv2.putText(frame, issue, (50, y), cv2.FONT_HERSHEY_TRIPLEX, 2, (0, 0, 255))
+    ids = [int(i[0]) for i in ids]
+    corners = [c[0] for c in corners]
 
-    return frame
+    if not all(i in ids for i in (0, 1, 2, 3)):
+        return
 
+    marker_list = [(i, corners[ids.index(i)]) for i in (0, 1, 2, 3)]
+    h, w = raw_frame.shape[:2]
 
-def process_frame(frame):
+    H, camera_matrix = getHomographyMatrix(marker_list, w, h)
+    dr_op.H = H
+    dr_op.camera_matrix = camera_matrix
+
     try:
-        corners, ids, _ = detector.detectMarkers(frame)
-        frame = cv2.aruco.drawDetectedMarkers(frame, corners)
+        dr_op.inverse_matrix = np.linalg.pinv(dr_op.H)
+    except Exception:
+        dr_op.inverse_matrix = None
 
-        if ids is None or corners is None:
-            return frame
 
-        ids = [i[0] for i in ids]
+def process_frame(raw_frame):
+    """
+    Detect markers, update dr_op marker state.
+    Returns a frame in camera pixel space. Warping/cropping is applied later.
+    """
+    corners, ids, _ = detector.detectMarkers(raw_frame)
+    display = cv2.aruco.drawDetectedMarkers(raw_frame.copy(), corners)
+
+    if ids is not None and corners is not None:
+        ids = [int(i[0]) for i in ids]
         corners = [c[0] for c in corners]
 
-        if dr_op.H is None:
-            if len(ids) < 4 or any(i not in ids for i in range(4)):
-                return frame
+        # Compute homography if needed (helps when _try_compute_homography misses)
+        if dr_op.H is None or dr_op.camera_matrix is None:
+            if all(i in ids for i in (0, 1, 2, 3)):
+                marker_list = [(i, corners[ids.index(i)]) for i in (0, 1, 2, 3)]
+                h, w = raw_frame.shape[:2]
+                dr_op.H, dr_op.camera_matrix = getHomographyMatrix(marker_list, w, h)
+                try:
+                    dr_op.inverse_matrix = np.linalg.pinv(dr_op.H)
+                except Exception:
+                    dr_op.inverse_matrix = None
 
-            dr_op.H, dr_op.camera_matrix = getHomographyMatrix(zip(ids, corners), frame.shape[1], frame.shape[0])
-            dr_op.inverse_matrix = np.linalg.pinv(dr_op.H)
+        # processMarkers returns a dict: {id: ProcessedMarker}
+        markers = processMarkers(zip(ids, corners))
+        if isinstance(markers, dict):
+            for mid, marker in markers.items():
+                dr_op.aruco_markers[mid] = marker
 
-        frame = cv2.warpPerspective(frame, dr_op.camera_matrix, (frame.shape[1], frame.shape[0]))
-        dr_op.aruco_markers = processMarkers(zip(ids, corners))
-
-        return frame
-
-    except Exception as e:
-        logging.debug(f"Exception in process_frame: {e}")
-        return frame
+    # NOTE: No createObstacles(), no createMission() -> no white square/arrow, no pink circle.
+    return display
 
 
-def start_image_processing():
-    print_fps_time = time.perf_counter()
-    send_locations_bool = True
+def start_image_processing(port: int = 5000):
+    """
+    Main image loop:
+      - read stream frames
+      - compute homography
+      - draw detected markers
+      - warpPerspective (arena crop)
+      - send JPEG to browser
+    """
+    global last_sleep
+
+    cam = StreamCamera(port=port)
+    cam.start()
 
     while True:
-        start = time.perf_counter()
+        raw = cam.get_frame()
+        if raw is None:
+            cam.restart_stream()
+            continue
 
-        try:
-            frame = camera.get_frame()
-            if frame is not None:
-                processed_frame = process_frame(frame)
+        if dr_op.H is None or dr_op.camera_matrix is None:
+            _try_compute_homography(raw)
 
-                #if send_locations_bool:
-                    # Might not be neccessary?
-                    #threading.Thread(target=send_locations, name='Send Locations').start()
-                send_locations_bool = not send_locations_bool
+        display = process_frame(raw)
 
-                jpeg_bytes = cv2.imencode('.jpg', processed_frame, [int(cv2.IMWRITE_JPEG_QUALITY), 30])[1]
-                img_info['bytes_sent'] += len(jpeg_bytes)
-                img_info['frames_sent'] += 1
+        # Apply arena crop / rectification
+        if dr_op.camera_matrix is not None:
+            h, w = display.shape[:2]
+            display = cv2.warpPerspective(display, dr_op.camera_matrix, (w, h))
 
-                send_frame(np.array(jpeg_bytes).tobytes())
+        jpg = cv2.imencode(
+            ".jpg",
+            display,
+            [int(cv2.IMWRITE_JPEG_QUALITY), 30]
+        )[1].tobytes()
 
-            else:
-                logging.debug('No frame received, restarting stream')
-                camera.restart_stream()
+        send_frame(jpg)
 
-        except Exception as e:
-            logging.debug(f"Error in image processing loop: {e}")
-
-        global last_sleep
+        # FPS throttle
         sleep_time = (1 / target_fps) - (time.perf_counter() - last_sleep)
         if sleep_time > 0:
             time.sleep(sleep_time)
         last_sleep = time.perf_counter()
-
-        if time.perf_counter() - print_fps_time > 10:
-            print_fps_time = time.perf_counter()
-            try:
-                logging.debug(f'{1 / (time.perf_counter() - start):.2f} fps')
-            except ZeroDivisionError:
-                pass
-
-        img_info['bytes_sent'] = 0
-        img_info['frames_sent'] = 0

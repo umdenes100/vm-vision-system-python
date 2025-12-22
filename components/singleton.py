@@ -1,6 +1,5 @@
 import logging
 import os
-os.environ["QT_LOGGING_RULES"] = "*.debug=false"
 import tempfile
 
 # Literally shamelessly stolen from https://pythonhosted.org/tendo/_modules/tendo/singleton.html#SingleInstance
