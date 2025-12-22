@@ -83,7 +83,7 @@ def start_server():
             else:
                 ws_server = WebsocketServer(port=7756)
         else:
-            ws_server = WebsocketServer(host='10.112.9.116', port=7756)
+            ws_server = WebsocketServer(host='10.112.9.33', port=7756)
     except OSError as e:
         if e.errno == 98:
             logging.error('[Jetson Server] >>> Program is already running on this computer. Please close other instance.')
