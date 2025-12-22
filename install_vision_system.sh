@@ -260,11 +260,17 @@ else
 fi
 
 # ----------------------------
-# Robust cv2 loader fix for venvs (kept exactly as in your working script)
+# Robust cv2 loader fix for venvs (kept as-is, but with safe import)
 # ----------------------------
 python - <<'PY'
 import os, sys, site, pathlib, textwrap
-from stream_promises_fix import *  # noqa: F401 (if present; ignore if not)
+
+# This was previously an unconditional import that can fail on clean machines.
+try:
+    import stream_promises_fix  # noqa: F401
+except Exception:
+    pass
+
 def write_loader(cv2_pkg: pathlib.Path):
     init_py = cv2_pkg / "__init__.py"
     if init_py.exists():
