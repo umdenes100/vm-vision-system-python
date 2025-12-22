@@ -1,7 +1,6 @@
 import http.server
 import json
 import logging
-import os
 import struct
 import sys
 import threading
