@@ -71,7 +71,7 @@ print(f">>> OpenCV {cv2.__version__} with NumPy {np.__version__} OK")
 PY
 
 # -----------------------------------------------------------------------------
-# Node setup + Firebase listener (REQUIRED)
+# Firebase listener (REQUIRED)
 # -----------------------------------------------------------------------------
 LISTENER="$SCRIPT_DIR/components/machinelearning/listen.mjs"
 if [[ ! -f "$LISTENER" ]]; then
@@ -79,22 +79,38 @@ if [[ ! -f "$LISTENER" ]]; then
   exit 1
 fi
 
-# Node (nvm). Required because listen.mjs is required.
-if [[ -s "$HOME/.nvm/nvm.sh" ]]; then
-  # shellcheck disable=SC1090
-  . "$HOME/.nvm/nvm.sh"
-  nvm use 18 >/dev/null || true
-fi
-
-if ! command -v node >/dev/null 2>&1; then
-  echo "ERROR: node is not available in PATH (required for listen.mjs)." >&2
-  exit 1
-fi
-
 # Environment
 export QT_QPA_PLATFORM=offscreen
 export OPENCV_LOG_LEVEL=ERROR
 export GST_DEBUG=0
+
+# Resolve Node executable:
+# 1) Prefer the explicit NVM-managed path used historically
+# 2) Else try to load nvm + nvm use 18
+# 3) Else fall back to node on PATH
+NODE_EXE=""
+PREFERRED_NODE="$HOME/.nvm/versions/node/v18.20.4/bin/node"
+if [[ -x "$PREFERRED_NODE" ]]; then
+  NODE_EXE="$PREFERRED_NODE"
+else
+  if [[ -s "$HOME/.nvm/nvm.sh" ]]; then
+    # shellcheck disable=SC1090
+    . "$HOME/.nvm/nvm.sh"
+    nvm use 18 >/dev/null 2>&1 || true
+  fi
+  if command -v node >/dev/null 2>&1; then
+    NODE_EXE="$(command -v node)"
+  fi
+fi
+
+if [[ -z "$NODE_EXE" ]]; then
+  echo "ERROR: Node.js not found. Required to run $LISTENER" >&2
+  echo "Tried:" >&2
+  echo "  - $PREFERRED_NODE" >&2
+  echo "  - nvm use 18 (via \$HOME/.nvm/nvm.sh)" >&2
+  echo "  - node on PATH" >&2
+  exit 1
+fi
 
 # -----------------------------------------------------------------------------
 # Start both processes and supervise:
@@ -106,14 +122,11 @@ NODE_PID=""
 PY_PID=""
 
 cleanup() {
-  # Avoid set -e killing cleanup
   set +e
-
   if [[ -n "${PY_PID}" ]] && kill -0 "${PY_PID}" >/dev/null 2>&1; then
     kill "${PY_PID}" >/dev/null 2>&1
     wait "${PY_PID}" >/dev/null 2>&1
   fi
-
   if [[ -n "${NODE_PID}" ]] && kill -0 "${NODE_PID}" >/dev/null 2>&1; then
     kill "${NODE_PID}" >/dev/null 2>&1
     wait "${NODE_PID}" >/dev/null 2>&1
@@ -122,7 +135,7 @@ cleanup() {
 trap cleanup INT TERM EXIT
 
 echo ">>> Starting Firebase listener (required)..."
-node "$LISTENER" >/dev/null 2>&1 &
+"$NODE_EXE" "$LISTENER" >/dev/null 2>&1 &
 NODE_PID=$!
 
 # Fail fast if listener dies immediately (syntax error, missing deps, auth crash, etc.)
@@ -139,11 +152,9 @@ python main.py "$@" &
 PY_PID=$!
 echo ">>> Python running (pid $PY_PID)"
 
-# Wait until either process exits; treat listener exit as fatal.
 while true; do
   if ! kill -0 "$NODE_PID" >/dev/null 2>&1; then
     echo "ERROR: Firebase listener exited. Shutting down Vision System." >&2
-    # Cleanup trap will kill python too, but do it explicitly for clarity.
     if kill -0 "$PY_PID" >/dev/null 2>&1; then
       kill "$PY_PID" >/dev/null 2>&1
     fi
@@ -152,7 +163,6 @@ while true; do
   fi
 
   if ! kill -0 "$PY_PID" >/dev/null 2>&1; then
-    # Python exited; propagate its exit code and stop the listener
     wait "$PY_PID"
     PY_STATUS=$?
     echo ">>> Python exited (status $PY_STATUS). Stopping Firebase listener."
