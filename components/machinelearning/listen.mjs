@@ -18,10 +18,9 @@ const app = initializeApp(firebaseConfig);
 const storage = getStorage(app);
 const rootref = ref(storage, "/studentmodels");
 
-// Models directory (relative to repo root; RunVisionSystem cd's into repo root)
+// Relative to repo root (RunVisionSystem.sh cd's to repo root)
 const outputdir = "./components/machinelearning/models/";
 
-// Small helper
 function ensureDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
@@ -36,19 +35,15 @@ async function downloadFile(filename) {
     throw new Error(`Failed fetch for ${filename}: HTTP ${res.status} ${res.statusText}`);
   }
 
-  // Use arrayBuffer to avoid Node18 WebStream/NodeStream compatibility issues.
+  // Node 18: safest cross-compat approach is arrayBuffer -> Buffer
   const buf = Buffer.from(await res.arrayBuffer());
 
-  // Atomic write: write temp then rename
-  if (fs.existsSync(tmpDestination)) {
-    fs.unlinkSync(tmpDestination);
-  }
+  // Atomic replace: write tmp then rename
+  ensureDir(outputdir);
+  if (fs.existsSync(tmpDestination)) fs.unlinkSync(tmpDestination);
   fs.writeFileSync(tmpDestination, buf);
 
-  // Replace destination atomically
-  if (fs.existsSync(destination)) {
-    fs.unlinkSync(destination);
-  }
+  if (fs.existsSync(destination)) fs.unlinkSync(destination);
   fs.renameSync(tmpDestination, destination);
 }
 
@@ -83,13 +78,13 @@ async function check() {
   }
 }
 
-// Debounce database change triggers to avoid storms
-let pending = false;
-async function scheduleCheck() {
-  if (pending) return;
-  pending = true;
+// Debounce DB-change triggers to avoid rapid repeated downloads
+let scheduled = false;
+function scheduleCheck() {
+  if (scheduled) return;
+  scheduled = true;
   setTimeout(async () => {
-    pending = false;
+    scheduled = false;
     try {
       await check();
     } catch (err) {
@@ -100,10 +95,10 @@ async function scheduleCheck() {
 }
 
 async function main() {
-  // First sync on startup
+  // Do an initial sync on startup (this was missing before)
   await check();
 
-  // Listen for changes in the database; any change triggers a re-check
+  // Listen for changes in the database
   const db = database.getDatabase(app);
   database.onValue(database.ref(db, "/"), (_snapshot) => {
     console.log("[listener] Database changed -> scheduling check");
@@ -114,7 +109,6 @@ async function main() {
   await new Promise(() => {});
 }
 
-// Required: fail hard if anything goes wrong
 main().catch((err) => {
   console.error("[listener] Fatal error:", err);
   process.exit(1);
