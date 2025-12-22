@@ -195,6 +195,7 @@ fi
 
 echo ">>> Installing Python dependencies from $REQ_FILE…"
 python -m pip install -r "$REQ_FILE"
+pip install --upgrade pip
 
 # Hard-ensure NumPy major <2
 python - <<'PY'

@@ -23,11 +23,6 @@ usb_results = None
 # Called for every client connecting (after handshake)
 def new_client(client, __):
     logging.debug("New WEB client connected.")
-    jpegs = []
-    for file in os.listdir('static'):
-        if file.endswith('.jpg') or file.endswith('.jpeg') or file.endswith('.png') or file.endswith('.gif'):
-            jpegs.append(file)
-    ws_server.send_message(client, json.dumps({'type': 'jpegs', 'data': jpegs}))
     send_console_message(usb_results if usb_results is not None else 'No USB results yet.')
 
 
@@ -87,7 +82,7 @@ def start_server():
     if local:
         host = sys.argv[sys.argv.index('host') + 1] if 'host' in sys.argv else 'localhost'
     else:
-        host = '127.0.0.1'
+        host = '0.0.0.0'
     try:
         ws_server = WebsocketServer(host=host, port=9000)
     except OSError as e:
@@ -106,11 +101,9 @@ def start_server():
     ws_server.set_fn_new_client(new_client)
     ws_server.set_fn_client_left(client_left)
     ws_server.set_fn_message_received(message_received)
-    logging.debug(f'Starting client ws_server on port {ws_server.port:d}')
     threading.Thread(target=ws_server.run_forever, daemon=True, name='Web WS Server').start()
 
     static_server = ThreadingHTTPServer((host, 8080), MyHttpRequestHandler)
-    logging.debug(f'Starting client static_server on port http://{host}:{static_server.server_port:d}')
     threading.Thread(target=static_server.serve_forever, daemon=True, name='Web Static Server').start()
 
     while True:
