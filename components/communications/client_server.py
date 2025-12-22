@@ -82,7 +82,7 @@ def start_server():
     if local:
         host = sys.argv[sys.argv.index('host') + 1] if 'host' in sys.argv else 'localhost'
     else:
-        host = '127.0.0.1'
+        host = '0.0.0.0'
     try:
         ws_server = WebsocketServer(host=host, port=9000)
     except OSError as e:
