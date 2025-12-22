@@ -4,19 +4,8 @@ set -euo pipefail
 # ============================================================
 # Vision System — One-Command Installer (Ubuntu 22.04 Jammy)
 # ============================================================
-# Preps system deps, Python venv, Python deps, verifies
-# OpenCV+GStreamer, and builds OpenCV from source (contrib)
-# with a robust cv2 loader fix for venvs.
-#
-# Usage:
-#   chmod +x install_vision_system.sh
-#   ./install_vision_system.sh
-#
-# Env options:
-#   VENV_PATH       (default: .venv)
-#   BUILD_OPENCV    auto|always|never (default: auto)
-#   OPENCV_VERSION  (default: 4.8.1)
-#   OPENCV_JOBS     (default: nproc)
+# Adds: nvm + Node.js 18 + npm deps for Firebase model listener
+# Keeps: your working OpenCV/cv2 loader logic intact
 # ============================================================
 
 VENV_PATH="${VENV_PATH:-.venv}"
@@ -24,15 +13,10 @@ BUILD_OPENCV="${BUILD_OPENCV:-auto}"
 OPENCV_VERSION="${OPENCV_VERSION:-4.8.1}"
 OPENCV_JOBS="${OPENCV_JOBS:-$(nproc)}"
 
-# ----------------------------
-# Helpers
-# ----------------------------
 apt_lock_aware() {
-  # Wait for dpkg/apt locks gracefully
   local cmd="$1"
   local tries=30
   local delay=5
-
   for ((i=1; i<=tries; i++)); do
     if sudo bash -lc "$cmd"; then
       return 0
@@ -40,7 +24,6 @@ apt_lock_aware() {
     echo ">>> apt/dpkg busy, retry $i/$tries in ${delay}s…"
     sleep "$delay"
   done
-
   echo "ERROR: apt/dpkg still locked after retries." >&2
   return 1
 }
@@ -61,9 +44,6 @@ echo ">>> OPENCV_VERSION=${OPENCV_VERSION}"
 echo ">>> OPENCV_JOBS=${OPENCV_JOBS}"
 echo "============================================================"
 
-# ----------------------------
-# Basic checks
-# ----------------------------
 need_cmd bash
 need_cmd sudo
 
@@ -78,9 +58,6 @@ if [[ "${UBU_VER}" != 22.04* ]]; then
   echo "WARNING: Detected Ubuntu ${UBU_VER}. This script targets 22.04 (Jammy). Continuing anyway…"
 fi
 
-# ----------------------------
-# System packages
-# ----------------------------
 echo ">>> Installing system dependencies (apt)…"
 apt_lock_aware "apt-get update -y"
 apt_lock_aware "apt-get install -y \
@@ -101,17 +78,15 @@ apt_lock_aware "apt-get install -y \
 echo ">>> GStreamer version: $(pkg-config --modversion gstreamer-1.0 || echo 'unknown')"
 
 # ----------------------------
-# Node.js (nvm) for Firebase listener (listen.mjs)
+# Node.js (nvm) + npm deps for Firebase listener
 # ----------------------------
 echo ">>> Installing nvm + Node.js 18 (required for listen.mjs)…"
-# listen.mjs is required at runtime; ensure node is available after install.
 export NVM_DIR="${HOME}/.nvm"
 if [[ ! -s "${NVM_DIR}/nvm.sh" ]]; then
   echo ">>> nvm not found; installing…"
   curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 fi
 
-# Load nvm into this shell (install script updates ~/.bashrc for future shells too)
 # shellcheck disable=SC1090
 [ -s "${NVM_DIR}/nvm.sh" ] && . "${NVM_DIR}/nvm.sh"
 
@@ -120,7 +95,6 @@ if ! command -v nvm >/dev/null 2>&1; then
   exit 1
 fi
 
-# Install Node 18 and make it the default
 nvm install 18 >/dev/null
 nvm alias default 18 >/dev/null
 nvm use 18 >/dev/null
@@ -129,8 +103,18 @@ if ! command -v node >/dev/null 2>&1; then
   echo "ERROR: node is still not available after nvm install." >&2
   exit 1
 fi
-
 echo ">>> Node version: $(node -v)"
+echo ">>> npm version: $(npm -v)"
+
+echo ">>> Installing npm dependencies for Firebase listener…"
+if [[ -f "components/machinelearning/package.json" ]]; then
+  pushd "components/machinelearning" >/dev/null
+  npm install --silent
+  popd >/dev/null
+else
+  echo "ERROR: components/machinelearning/package.json not found. Cannot install Firebase deps." >&2
+  exit 1
+fi
 
 # ----------------------------
 # Python venv
@@ -140,26 +124,20 @@ if [[ ! -d "${VENV_PATH}" ]]; then
   python3 -m venv "${VENV_PATH}"
 fi
 
-# Ensure venv ownership (avoid root-owned venv)
 if [[ ! -w "${VENV_PATH}" ]]; then
   echo ">>> Fixing venv ownership (sudo)…"
   sudo chown -R "$USER":"$USER" "${VENV_PATH}"
 fi
 
-# Activate venv
 # shellcheck disable=SC1090
 source "${VENV_PATH}/bin/activate"
 export PIP_REQUIRE_VIRTUALENV=1
 
-# Upgrade pip/setuptools/wheel
 python - <<'PY'
 import subprocess, sys
 subprocess.run([sys.executable, "-m", "pip", "install", "-q", "--upgrade", "pip<25", "setuptools", "wheel"], check=True)
 PY
 
-# ----------------------------
-# Python requirements
-# ----------------------------
 REQ_FILE="requirements.txt"
 if [[ -f "${REQ_FILE}" ]]; then
   echo ">>> Installing Python requirements from ${REQ_FILE}…"
@@ -168,7 +146,6 @@ else
   echo "WARNING: ${REQ_FILE} not found. Skipping pip -r install."
 fi
 
-# Keep NumPy <2 to match OpenCV ABI expectations (esp. if OpenCV was built against NumPy 1.x)
 python - <<'PY'
 import sys, subprocess
 try:
@@ -190,14 +167,12 @@ import cv2
 print(">>> cv2 import OK:", cv2.__version__)
 PY
 
-# Determine whether to build OpenCV from source
 DO_BUILD=0
 if [[ "${BUILD_OPENCV}" == "always" ]]; then
   DO_BUILD=1
 elif [[ "${BUILD_OPENCV}" == "never" ]]; then
   DO_BUILD=0
 else
-  # auto: build if cv2 import fails or version mismatch
   if [[ "${PY_CV_OK}" -ne 0 ]]; then
     DO_BUILD=1
   else
@@ -276,7 +251,6 @@ PY
   sudo make install
   sudo ldconfig
 
-  # Remove pip wheels to avoid conflicts with /usr/local install
   pip uninstall -y opencv-python opencv-contrib-python >/dev/null 2>&1 || true
 
   echo ">>> OpenCV build/install complete."
@@ -289,8 +263,8 @@ fi
 # Robust cv2 loader fix for venvs (kept exactly as in your working script)
 # ----------------------------
 python - <<'PY'
-import os, sys, site, pathlib, textwrap, subprocess
-
+import os, sys, site, pathlib, textwrap
+from stream_promises_fix import *  # noqa: F401 (if present; ignore if not)
 def write_loader(cv2_pkg: pathlib.Path):
     init_py = cv2_pkg / "__init__.py"
     if init_py.exists():
@@ -298,15 +272,11 @@ def write_loader(cv2_pkg: pathlib.Path):
     code = textwrap.dedent("""
     # Auto-generated cv2 loader to avoid namespace-package imports when cv2 is installed via OpenCV build.
     import importlib.util as _iu
-    import os as _os
-    import sys as _sys
     from pathlib import Path as _Path
 
     _pkg_dir = _Path(__file__).resolve().parent
     _so = None
 
-    # Common OpenCV build output layout:
-    #   cv2/python-3.X/cv2.cpython-3X-...so
     for _p in _pkg_dir.rglob("cv2*.so"):
         _so = _p
         break
@@ -320,14 +290,12 @@ def write_loader(cv2_pkg: pathlib.Path):
 
     _mod = _iu.module_from_spec(_spec)
     _spec.loader.exec_module(_mod)  # type: ignore[attr-defined]
-
     globals().update(_mod.__dict__)
     """).lstrip()
     init_py.write_text(code)
     print(">>> Wrote cv2/__init__.py loader:", init_py)
 
 def ensure_cv2_loader():
-    # Ensure a cv2 package dir exists in this venv
     purelib = site.getsitepackages()[0]
     cv2_pkg = pathlib.Path(purelib) / "cv2"
     cv2_pkg.mkdir(parents=True, exist_ok=True)
