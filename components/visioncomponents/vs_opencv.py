@@ -7,7 +7,6 @@ from components.data import dr_op, StreamCamera
 from components.visioncomponents.vs_arena import (
     getHomographyMatrix,
     processMarkers,
-    createMission,
 )
 from components.communications.client_server import send_frame
 
@@ -25,7 +24,7 @@ last_sleep = time.perf_counter()
 def _try_compute_homography(raw_frame) -> None:
     """
     Compute homography and camera_matrix once markers 0..3 are visible.
-    Also compute inverse_matrix for arena overlays.
+    Also compute inverse_matrix (kept for compatibility with other modules).
     """
     if dr_op.H is not None and dr_op.camera_matrix is not None:
         return
@@ -55,11 +54,9 @@ def _try_compute_homography(raw_frame) -> None:
 
 def process_frame(raw_frame):
     """
-    Detect markers, update dr_op marker state, and draw mission overlay.
-    Returns a frame still in camera pixel space.
+    Detect markers, update dr_op marker state.
+    Returns a frame in camera pixel space. Warping/cropping is applied later.
     """
-    display = raw_frame
-
     corners, ids, _ = detector.detectMarkers(raw_frame)
     display = cv2.aruco.drawDetectedMarkers(raw_frame.copy(), corners)
 
@@ -67,7 +64,7 @@ def process_frame(raw_frame):
         ids = [int(i[0]) for i in ids]
         corners = [c[0] for c in corners]
 
-        # Compute homography if needed
+        # Compute homography if needed (helps when _try_compute_homography misses)
         if dr_op.H is None or dr_op.camera_matrix is None:
             if all(i in ids for i in (0, 1, 2, 3)):
                 marker_list = [(i, corners[ids.index(i)]) for i in (0, 1, 2, 3)]
@@ -84,17 +81,7 @@ def process_frame(raw_frame):
             for mid, marker in markers.items():
                 dr_op.aruco_markers[mid] = marker
 
-    # ---- Mission overlay ONLY (no obstacles, no randomization) ----
-    inv = getattr(dr_op, "inverse_matrix", None)
-    if inv is not None:
-        display = createMission(
-            display,
-            inv,
-            dr_op.otv_start_dir,
-            dr_op.mission_loc,
-            dr_op.otv_start_loc
-        )
-
+    # NOTE: No createObstacles(), no createMission() -> no white square/arrow, no pink circle.
     return display
 
 
@@ -103,7 +90,7 @@ def start_image_processing(port: int = 5000):
     Main image loop:
       - read stream frames
       - compute homography
-      - draw markers + mission overlay
+      - draw detected markers
       - warpPerspective (arena crop)
       - send JPEG to browser
     """
