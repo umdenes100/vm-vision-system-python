@@ -1,6 +1,0 @@
-[Desktop Entry]
-Type=Application
-Icon=applications-arcade
-Name=Run Vision System
-Exec=/home/visionsystem/Vision-System-Python/RunVisionSystem.sh
-Terminal=true
