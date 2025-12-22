@@ -1,80 +1,121 @@
-import {initializeApp} from "firebase/app";
-import {getStorage, listAll, ref, getMetadata, getDownloadURL} from "firebase/storage";
+import { initializeApp } from "firebase/app";
+import { getStorage, listAll, ref, getMetadata, getDownloadURL } from "firebase/storage";
 import * as database from "firebase/database";
-import { Readable } from 'stream';
-import { finished } from 'stream/promises';
-import fs from 'fs';
-import fetch from 'node-fetch'
+import fs from "fs";
+import path from "path";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-    apiKey: "AIzaSyBAMDAGYHNMtPaXAwJl-BRvxvl37E7Z3xE",
-    projectId: "engr-enes100tool-inv-firebase",
-    databaseURL: "https://engr-enes100tool-inv-firebase-model-watcher.firebaseio.com/",
-    storageBucket: "engr-enes100tool-inv-firebase.appspot.com",
-    appId: "1:763916402491:web:e598de3c258f7d4faa811e"
+  apiKey: "AIzaSyBAMDAGYHNMtPaXAwJl-BRvxvl37E7Z3xE",
+  projectId: "engr-enes100tool-inv-firebase",
+  databaseURL: "https://engr-enes100tool-inv-firebase-model-watcher.firebaseio.com/",
+  storageBucket: "engr-enes100tool-inv-firebase.appspot.com",
+  appId: "1:763916402491:web:e598de3c258f7d4faa811e"
 };
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const storage = getStorage(app);
-const rootref = ref(storage, '/studentmodels');
+const rootref = ref(storage, "/studentmodels");
 
+// Models directory (relative to repo root; RunVisionSystem cd's into repo root)
+const outputdir = "./components/machinelearning/models/";
 
-// This file will be ran. It should inifnitely watch for files in the firebase storage.
-// On startup, it should list files and see which ones need to be updated.
-// It will then listen to the realtimedatabase. When the root updates, it will check the files again.
-
-const outputdir = './components/machinelearning/models/';
+// Small helper
+function ensureDir(dir) {
+  fs.mkdirSync(dir, { recursive: true });
+}
 
 async function downloadFile(filename) {
-    const downloadURL = await getDownloadURL(ref(rootref, filename));
-    const destination = outputdir + filename;
-    const res = await fetch(downloadURL);
-    if (fs.existsSync(destination)) {
-        fs.unlinkSync(destination);
-    }
-    const fileStream = fs.createWriteStream(destination, { flags: 'wx' });
-    await finished(Readable.from(res.body).pipe(fileStream));
+  const downloadURL = await getDownloadURL(ref(rootref, filename));
+  const destination = path.join(outputdir, filename);
+  const tmpDestination = destination + ".tmp";
+
+  const res = await fetch(downloadURL);
+  if (!res.ok) {
+    throw new Error(`Failed fetch for ${filename}: HTTP ${res.status} ${res.statusText}`);
+  }
+
+  // Use arrayBuffer to avoid Node18 WebStream/NodeStream compatibility issues.
+  const buf = Buffer.from(await res.arrayBuffer());
+
+  // Atomic write: write temp then rename
+  if (fs.existsSync(tmpDestination)) {
+    fs.unlinkSync(tmpDestination);
+  }
+  fs.writeFileSync(tmpDestination, buf);
+
+  // Replace destination atomically
+  if (fs.existsSync(destination)) {
+    fs.unlinkSync(destination);
+  }
+  fs.renameSync(tmpDestination, destination);
 }
 
 async function check() {
-    // make models directory if it doesn't exist
-    if (!fs.existsSync(outputdir)) {
-        fs.mkdirSync(outputdir);
+  ensureDir(outputdir);
+  console.log("[listener] Executing check");
+
+  const res = await listAll(rootref);
+  const files = res.items;
+
+  for (const file of files) {
+    const metadata = await getMetadata(file);
+    const localfile = path.join(outputdir, metadata.name);
+    const remoteTime = new Date(metadata.updated).getTime();
+
+    if (fs.existsSync(localfile)) {
+      const stats = fs.statSync(localfile);
+      const localTime = stats.mtimeMs;
+
+      if (localTime < remoteTime) {
+        console.log(`[listener] Downloading ${metadata.name} (local ${localTime} < remote ${remoteTime})`);
+        await downloadFile(metadata.name);
+        console.log(`[listener] Downloaded ${metadata.name}`);
+      } else {
+        console.log(`[listener] Skipping ${metadata.name} (local ${localTime} >= remote ${remoteTime})`);
+      }
+    } else {
+      console.log(`[listener] Downloading ${metadata.name} (missing locally)`);
+      await downloadFile(metadata.name);
+      console.log(`[listener] Downloaded ${metadata.name}`);
     }
-    console.log('Executing check');
-    // Check the files in the storage and update the database accordingly
-    const res = await listAll(rootref);
-    const files =  res.items;
-    for (const file of files) {
-        const metadata = await getMetadata(file);
-        // console.log(metadata.name, new Date(metadata.updated).getTime(), metadata.size);
-        const localfile = outputdir + metadata.name;
-        if (fs.existsSync(localfile)) {
-            const stats = fs.statSync(localfile);
-            const localtime = stats.mtimeMs;
-            if (localtime < new Date(metadata.updated).getTime()) {
-                console.log('Downloading ' + metadata.name, 'because local time is ' + localtime + ' and remote time is ' + new Date(metadata.updated).getTime())
-                await downloadFile(metadata.name);
-                console.log('Downloaded ' + metadata.name)
-            } else {
-                console.log('Skipping ' + metadata.name, 'because local time is ' + localtime + ' and remote time is ' + new Date(metadata.updated).getTime())
-            }
-        } else {
-            console.log('Downloading ' + metadata.name, 'because it does not exist locally');
-            await downloadFile(metadata.name);
-            console.log('Downloaded ' + metadata.name)
-        }
-    }
+  }
 }
 
-// Listen for changes in the database
-database.onValue(database.ref(database.getDatabase(), '/'), (snapshot) => {
-    const data = snapshot.val();
-    console.log('Database changed', data);
-    check();
-});
+// Debounce database change triggers to avoid storms
+let pending = false;
+async function scheduleCheck() {
+  if (pending) return;
+  pending = true;
+  setTimeout(async () => {
+    pending = false;
+    try {
+      await check();
+    } catch (err) {
+      console.error("[listener] check() failed:", err);
+      process.exit(1);
+    }
+  }, 250);
+}
 
-// Do nothing but this onValue, forever
-await new Promise(() => {});
+async function main() {
+  // First sync on startup
+  await check();
+
+  // Listen for changes in the database; any change triggers a re-check
+  const db = database.getDatabase(app);
+  database.onValue(database.ref(db, "/"), (_snapshot) => {
+    console.log("[listener] Database changed -> scheduling check");
+    scheduleCheck();
+  });
+
+  // Stay alive forever
+  await new Promise(() => {});
+}
+
+// Required: fail hard if anything goes wrong
+main().catch((err) => {
+  console.error("[listener] Fatal error:", err);
+  process.exit(1);
+});
