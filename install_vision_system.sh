@@ -88,33 +88,63 @@ if [[ ! -s "${NVM_DIR}/nvm.sh" ]]; then
 fi
 
 # shellcheck disable=SC1090
-[ -s "${NVM_DIR}/nvm.sh" ] && . "${NVM_DIR}/nvm.sh"
+if [[ -s "${NVM_DIR}/nvm.sh" ]]; then
+  . "${NVM_DIR}/nvm.sh"
+else
+  echo "ERROR: ${NVM_DIR}/nvm.sh missing after install." >&2
+  exit 1
+fi
 
 if ! command -v nvm >/dev/null 2>&1; then
   echo "ERROR: nvm install failed or could not be loaded." >&2
   exit 1
 fi
 
-nvm install 18 >/dev/null
+# Ensure Node 18 is installed and active for THIS script run.
+nvm install 18
 nvm alias default 18 >/dev/null
-nvm use 18 >/dev/null
+nvm use 18
 
 if ! command -v node >/dev/null 2>&1; then
   echo "ERROR: node is still not available after nvm install." >&2
   exit 1
 fi
+if ! command -v npm >/dev/null 2>&1; then
+  echo "ERROR: npm is not available after nvm install." >&2
+  exit 1
+fi
+
+echo ">>> Node path: $(command -v node)"
 echo ">>> Node version: $(node -v)"
+echo ">>> npm path:  $(command -v npm)"
 echo ">>> npm version: $(npm -v)"
 
 echo ">>> Installing npm dependencies for Firebase listener…"
-if [[ -f "components/machinelearning/package.json" ]]; then
-  pushd "components/machinelearning" >/dev/null
-  npm install --silent
-  popd >/dev/null
-else
-  echo "ERROR: components/machinelearning/package.json not found. Cannot install Firebase deps." >&2
+ML_DIR="components/machinelearning"
+if [[ ! -f "${ML_DIR}/package.json" ]]; then
+  echo "ERROR: ${ML_DIR}/package.json not found. Cannot install Firebase deps." >&2
   exit 1
 fi
+
+echo ">>> npm working dir: $(cd "${ML_DIR}" && pwd)"
+pushd "${ML_DIR}" >/dev/null
+
+# Use npm ci when lockfile exists (more deterministic), otherwise npm install
+if [[ -f package-lock.json ]]; then
+  npm ci
+else
+  npm install
+fi
+
+# Hard verification: firebase must exist
+if [[ ! -d node_modules/firebase ]]; then
+  echo "ERROR: npm install completed but node_modules/firebase is missing." >&2
+  echo "       This indicates npm did not install correctly." >&2
+  exit 1
+fi
+
+popd >/dev/null
+echo ">>> Firebase dependency installed ✅"
 
 # ----------------------------
 # Python venv
@@ -129,7 +159,7 @@ if [[ ! -w "${VENV_PATH}" ]]; then
   sudo chown -R "$USER":"$USER" "${VENV_PATH}"
 fi
 
-# shellcheck disable=SC1090
+# shellcheck disable=SC1091
 source "${VENV_PATH}/bin/activate"
 export PIP_REQUIRE_VIRTUALENV=1
 
@@ -263,9 +293,8 @@ fi
 # Robust cv2 loader fix for venvs (kept as-is, but with safe import)
 # ----------------------------
 python - <<'PY'
-import os, sys, site, pathlib, textwrap
+import site, pathlib, textwrap
 
-# This was previously an unconditional import that can fail on clean machines.
 try:
     import stream_promises_fix  # noqa: F401
 except Exception:
