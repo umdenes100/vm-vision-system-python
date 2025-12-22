@@ -1,0 +1,8 @@
+{
+  "name": "enes100-model-listener",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "firebase": "^10.12.5"
+  }
+}
