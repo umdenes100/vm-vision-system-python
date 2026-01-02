@@ -1,0 +1,33 @@
+{
+  "uiName": "ENES100 Open-Lab Vision System",
+  "navLinks": [
+    {
+      "id": "oldVisionSystem",
+      "label": "Mission & Arena Details",
+      "url": "https://drive.google.com/drive/u/1/folders/1R99I7EBXbnalCymHS44RMTUMO7uZh9jD"
+    },
+    {
+      "id": "libraries",
+      "label": "Micropython ENES100 Package",
+      "url": "https://enes100.umd.edu/documentation/micropython/"
+    },
+    {
+      "id": "simulator",
+      "label": "Simulator",
+      "url": "https://enes100.umd.edu/tools/simulator/"
+    },
+    {
+      "id": "examples",
+      "label": "Examples",
+      "url": "https://enes100.umd.edu/documentation/examples/"
+    },
+    {
+      "id": "faq",
+      "label": "FAQs",
+      "url": "https://enes100.umd.edu/documentation/faq/"
+    }
+  ],
+  "otherLinks": {
+    "troubleshootingDoc": "https://docs.google.com/document/d/1hrvkhNof1VFIL7retfn17tdnPCOo5d2WmNKgmRgjyy8/edit?usp=sharing"
+  }
+}
