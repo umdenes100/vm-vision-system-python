@@ -134,14 +134,4 @@ input:checked + .slider{
 .navbar-brand {
     margin-left: -80px;
 }
-/* Make Table outlines white */
-.table,
-.table th,
-.table td {
-    border-color: #ffffff !important;
-}
-.mission-info,
-.mission-info * {
-    border-color: #ffffff !important;
-}
 
