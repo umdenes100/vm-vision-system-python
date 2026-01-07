@@ -6,6 +6,7 @@ from pathlib import Path
 from aiohttp import web
 
 from utils.logging import get_logger, parse_level
+from utils.port_guard import ensure_ports_available
 from communications.arenacam import ArenaCamConfig, create_arenacam
 from frontend.webpage import create_app
 
@@ -22,11 +23,26 @@ async def run():
     logger = get_logger("main", level=level)
 
     cam_cfg = config.get("camera", {})
+    fe_cfg = config.get("frontend", {})
+
+    udp_host = cam_cfg.get("bind_ip", "0.0.0.0")
+    udp_port = int(cam_cfg.get("bind_port", 5000))
+    tcp_host = fe_cfg.get("host", "0.0.0.0")
+    tcp_port = int(fe_cfg.get("port", 8080))
+
+    # Ensure we can take control of required ports before launching anything.
+    ensure_ports_available(
+        udp_host=udp_host,
+        udp_port=udp_port,
+        tcp_host=tcp_host,
+        tcp_port=tcp_port,
+    )
+
     arenacam = create_arenacam(
         ArenaCamConfig(
             mode=cam_cfg.get("mode", "rtp_h264"),
-            bind_ip=cam_cfg.get("bind_ip", "0.0.0.0"),
-            bind_port=int(cam_cfg.get("bind_port", 5000)),
+            bind_ip=udp_host,
+            bind_port=udp_port,
             rtp_payload=int(cam_cfg.get("rtp_payload", 96)),
         )
     )
@@ -37,14 +53,10 @@ async def run():
     runner = web.AppRunner(app)
     await runner.setup()
 
-    frontend_cfg = config.get("frontend", {})
-    host = frontend_cfg.get("host", "0.0.0.0")
-    port = int(frontend_cfg.get("port", 8080))
-
-    site = web.TCPSite(runner, host, port)
+    site = web.TCPSite(runner, tcp_host, tcp_port)
     await site.start()
 
-    logger.info(f"Vision system running. Open http://<VM_IP>:{port}/")
+    logger.info(f"Vision system running. Open http://<VM_IP>:{tcp_port}/")
 
     try:
         while True:
