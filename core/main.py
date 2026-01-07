@@ -46,16 +46,7 @@ async def arena_processing_loop(
     arena_processor: ArenaProcessor,
     target_fps: float = 30.0,
 ):
-    """
-    Continuously updates overlay/crop frames using the latest available camera frame.
-    Homography refresh is handled inside ArenaProcessor and can be infrequent,
-    but warp/encode still runs every tick using the cached transform.
-
-    Heavy work is moved off the asyncio loop using asyncio.to_thread so MJPEG
-    streaming stays smooth.
-    """
     frame_period = 1.0 / max(1.0, float(target_fps))
-    last_tick = time.perf_counter()
 
     try:
         while not stop_event.is_set():
@@ -65,19 +56,14 @@ async def arena_processing_loop(
             if jpeg is not None:
                 bgr = _decode_jpeg_to_bgr(jpeg)
                 if bgr is not None:
-                    # Run CPU-heavy processing off the event loop
                     await asyncio.to_thread(arena_processor.process_bgr, bgr)
 
-            # pace loop to target FPS
             elapsed = time.perf_counter() - start
             sleep_time = frame_period - elapsed
             if sleep_time > 0:
                 await asyncio.sleep(sleep_time)
             else:
-                # yield if we're overloaded
                 await asyncio.sleep(0)
-
-            last_tick = start
     except asyncio.CancelledError:
         return
 
@@ -125,54 +111,75 @@ async def run():
             rtp_payload=int(cam_cfg.get("rtp_payload", 96)),
         )
     )
-    await arenacam.start()
 
-    arena_processor = ArenaProcessor(
-        ArenaConfig(
-            id_bl=0,
-            id_tl=1,
-            id_tr=2,
-            id_br=3,
-            output_width=1000,
-            output_height=500,          # 2:1
-            crop_refresh_seconds=600,    # refresh homography every 10 min
-            border_marker_fraction=0.5,
-            vertical_padding_fraction=0.01,  # small, avoids huge top/bottom padding
-            crop_jpeg_quality=75,
-            overlay_jpeg_quality=80,
+    runner = None
+    site = None
+    proc_task = None
+
+    try:
+        await arenacam.start()
+
+        arena_processor = ArenaProcessor(
+            ArenaConfig(
+                id_bl=0,
+                id_tl=1,
+                id_tr=2,
+                id_br=3,
+                output_width=1000,
+                output_height=500,
+                crop_refresh_seconds=600,
+                border_marker_fraction=0.5,
+                vertical_padding_fraction=0.01,
+                crop_jpeg_quality=75,
+                overlay_jpeg_quality=80,
+            )
         )
-    )
 
-    proc_task = asyncio.create_task(
-        arena_processing_loop(stop_event, logger, arenacam, arena_processor, target_fps=30.0)
-    )
+        proc_task = asyncio.create_task(
+            arena_processing_loop(stop_event, logger, arenacam, arena_processor, target_fps=30.0)
+        )
 
-    app = create_app(stop_event, arenacam, arena_processor)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, tcp_host, tcp_port)
-    await site.start()
+        app = create_app(stop_event, arenacam, arena_processor)
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, tcp_host, tcp_port)
+        await site.start()
 
-    ip = _get_best_local_ip()
-    logger.info(f"Vision system running. Open http://{ip}:{tcp_port}/")
+        ip = _get_best_local_ip()
+        logger.info(f"Vision system running. Open http://{ip}:{tcp_port}/")
 
-    await stop_event.wait()
+        await stop_event.wait()
 
-    try:
-        await site.stop()
-    except Exception:
-        pass
+    finally:
+        # Begin shutdown
+        stop_event.set()
 
-    proc_task.cancel()
-    try:
-        await proc_task
-    except asyncio.CancelledError:
-        pass
+        if proc_task is not None:
+            proc_task.cancel()
+            try:
+                await asyncio.wait_for(proc_task, timeout=2.0)
+            except Exception:
+                pass
 
-    await arenacam.stop()
-    await runner.cleanup()
+        if site is not None:
+            try:
+                await asyncio.wait_for(site.stop(), timeout=2.0)
+            except Exception:
+                pass
 
-    logger.info("Stopped cleanly")
+        if runner is not None:
+            try:
+                await asyncio.wait_for(runner.cleanup(), timeout=2.0)
+            except Exception:
+                pass
+
+        # GStreamer can wedge; don't hang forever
+        try:
+            await asyncio.wait_for(arenacam.stop(), timeout=2.5)
+        except Exception:
+            pass
+
+        logger.info("Stopped cleanly")
 
 
 def main():
