@@ -8,4 +8,10 @@ A modular, headless vision system for an introductory robotics course.
 - (Planned) Detects ArUco markers, crops arena using markers 0–3, computes robot pose (X, Y, θ).
 - (Planned) Communicates pose + print messages with ESP-based clients using **WebSocket**.
 
-## Repo layout
+
+## Install
+```bash
+cd install
+chmod +x install.sh
+./install.sh
+
