@@ -1,73 +1,10 @@
 import asyncio
+from pathlib import Path
 from aiohttp import web
-
-import cv2
-import numpy as np
 
 from utils.logging import get_logger
 
-HTML = """
-<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>VM Vision System</title>
-    <style>
-      body { font-family: sans-serif; margin: 20px; }
-      .row { display: flex; gap: 20px; flex-wrap: wrap; }
-      .panel { flex: 1; min-width: 420px; }
-      img { width: 100%; border: 1px solid #ccc; }
-      h2 { margin: 10px 0; font-size: 18px; }
-      .hint { color: #666; font-size: 13px; margin-top: 6px; }
-    </style>
-  </head>
-  <body>
-    <h1>Vision System Streams</h1>
-
-    <div class="row">
-      <div class="panel">
-        <h2>Raw</h2>
-        <img src="/video" />
-      </div>
-
-      <div class="panel">
-        <h2>Raw + ArUco Boxes</h2>
-        <img src="/overlay" />
-        <div class="hint">Green boxes drawn around detected markers.</div>
-      </div>
-    </div>
-
-    <div class="row" style="margin-top: 20px;">
-      <div class="panel">
-        <h2>Cropped Arena</h2>
-        <img src="/crop" />
-        <div class="hint">Crop persists through marker blinks; refreshes every 10 minutes.</div>
-      </div>
-    </div>
-  </body>
-</html>
-"""
-
 _BOUNDARY = "frame"
-
-
-def _make_placeholder_jpeg() -> bytes:
-    img = np.zeros((240, 320, 3), dtype=np.uint8)
-    cv2.putText(
-        img,
-        "Waiting for crop transform...",
-        (10, 120),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.6,
-        (255, 255, 255),
-        2,
-        cv2.LINE_AA,
-    )
-    ok, buf = cv2.imencode(".jpg", img, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
-    return buf.tobytes() if ok else b""
-
-
-_PLACEHOLDER_JPEG = _make_placeholder_jpeg()
 
 
 async def _mjpeg_stream(stop_event: asyncio.Event, request: web.Request, frame_getter):
@@ -85,7 +22,10 @@ async def _mjpeg_stream(stop_event: asyncio.Event, request: web.Request, frame_g
 
     try:
         while not stop_event.is_set():
-            frame = frame_getter() or _PLACEHOLDER_JPEG
+            frame = frame_getter()
+            if frame is None:
+                await asyncio.sleep(0.05)
+                continue
 
             header = (
                 f"--{_BOUNDARY}\r\n"
@@ -97,7 +37,6 @@ async def _mjpeg_stream(stop_event: asyncio.Event, request: web.Request, frame_g
             await resp.write(header)
             await resp.write(frame)
             await resp.write(b"\r\n")
-
             await asyncio.sleep(0.05)
     except (asyncio.CancelledError, ConnectionResetError, BrokenPipeError):
         pass
@@ -114,9 +53,16 @@ def create_app(stop_event: asyncio.Event, arenacam, arena_processor):
     logger = get_logger("frontend")
     app = web.Application()
 
-    async def index(request):
-        return web.Response(text=HTML, content_type="text/html")
+    static_dir = Path(__file__).parent / "static"
+    index_path = static_dir / "index.html"
 
+    async def index(request: web.Request) -> web.Response:
+        # Serve the static index.html
+        if not index_path.exists():
+            return web.Response(text="Missing frontend/static/index.html", status=500)
+        return web.FileResponse(path=index_path)
+
+    # Dynamic endpoints (streams)
     async def video(request):
         logger.info("Web client connected to /video")
         resp = await _mjpeg_stream(stop_event, request, lambda: arenacam.latest_frame)
@@ -135,8 +81,30 @@ def create_app(stop_event: asyncio.Event, arenacam, arena_processor):
         logger.info("Web client disconnected from /crop")
         return resp
 
+    # Placeholder websocket endpoint (for future UI interactions)
+    async def ws_handler(request: web.Request) -> web.WebSocketResponse:
+        ws = web.WebSocketResponse()
+        await ws.prepare(request)
+
+        # Placeholder: accept connection, do nothing meaningful yet
+        logger.info("WebSocket client connected to /ws (placeholder)")
+        try:
+            async for _msg in ws:
+                # Future: handle messages from UI buttons/dropdowns here
+                await ws.send_json({"type": "placeholder", "ok": True})
+        except Exception:
+            pass
+        finally:
+            logger.info("WebSocket client disconnected from /ws (placeholder)")
+        return ws
+
     app.router.add_get("/", index)
     app.router.add_get("/video", video)
     app.router.add_get("/overlay", overlay)
     app.router.add_get("/crop", crop)
+    app.router.add_get("/ws", ws_handler)
+
+    # Static assets served under /static/
+    app.router.add_static("/static/", path=static_dir, show_index=False)
+
     return app
