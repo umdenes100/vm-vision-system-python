@@ -4,22 +4,30 @@
     const navEl = document.getElementById("headerLinks");
     if (!titleEl || !navEl) return;
 
-    function forceVisibleText(el) {
-      // Use important to defeat external CSS (bootstrap/theme/index.css)
-      el.style.setProperty("display", "inline-block", "important");
+    function forceVisibleCommon(el) {
       el.style.setProperty("color", "#ffffff", "important");
       el.style.setProperty("-webkit-text-fill-color", "#ffffff", "important");
       el.style.setProperty("opacity", "1", "important");
       el.style.setProperty("visibility", "visible", "important");
-      el.style.setProperty("text-decoration", "none", "important");
-      el.style.setProperty("font-weight", "600", "important");
-      el.style.setProperty("font-size", "14px", "important");
-      el.style.setProperty("line-height", "1", "important");
-
-      // Defeat weird theme tricks
       el.style.setProperty("filter", "none", "important");
       el.style.setProperty("mix-blend-mode", "normal", "important");
       el.style.setProperty("text-shadow", "0 0 1px rgba(0,0,0,0.35)", "important");
+    }
+
+    function forceVisibleLink(a) {
+      forceVisibleCommon(a);
+      a.style.setProperty("display", "inline-block", "important");
+      a.style.setProperty("text-decoration", "none", "important");
+      a.style.setProperty("font-weight", "600", "important");
+      a.style.setProperty("font-size", "14px", "important");
+      a.style.setProperty("line-height", "1", "important");
+    }
+
+    function forceVisibleTitle(el) {
+      // IMPORTANT: do NOT set font size/weight here.
+      // CSS controls title sizing; JS only forces visibility.
+      forceVisibleCommon(el);
+      el.style.setProperty("display", "block", "important");
     }
 
     function renderFallbackLinks() {
@@ -29,7 +37,7 @@
         a.textContent = `Link${i}`;
         a.href = "#";
         a.onclick = () => false;
-        forceVisibleText(a);
+        forceVisibleLink(a);
         navEl.appendChild(a);
       }
     }
@@ -77,7 +85,7 @@
       const room = String(cfg.room || "<Room Placeholder>").trim();
 
       titleEl.textContent = `${cls} ${room} Vision System`;
-      forceVisibleText(titleEl);
+      forceVisibleTitle(titleEl);
 
       const links = normalizeLinks(cfg);
 
@@ -93,12 +101,13 @@
         a.href = item.url || "#";
         a.target = "_blank";
         a.rel = "noopener noreferrer";
-        forceVisibleText(a);
+        forceVisibleLink(a);
         navEl.appendChild(a);
       }
     } catch (_e) {
+      // Keep existing title text, just ensure visible
+      forceVisibleTitle(titleEl);
       renderFallbackLinks();
-      if (titleEl) forceVisibleText(titleEl);
     }
   }
 
