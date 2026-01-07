@@ -41,7 +41,7 @@ HTML = """
       <div class="panel">
         <h2>Cropped Arena</h2>
         <img src="/crop" />
-        <div class="hint">Crop transform refreshes every 10 minutes; crop persists through marker blinks.</div>
+        <div class="hint">Crop persists through marker blinks; refreshes every 10 minutes.</div>
       </div>
     </div>
   </body>
@@ -70,7 +70,7 @@ def _make_placeholder_jpeg() -> bytes:
 _PLACEHOLDER_JPEG = _make_placeholder_jpeg()
 
 
-async def _mjpeg_stream(request: web.Request, frame_getter):
+async def _mjpeg_stream(stop_event: asyncio.Event, request: web.Request, frame_getter):
     resp = web.StreamResponse(
         status=200,
         reason="OK",
@@ -84,7 +84,7 @@ async def _mjpeg_stream(request: web.Request, frame_getter):
     await resp.prepare(request)
 
     try:
-        while True:
+        while not stop_event.is_set():
             frame = frame_getter() or _PLACEHOLDER_JPEG
 
             header = (
@@ -110,7 +110,7 @@ async def _mjpeg_stream(request: web.Request, frame_getter):
     return resp
 
 
-def create_app(arenacam, arena_processor):
+def create_app(stop_event: asyncio.Event, arenacam, arena_processor):
     logger = get_logger("frontend")
     app = web.Application()
 
@@ -119,19 +119,19 @@ def create_app(arenacam, arena_processor):
 
     async def video(request):
         logger.info("Web client connected to /video")
-        resp = await _mjpeg_stream(request, lambda: arenacam.latest_frame)
+        resp = await _mjpeg_stream(stop_event, request, lambda: arenacam.latest_frame)
         logger.info("Web client disconnected from /video")
         return resp
 
     async def overlay(request):
         logger.info("Web client connected to /overlay")
-        resp = await _mjpeg_stream(request, lambda: arena_processor.latest_overlay_jpeg)
+        resp = await _mjpeg_stream(stop_event, request, lambda: arena_processor.latest_overlay_jpeg)
         logger.info("Web client disconnected from /overlay")
         return resp
 
     async def crop(request):
         logger.info("Web client connected to /crop")
-        resp = await _mjpeg_stream(request, lambda: arena_processor.latest_cropped_jpeg)
+        resp = await _mjpeg_stream(stop_event, request, lambda: arena_processor.latest_cropped_jpeg)
         logger.info("Web client disconnected from /crop")
         return resp
 
