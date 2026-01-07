@@ -204,10 +204,8 @@
       <div class="vs-panel-header">Team</div>
 
       <div class="vs-left-top">
-        <select class="vs-team-select" id="teamSelect">
-          <option selected>Team (placeholder)</option>
-          <option>Team 1</option>
-          <option>Team 2</option>
+        <select class="vs-team-select" id="teamSelect" disabled>
+          <option selected>No Teams Connected</option>
         </select>
 
         <table class="vs-table">
@@ -230,7 +228,7 @@
       </div>
 
       <div class="vs-left-bottom">
-        <div class="vs-scrollbox vs-left-prints" id="teamPrints">[INFO] Placeholder team printouts...</div>
+        <div class="vs-scrollbox vs-left-prints" id="teamPrints"></div>
 
         <div class="vs-switch-row">
           <label class="vs-switch">
@@ -274,15 +272,103 @@
 
 <script>
   (function () {
+    const teamSelect = document.getElementById("teamSelect");
     const teamBox = document.getElementById("teamPrints");
     const systemBox = document.getElementById("systemPrints");
     const autoscroll = document.getElementById("autoscroll");
     const clearBtn = document.getElementById("clearPrints");
 
-    clearBtn.addEventListener("click", () => { teamBox.textContent = ""; });
+    // Per-team log buffers (cap at 100)
+    const teamLogs = new Map(); // team -> array of lines (<=100)
+    let selectedTeam = null;
 
     function maybeScroll(box) {
       if (autoscroll.checked) box.scrollTop = box.scrollHeight;
+    }
+
+    function renderSelectedTeam() {
+      if (!selectedTeam) {
+        teamBox.textContent = "";
+        return;
+      }
+      const lines = teamLogs.get(selectedTeam) || [];
+      teamBox.textContent = lines.join("\n");
+      maybeScroll(teamBox);
+    }
+
+    function setTeams(teams) {
+      const list = Array.isArray(teams) ? teams.slice() : [];
+      const prev = selectedTeam;
+
+      // Preserve existing logs for teams we already have; create buffers for new ones
+      for (const t of list) {
+        if (!teamLogs.has(t)) teamLogs.set(t, []);
+      }
+
+      // Rebuild dropdown
+      teamSelect.innerHTML = "";
+      if (list.length === 0) {
+        teamSelect.disabled = true;
+        const opt = document.createElement("option");
+        opt.selected = true;
+        opt.textContent = "No Teams Connected";
+        teamSelect.appendChild(opt);
+        selectedTeam = null;
+        renderSelectedTeam();
+        return;
+      }
+
+      teamSelect.disabled = false;
+      for (const t of list) {
+        const opt = document.createElement("option");
+        opt.value = t;
+        opt.textContent = t;
+        teamSelect.appendChild(opt);
+      }
+
+      // Choose selection: keep previous if still present, else first
+      if (prev && list.includes(prev)) {
+        selectedTeam = prev;
+      } else {
+        selectedTeam = list[0];
+      }
+      teamSelect.value = selectedTeam;
+      renderSelectedTeam();
+    }
+
+    teamSelect.addEventListener("change", () => {
+      selectedTeam = teamSelect.value || null;
+      renderSelectedTeam();
+    });
+
+    // Clear only current team
+    clearBtn.addEventListener("click", () => {
+      if (!selectedTeam) return;
+      teamLogs.set(selectedTeam, []);
+      renderSelectedTeam();
+    });
+
+    function appendSystemLine(line) {
+      if (systemBox.textContent.startsWith("[INFO] Waiting for system logs...")) {
+        systemBox.textContent = "";
+      }
+      systemBox.textContent += (systemBox.textContent.length ? "\n" : "") + line;
+      // system printouts should autoscroll by default (per earlier request)
+      systemBox.scrollTop = systemBox.scrollHeight;
+    }
+
+    function appendTeamLine(team, line) {
+      if (!team) return;
+      if (!teamLogs.has(team)) teamLogs.set(team, []);
+      const buf = teamLogs.get(team);
+
+      buf.push(line);
+      // Cap at 100
+      while (buf.length > 100) buf.shift();
+
+      if (team === selectedTeam) {
+        renderSelectedTeam();
+      }
     }
 
     function connectWs() {
@@ -290,15 +376,32 @@
       const ws = new WebSocket(`${proto}://${location.host}/ws`);
 
       ws.onmessage = (ev) => {
-        const line = String(ev.data || "");
-        if (!line) return;
+        const raw = String(ev.data || "");
+        if (!raw) return;
 
-        if (systemBox.textContent.startsWith("[INFO] Waiting for system logs...")) {
-          systemBox.textContent = "";
+        // Prefer JSON events
+        try {
+          const msg = JSON.parse(raw);
+
+          if (msg.type === "system_log" && typeof msg.line === "string") {
+            appendSystemLine(msg.line);
+            return;
+          }
+
+          if (msg.type === "team_list" && Array.isArray(msg.teams)) {
+            setTeams(msg.teams);
+            return;
+          }
+
+          if (msg.type === "team_log" && typeof msg.team === "string" && typeof msg.line === "string") {
+            appendTeamLine(msg.team, msg.line);
+            return;
+          }
+        } catch (_) {
+          // Backward compat: treat as system line
         }
 
-        systemBox.textContent += (systemBox.textContent.length ? "\n" : "") + line;
-        maybeScroll(systemBox);
+        appendSystemLine(raw);
       };
 
       ws.onclose = () => setTimeout(connectWs, 1000);
@@ -307,11 +410,8 @@
 
     connectWs();
 
-    // temporary placeholder activity to validate autoscroll + clear
-    setInterval(() => {
-      teamBox.textContent += (teamBox.textContent.length ? "\n" : "") + "[INFO] Team heartbeat";
-      maybeScroll(teamBox);
-    }, 4000);
+    // Initial state
+    setTeams([]);
   })();
 </script>
 
