@@ -38,19 +38,24 @@ def _get_best_local_ip() -> str:
         return "127.0.0.1"
 
 
-async def arena_processing_loop(stop_event: asyncio.Event, logger, arenacam, arena_processor: ArenaProcessor):
-    last_frame_obj = None
+async def arena_processing_loop(
+    stop_event: asyncio.Event,
+    logger,
+    arenacam,
+    arena_processor: ArenaProcessor,
+):
+    """
+    Always process frames when available.
+
+    NOTE: Do NOT rely on object identity for frame skipping.
+    Some pipelines reuse buffers, making the 'bytes' object look constant.
+    """
     try:
         while not stop_event.is_set():
             frame = arenacam.latest_frame
             if frame is None:
                 await asyncio.sleep(0.01)
                 continue
-
-            if frame is last_frame_obj:
-                await asyncio.sleep(0.01)
-                continue
-            last_frame_obj = frame
 
             bgr = _decode_jpeg_to_bgr(frame)
             if bgr is None:
@@ -59,7 +64,7 @@ async def arena_processing_loop(stop_event: asyncio.Event, logger, arenacam, are
                 continue
 
             arena_processor.process_bgr(bgr)
-            await asyncio.sleep(0)
+            await asyncio.sleep(0)  # yield
     except asyncio.CancelledError:
         return
 
@@ -111,9 +116,15 @@ async def run():
 
     arena_processor = ArenaProcessor(
         ArenaConfig(
-            id_bl=0, id_tl=1, id_tr=2, id_br=3,
+            id_bl=0,
+            id_tl=1,
+            id_tr=2,
+            id_br=3,
+            output_width=1800,
+            output_height=900,
             crop_refresh_seconds=600,
             border_marker_fraction=0.5,
+            vertical_padding_fraction=0.025,  # reduced (was too much)
         )
     )
 
