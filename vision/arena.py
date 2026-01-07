@@ -10,8 +10,12 @@ from vision.aruco import ArucoDetector, ArucoMarker
 
 @dataclass
 class ArenaConfig:
-    # IDs that must be present to define the arena (used to refresh crop transform)
-    required_corner_ids: Tuple[int, int, int, int] = (0, 1, 2, 3)
+    # Corner marker layout (your physical setup):
+    # 0 = BL, 1 = TL, 2 = TR, 3 = BR
+    id_bl: int = 0
+    id_tl: int = 1
+    id_tr: int = 2
+    id_br: int = 3
 
     # Output crop size (pixels)
     output_width: int = 1000
@@ -26,17 +30,20 @@ class ArenaConfig:
     # Only recompute the crop transform this often (seconds)
     crop_refresh_seconds: int = 600  # 10 minutes
 
+    # Border around crop in "marker widths"
+    # 0.5 means about half of a corner marker size beyond the crop.
+    border_marker_fraction: float = 0.5
+
 
 class ArenaProcessor:
     """
     Produces:
       - latest_overlay_jpeg: raw frame with green boxes around all detected ArUco markers
-      - latest_cropped_jpeg: warped arena crop
+      - latest_cropped_jpeg: warped arena crop (with green boxes too)
 
-    Crop stability:
-      - Maintains a cached homography (warp matrix) and keeps producing cropped frames
-        even if markers 0–3 temporarily disappear.
-      - Recomputes crop transform at most once every `crop_refresh_seconds`.
+    Stability:
+      - Keeps a cached homography so the crop persists through corner-marker blinks.
+      - Refreshes homography at most every `crop_refresh_seconds`.
     """
 
     def __init__(self, cfg: ArenaConfig):
@@ -92,33 +99,88 @@ class ArenaProcessor:
             return None
         return buf.tobytes()
 
-    def _have_required_corners(self, markers: Dict[int, ArucoMarker]) -> bool:
-        return all(mid in markers for mid in self.cfg.required_corner_ids)
+    def _have_corner_markers(self, markers: Dict[int, ArucoMarker]) -> bool:
+        needed = [self.cfg.id_bl, self.cfg.id_tl, self.cfg.id_tr, self.cfg.id_br]
+        return all(mid in markers for mid in needed)
 
     @staticmethod
-    def _outermost_quad_from_corners(corners: np.ndarray) -> np.ndarray:
+    def _mean_marker_size_px(marker: ArucoMarker) -> float:
         """
-        corners: (N,2) float32
-        returns TL, TR, BR, BL based on:
-          TL = min(x+y)
-          BR = max(x+y)
-          TR = max(x-y)
-          BL = min(x-y)
+        Approximate marker size in pixels as mean edge length.
         """
-        s = corners[:, 0] + corners[:, 1]
-        d = corners[:, 0] - corners[:, 1]
-        tl = corners[np.argmin(s)]
-        br = corners[np.argmax(s)]
-        tr = corners[np.argmax(d)]
-        bl = corners[np.argmin(d)]
-        return np.array([tl, tr, br, bl], dtype=np.float32)
+        c = marker.corners
+        edges = [
+            np.linalg.norm(c[0] - c[1]),
+            np.linalg.norm(c[1] - c[2]),
+            np.linalg.norm(c[2] - c[3]),
+            np.linalg.norm(c[3] - c[0]),
+        ]
+        return float(np.mean(edges))
+
+    @staticmethod
+    def _warp_points(M: np.ndarray, pts_xy: np.ndarray) -> np.ndarray:
+        pts = pts_xy.reshape(-1, 1, 2).astype(np.float32)
+        warped = cv2.perspectiveTransform(pts, M)
+        return warped.reshape(-1, 2)
+
+    @staticmethod
+    def _expand_quad(src: np.ndarray, border_px: float) -> np.ndarray:
+        """
+        Expand quad outward from centroid by border_px.
+        src: (4,2) TL,TR,BR,BL
+        """
+        if border_px <= 0:
+            return src
+
+        centroid = np.mean(src, axis=0)
+        out = []
+        for p in src:
+            v = p - centroid
+            n = float(np.linalg.norm(v))
+            if n < 1e-6:
+                out.append(p)
+            else:
+                out.append(p + (border_px * v / n))
+        return np.array(out, dtype=np.float32)
+
+    def _compute_src_quad_from_corner_ids(self, markers: Dict[int, ArucoMarker]) -> Tuple[np.ndarray, float]:
+        """
+        Compute TL,TR,BR,BL source points using your ID layout, robust to marker rotation.
+
+        For each corner marker, pick the corner farthest from arena center -> "outer corner".
+        """
+        bl = markers[self.cfg.id_bl]
+        tl = markers[self.cfg.id_tl]
+        tr = markers[self.cfg.id_tr]
+        br = markers[self.cfg.id_br]
+
+        arena_center = np.mean(
+            np.array([bl.center, tl.center, tr.center, br.center], dtype=np.float32),
+            axis=0,
+        )
+
+        def outer_corner(m: ArucoMarker) -> np.ndarray:
+            d = np.linalg.norm(m.corners - arena_center.reshape(1, 2), axis=1)
+            return m.corners[int(np.argmax(d))].astype(np.float32)
+
+        p_tl = outer_corner(tl)
+        p_tr = outer_corner(tr)
+        p_br = outer_corner(br)
+        p_bl = outer_corner(bl)
+
+        # Estimate border size from average marker size among the 4 corners
+        sizes = [
+            self._mean_marker_size_px(bl),
+            self._mean_marker_size_px(tl),
+            self._mean_marker_size_px(tr),
+            self._mean_marker_size_px(br),
+        ]
+        avg_marker_px = float(np.mean(sizes))
+
+        src = np.array([p_tl, p_tr, p_br, p_bl], dtype=np.float32)
+        return src, avg_marker_px
 
     def _maybe_refresh_homography(self, markers: Dict[int, ArucoMarker]) -> None:
-        """
-        Refresh cached homography only if:
-          - no cache yet, OR
-          - refresh interval elapsed AND required markers are present
-        """
         now = time.monotonic()
 
         need_first = self._M_cached is None
@@ -127,17 +189,14 @@ class ArenaProcessor:
         if not need_first and not interval_elapsed:
             return
 
-        if not self._have_required_corners(markers):
+        if not self._have_corner_markers(markers):
             # Can't refresh now; keep old transform if we have one.
             return
 
-        # Use all corners from required markers to robustly define outer arena quad.
-        pts = []
-        for mid in self.cfg.required_corner_ids:
-            pts.append(markers[mid].corners)
-        all_corners = np.vstack(pts).astype(np.float32)  # (16,2)
+        src, avg_marker_px = self._compute_src_quad_from_corner_ids(markers)
 
-        src = self._outermost_quad_from_corners(all_corners)
+        border_px = float(self.cfg.border_marker_fraction) * avg_marker_px
+        src = self._expand_quad(src, border_px)
 
         dst = np.array(
             [
@@ -152,41 +211,28 @@ class ArenaProcessor:
         self._M_cached = cv2.getPerspectiveTransform(src, dst)
         self._M_last_update_monotonic = now
 
-    @staticmethod
-    def _warp_points(M: np.ndarray, pts_xy: np.ndarray) -> np.ndarray:
-        """
-        pts_xy: (N,2) float32
-        returns: (N,2) float32 warped points
-        """
-        pts = pts_xy.reshape(-1, 1, 2).astype(np.float32)
-        warped = cv2.perspectiveTransform(pts, M)
-        return warped.reshape(-1, 2)
-
     def process_bgr(self, frame_bgr: np.ndarray) -> None:
         markers = self.detector.detect(frame_bgr)
 
-        # Overlay: raw + green boxes
+        # Overlay (raw + boxes)
         overlay = frame_bgr.copy()
         self._draw_marker_boxes(overlay, markers, self.cfg.box_thickness, self.cfg.draw_ids)
         overlay_jpg = self._encode_jpeg(overlay, quality=80)
         if overlay_jpg is not None:
             self.latest_overlay_jpeg = overlay_jpg
 
-        # Crop: update cached transform at most every 10 minutes (or first time)
+        # Crop (cached transform)
         self._maybe_refresh_homography(markers)
 
         if self._M_cached is None:
-            # No crop available yet.
             self.latest_cropped_jpeg = None
             self._frames_processed += 1
             return
 
         M = self._M_cached
-
         warped = cv2.warpPerspective(frame_bgr, M, (self.cfg.output_width, self.cfg.output_height))
 
-        # Draw green boxes for all detected markers on the CROPPED view as well.
-        # Transform each marker's corners and draw in warped coordinate space.
+        # Draw green boxes on cropped view too (transform corners through M)
         for mid, m in markers.items():
             warped_corners = self._warp_points(M, m.corners)
             pts = warped_corners.astype(int).reshape(-1, 1, 2)
