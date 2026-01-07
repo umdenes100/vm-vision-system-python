@@ -17,9 +17,9 @@ class ArenaConfig:
     id_tr: int = 2
     id_br: int = 3
 
-    # Output crop size (pixels)
+    # Output crop size (pixels) — FORCE 2:1
     output_width: int = 1000
-    output_height: int = 700
+    output_height: int = 500
 
     # Draw marker IDs on overlay/crop
     draw_ids: bool = True
@@ -105,9 +105,6 @@ class ArenaProcessor:
 
     @staticmethod
     def _mean_marker_size_px(marker: ArucoMarker) -> float:
-        """
-        Approximate marker size in pixels as mean edge length.
-        """
         c = marker.corners
         edges = [
             np.linalg.norm(c[0] - c[1]),
@@ -125,10 +122,6 @@ class ArenaProcessor:
 
     @staticmethod
     def _expand_quad(src: np.ndarray, border_px: float) -> np.ndarray:
-        """
-        Expand quad outward from centroid by border_px.
-        src: (4,2) TL,TR,BR,BL
-        """
         if border_px <= 0:
             return src
 
@@ -168,7 +161,6 @@ class ArenaProcessor:
         p_br = outer_corner(br)
         p_bl = outer_corner(bl)
 
-        # Estimate border size from average marker size among the 4 corners
         sizes = [
             self._mean_marker_size_px(bl),
             self._mean_marker_size_px(tl),
@@ -190,7 +182,6 @@ class ArenaProcessor:
             return
 
         if not self._have_corner_markers(markers):
-            # Can't refresh now; keep old transform if we have one.
             return
 
         src, avg_marker_px = self._compute_src_quad_from_corner_ids(markers)
