@@ -13,10 +13,7 @@
   <link rel="stylesheet" href="/static/theme.css">
 
   <style>
-    html, body {
-      height: 100%;
-      margin: 0;
-    }
+    html, body { height: 100%; margin: 0; }
 
     /* Header */
     .vs-header {
@@ -25,25 +22,22 @@
       align-items: center;
       justify-content: space-between;
       padding: 0 18px;
-      background: #b53a37; /* similar to old */
+      background: #b53a37;
       color: #fff;
       box-shadow: 0 2px 0 rgba(0,0,0,0.2);
     }
-
     .vs-title {
       font-weight: 700;
       font-size: 26px;
       letter-spacing: 0.5px;
       white-space: nowrap;
     }
-
     .vs-nav {
       display: flex;
       gap: 18px;
       align-items: center;
       white-space: nowrap;
     }
-
     .vs-nav a {
       color: #fff;
       text-decoration: none;
@@ -51,24 +45,20 @@
       font-size: 14px;
       opacity: 0.95;
     }
+    .vs-nav a:hover { text-decoration: underline; opacity: 1.0; }
 
-    .vs-nav a:hover {
-      text-decoration: underline;
-      opacity: 1.0;
-    }
-
-    /* Main layout: below header fills the screen */
+    /* Main layout */
     .vs-main {
       height: calc(100vh - 64px);
       display: flex;
       background: #000;
     }
 
-    /* Left column */
+    /* Left column (2x width-ish) */
     .vs-left {
-      width: 360px;
-      min-width: 320px;
-      max-width: 420px;
+      width: 720px;         /* was ~360 */
+      min-width: 640px;
+      max-width: 860px;
       height: 100%;
       padding: 12px;
       box-sizing: border-box;
@@ -89,9 +79,7 @@
       background: rgba(255,255,255,0.03);
     }
 
-    .vs-panel-body {
-      padding: 12px;
-    }
+    .vs-panel-body { padding: 12px; }
 
     .vs-team-select {
       width: 100%;
@@ -109,19 +97,15 @@
       font-size: 12px;
       margin-bottom: 10px;
     }
-
     .vs-table th, .vs-table td {
       border: 1px solid rgba(255,255,255,0.10);
       padding: 6px 6px;
       text-align: left;
       white-space: nowrap;
     }
+    .vs-table th { background: rgba(255,255,255,0.05); font-weight: 700; }
 
-    .vs-table th {
-      background: rgba(255,255,255,0.05);
-      font-weight: 700;
-    }
-
+    /* Scrollboxes: force scrollbars and preserve newlines */
     .vs-scrollbox {
       width: 100%;
       background: #0d0d0d;
@@ -132,24 +116,39 @@
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       font-size: 12px;
       line-height: 1.35;
-      overflow-y: auto;
+      overflow-y: scroll;          /* always show scrollbar */
+      overflow-x: hidden;
       box-sizing: border-box;
+      white-space: pre-wrap;       /* render \n as real newlines */
     }
 
+    /* Left stack layout: make prints box take max space */
     .vs-left-stack {
       height: 100%;
       display: flex;
       flex-direction: column;
-      gap: 10px;
     }
 
-    /* This is the big scroll box in left column */
+    .vs-left-top {
+      padding: 12px 12px 0 12px;
+    }
+
+    .vs-left-bottom {
+      padding: 0 12px 12px 12px;
+      display: flex;
+      flex-direction: column;
+      flex: 1;                /* fill remaining space */
+      min-height: 0;          /* IMPORTANT: enables child scroll within flex */
+    }
+
     .vs-left-prints {
-      flex: 1;
-      min-height: 220px;
+      flex: 1;                /* take maximal height */
+      min-height: 0;          /* IMPORTANT: enables scroll */
+      margin-bottom: 10px;
     }
 
-    .vs-toggle-row {
+    /* Toggle "rolling ball" (switch) */
+    .vs-switch-row {
       display: flex;
       align-items: center;
       gap: 10px;
@@ -157,9 +156,55 @@
       user-select: none;
     }
 
-    .vs-toggle {
-      width: 18px;
-      height: 18px;
+    .vs-switch {
+      position: relative;
+      display: inline-block;
+      width: 52px;
+      height: 28px;
+      flex: 0 0 auto;
+    }
+
+    .vs-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .vs-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #444;
+      transition: .2s;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.18);
+    }
+
+    .vs-slider:before {
+      position: absolute;
+      content: "";
+      height: 22px;
+      width: 22px;
+      left: 3px;
+      bottom: 2.5px;
+      background-color: #ddd;
+      transition: .2s;
+      border-radius: 50%;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    }
+
+    .vs-switch input:checked + .vs-slider {
+      background-color: #2b7a2b;
+    }
+
+    .vs-switch input:checked + .vs-slider:before {
+      transform: translateX(24px);
+      background-color: #fff;
+    }
+
+    .vs-switch-label {
+      color: #eaeaea;
+      font-size: 14px;
     }
 
     .vs-btn {
@@ -169,14 +214,11 @@
       padding: 10px 12px;
       font-weight: 800;
       color: #fff;
-      background: #c63a37; /* red like old */
+      background: #c63a37;
     }
+    .vs-btn:disabled { opacity: 0.75; }
 
-    .vs-btn:disabled {
-      opacity: 0.75;
-    }
-
-    /* Right side: video + bottom system printouts */
+    /* Right side */
     .vs-right {
       flex: 1;
       height: 100%;
@@ -185,6 +227,7 @@
       padding: 12px 12px 12px 0;
       box-sizing: border-box;
       gap: 10px;
+      min-width: 0;
     }
 
     .vs-video-wrap {
@@ -216,16 +259,19 @@
       overflow: hidden;
       display: flex;
       flex-direction: column;
+      min-height: 0;
     }
 
     .vs-system-prints .vs-panel-body {
       height: 100%;
       padding: 10px;
       box-sizing: border-box;
+      min-height: 0;
     }
 
     .vs-system-prints-box {
       height: 100%;
+      min-height: 0;
     }
   </style>
 </head>
@@ -252,15 +298,14 @@
       <div class="vs-panel vs-left-stack" style="height:100%;">
         <div class="vs-panel-header">Team</div>
 
-        <div class="vs-panel-body" style="padding-bottom: 0;">
-          <!-- Team selector placeholder -->
+        <!-- Top section -->
+        <div class="vs-left-top">
           <select class="vs-team-select" id="teamSelect">
             <option selected>Team (placeholder)</option>
             <option>Team 1</option>
             <option>Team 2</option>
           </select>
 
-          <!-- Team information table placeholder -->
           <table class="vs-table">
             <thead>
               <tr>
@@ -285,24 +330,26 @@
           </table>
         </div>
 
-        <!-- Big scrollable prints box -->
-        <div class="vs-panel-body" style="padding-top: 0;">
-          <div class="vs-scrollbox vs-left-prints" id="teamPrints">
-            [INFO] Placeholder team printouts...
+        <!-- Bottom section: prints + toggles + button -->
+        <div class="vs-left-bottom">
+          <div class="vs-scrollbox vs-left-prints" id="teamPrints">[INFO] Placeholder team printouts...</div>
+
+          <div class="vs-switch-row">
+            <label class="vs-switch">
+              <input type="checkbox" id="autoscroll">
+              <span class="vs-slider"></span>
+            </label>
+            <div class="vs-switch-label">Autoscroll</div>
           </div>
 
-          <!-- Toggles -->
-          <div class="vs-toggle-row">
-            <input class="vs-toggle" type="checkbox" id="autoscroll" />
-            <label for="autoscroll">Autoscroll</label>
+          <div class="vs-switch-row">
+            <label class="vs-switch">
+              <input type="checkbox" id="showDisconnected">
+              <span class="vs-slider"></span>
+            </label>
+            <div class="vs-switch-label">Show disconnected teams</div>
           </div>
 
-          <div class="vs-toggle-row">
-            <input class="vs-toggle" type="checkbox" id="showDisconnected" />
-            <label for="showDisconnected">Show disconnected teams</label>
-          </div>
-
-          <!-- Clear prints button -->
           <div style="margin-top: 10px;">
             <button class="vs-btn" id="clearPrints" disabled>CLEAR PRINTS (placeholder)</button>
           </div>
@@ -310,30 +357,23 @@
       </div>
     </aside>
 
-    <!-- Right side: video and system printouts -->
+    <!-- Right side -->
     <section class="vs-right">
-      <!-- Video area: from bottom of header to top of system printouts -->
       <div class="vs-video-wrap">
-        <!-- Cropped + highlighted stream should be the main display -->
         <img class="vs-video" id="mainStream" src="/crop" alt="Cropped Stream" />
       </div>
 
-      <!-- System printouts: bottom scrollable text box -->
       <div class="vs-system-prints">
         <div class="vs-panel-header">System Printouts (placeholder)</div>
         <div class="vs-panel-body">
-          <div class="vs-scrollbox vs-system-prints-box" id="systemPrints">
-            [INFO] Placeholder system printouts...
-          </div>
+          <div class="vs-scrollbox vs-system-prints-box" id="systemPrints">[INFO] Placeholder system printouts...</div>
         </div>
       </div>
     </section>
 
   </div>
 
-  <!-- Placeholder wiring -->
   <script>
-    // Placeholder behavior: autoscroll toggles (no real log piping yet)
     (function () {
       const teamBox = document.getElementById("teamPrints");
       const systemBox = document.getElementById("systemPrints");
@@ -345,10 +385,10 @@
         }
       }
 
-      // Example placeholder log line every few seconds
+      // Use textContent + real newline characters (NOT "\\n")
       setInterval(() => {
-        teamBox.textContent += "\\n[INFO] Placeholder heartbeat...";
-        systemBox.textContent += "\\n[INFO] Placeholder system tick...";
+        teamBox.textContent += "\n[INFO] Placeholder heartbeat...";
+        systemBox.textContent += "\n[INFO] Placeholder system tick...";
         maybeScroll(teamBox);
         maybeScroll(systemBox);
       }, 4000);
