@@ -5,6 +5,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VENV_DIR="${ROOT_DIR}/.venv"
 PY="${VENV_DIR}/bin/python"
 
+export PYTHONPATH="${ROOT_DIR}"
+
 echo "[run] Starting vision system"
 
 if [[ ! -x "$PY" ]]; then
@@ -25,7 +27,6 @@ _cleanup() {
   fi
 }
 
-# On Ctrl+C / termination: try graceful shutdown, then force if needed
 _on_signal() {
   echo "[run] Ctrl+C received - requesting shutdown"
   _cleanup "INT"
@@ -61,5 +62,4 @@ _on_signal() {
 
 trap _on_signal INT TERM
 
-# Wait for python normally
 wait "$PID"
