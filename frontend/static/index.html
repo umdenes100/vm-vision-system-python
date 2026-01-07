@@ -20,10 +20,11 @@
       align-items: center;
       justify-content: space-between;
       padding: 0 18px;
-      background: #e21833; /* requested */
+      background: #e21833;
       color: #fff;
       box-shadow: 0 2px 0 rgba(0,0,0,0.2);
     }
+
     .vs-title { font-weight: 700; font-size: 26px; white-space: nowrap; }
     .vs-nav { display: flex; gap: 18px; }
     .vs-nav a { color: #fff; text-decoration: none; font-weight: 600; font-size: 14px; opacity: 0.95; }
@@ -118,18 +119,7 @@
     .vs-switch input:checked + .vs-slider { background: #2b7a2b; }
     .vs-switch input:checked + .vs-slider:before { transform: translateX(24px); background: #fff; }
 
-    .vs-btn {
-      width: 100%;
-      border-radius: 8px;
-      border: none;
-      padding: 10px;
-      font-weight: 800;
-      background: #c63a37;
-      color: #fff;
-      margin-top: 10px;
-    }
-    .vs-btn:disabled { opacity: 0.75; }
-
+    /* RIGHT */
     .vs-right {
       flex: 1;
       height: 100%;
@@ -186,6 +176,19 @@
     }
 
     .vs-system-prints-box { height: 100%; min-height: 0; }
+
+    /* ✅ Correct red for CLEAR PRINTS */
+    .vs-btn {
+      width: 100%;
+      border-radius: 8px;
+      border: none;
+      padding: 10px;
+      font-weight: 800;
+      background: #e21833;
+      color: #fff;
+      margin-top: 10px;
+    }
+    .vs-btn:disabled { opacity: 0.75; }
   </style>
 </head>
 
