@@ -2,18 +2,56 @@ import asyncio
 import json
 import logging
 from pathlib import Path
+from typing import Optional
 
+import cv2
+import numpy as np
 from aiohttp import web
 
 from utils.logging import get_logger, parse_level
 from utils.port_guard import ensure_ports_available
 from communications.arenacam import ArenaCamConfig, create_arenacam
+from vision.arena import ArenaConfig, ArenaProcessor
 from frontend.webpage import create_app
 
 
 def load_config(path: Path) -> dict:
     with path.open("r") as f:
         return json.load(f)
+
+
+def _decode_jpeg_to_bgr(jpeg_bytes: bytes) -> Optional[np.ndarray]:
+    arr = np.frombuffer(jpeg_bytes, dtype=np.uint8)
+    img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+    return img
+
+
+async def arena_processing_loop(logger, arenacam, arena_processor: ArenaProcessor):
+    """
+    Reads latest decoded JPEG bytes from arenacam and updates arena_processor outputs.
+    """
+    last_frame_ref = None
+
+    while True:
+        frame = arenacam.latest_frame
+        if frame is None:
+            await asyncio.sleep(0.01)
+            continue
+
+        # Avoid reprocessing the exact same bytes reference too aggressively
+        if frame is last_frame_ref:
+            await asyncio.sleep(0.01)
+            continue
+        last_frame_ref = frame
+
+        bgr = _decode_jpeg_to_bgr(frame)
+        if bgr is None:
+            logger.debug("Failed to decode JPEG frame")
+            await asyncio.sleep(0.01)
+            continue
+
+        arena_processor.process_bgr(bgr)
+        await asyncio.sleep(0)  # yield
 
 
 async def run():
@@ -30,7 +68,6 @@ async def run():
     tcp_host = fe_cfg.get("host", "0.0.0.0")
     tcp_port = int(fe_cfg.get("port", 8080))
 
-    # Ensure we can take control of required ports before launching anything.
     ensure_ports_available(
         udp_host=udp_host,
         udp_port=udp_port,
@@ -46,10 +83,15 @@ async def run():
             rtp_payload=int(cam_cfg.get("rtp_payload", 96)),
         )
     )
-
     await arenacam.start()
 
-    app = create_app(arenacam)
+    arena_processor = ArenaProcessor(ArenaConfig())
+
+    # Start processing loop
+    proc_task = asyncio.create_task(arena_processing_loop(logger, arenacam, arena_processor))
+
+    # Start frontend
+    app = create_app(arenacam, arena_processor)
     runner = web.AppRunner(app)
     await runner.setup()
 
@@ -64,6 +106,7 @@ async def run():
     except KeyboardInterrupt:
         logger.info("Shutdown requested")
     finally:
+        proc_task.cancel()
         await arenacam.stop()
         await runner.cleanup()
         logger.info("Stopped")
