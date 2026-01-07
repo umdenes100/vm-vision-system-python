@@ -41,7 +41,7 @@ HTML = """
       <div class="panel">
         <h2>Cropped Arena</h2>
         <img src="/crop" />
-        <div class="hint">Uses markers 0–3 to define crop. Shows placeholder until all are detected.</div>
+        <div class="hint">Crop transform refreshes every 10 minutes; crop persists through marker blinks.</div>
       </div>
     </div>
   </body>
@@ -52,13 +52,10 @@ _BOUNDARY = "frame"
 
 
 def _make_placeholder_jpeg() -> bytes:
-    """
-    Guaranteed-valid JPEG placeholder.
-    """
     img = np.zeros((240, 320, 3), dtype=np.uint8)
     cv2.putText(
         img,
-        "Waiting for markers 0-3...",
+        "Waiting for crop transform...",
         (10, 120),
         cv2.FONT_HERSHEY_SIMPLEX,
         0.6,
@@ -67,10 +64,7 @@ def _make_placeholder_jpeg() -> bytes:
         cv2.LINE_AA,
     )
     ok, buf = cv2.imencode(".jpg", img, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
-    if not ok:
-        # As a last resort, return a minimal empty-ish bytes; but imencode should not fail here.
-        return b""
-    return buf.tobytes()
+    return buf.tobytes() if ok else b""
 
 
 _PLACEHOLDER_JPEG = _make_placeholder_jpeg()
@@ -107,6 +101,11 @@ async def _mjpeg_stream(request: web.Request, frame_getter):
             await asyncio.sleep(0.05)
     except (asyncio.CancelledError, ConnectionResetError, BrokenPipeError):
         pass
+    finally:
+        try:
+            await resp.write_eof()
+        except Exception:
+            pass
 
     return resp
 
