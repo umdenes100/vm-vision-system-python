@@ -2,10 +2,10 @@
   "class_name": "<Class Name>",
   "room": "<Room Placeholder>",
   "links": [
-    { "Mission + Arena Details": "Link1", "url": "#" },
-    { "Micropython": "Link2", "url": "#" },
-    { "C++/Arduino": "Link3", "url": "#" },
-    { "Simulator": "Link4", "url": "#" },
-    { "FAQs": "Link5", "url": "#" }
+    { "name: "Mission + Arena Details", "url": "https://drive.google.com/drive/u/0/folders/1R99I7EBXbnalCymHS44RMTUMO7uZh9jD" },
+    { "name: "Micropython", "url": "https://enes100.umd.edu/documentation/micropython/" },
+    { "name: "C++/Arduino", "url": "https://enes100.umd.edu/documentation/arduino/" },
+    { "name: "Simulator", "url": "https://enes100.umd.edu/tools/simulator/" },
+    { "name: "FAQs", "url": "https://enes100.umd.edu/documentation/faq/" }
   ]
 }
