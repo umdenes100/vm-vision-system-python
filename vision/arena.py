@@ -3,36 +3,40 @@ from typing import Dict, Optional, Tuple
 
 import cv2
 import numpy as np
+import time
 
 from vision.aruco import ArucoDetector, ArucoMarker
 
 
 @dataclass
 class ArenaConfig:
-    # IDs that must be present to define the arena
+    # IDs that must be present to define the arena (used to refresh crop transform)
     required_corner_ids: Tuple[int, int, int, int] = (0, 1, 2, 3)
 
     # Output crop size (pixels)
     output_width: int = 1000
     output_height: int = 700
 
-    # Draw marker IDs on overlay
+    # Draw marker IDs on overlay/crop
     draw_ids: bool = True
 
     # Line thickness for marker boxes
     box_thickness: int = 2
+
+    # Only recompute the crop transform this often (seconds)
+    crop_refresh_seconds: int = 600  # 10 minutes
 
 
 class ArenaProcessor:
     """
     Produces:
       - latest_overlay_jpeg: raw frame with green boxes around all detected ArUco markers
-      - latest_cropped_jpeg: perspective-warped arena crop when markers 0-3 are all detected
+      - latest_cropped_jpeg: warped arena crop
 
-    Crop logic:
-      - Requires IDs 0-3 to be present.
-      - Determines the arena quad (TL, TR, BR, BL) robustly by taking ALL corners
-        of the four corner markers and selecting outermost points.
+    Crop stability:
+      - Maintains a cached homography (warp matrix) and keeps producing cropped frames
+        even if markers 0–3 temporarily disappear.
+      - Recomputes crop transform at most once every `crop_refresh_seconds`.
     """
 
     def __init__(self, cfg: ArenaConfig):
@@ -43,12 +47,18 @@ class ArenaProcessor:
         self.latest_cropped_jpeg: Optional[bytes] = None
 
         self._frames_processed = 0
-        self._last_have_corners = False
+
+        # Cached warp transform and timing
+        self._M_cached: Optional[np.ndarray] = None
+        self._M_last_update_monotonic: float = 0.0
 
     def stats(self) -> dict:
         return {
             "frames_processed": self._frames_processed,
-            "have_arena_corners": self._last_have_corners,
+            "have_cached_homography": self._M_cached is not None,
+            "seconds_since_crop_refresh": (
+                None if self._M_cached is None else (time.monotonic() - self._M_last_update_monotonic)
+            ),
         }
 
     @staticmethod
@@ -88,8 +98,8 @@ class ArenaProcessor:
     @staticmethod
     def _outermost_quad_from_corners(corners: np.ndarray) -> np.ndarray:
         """
-        corners: (N,2) float32 of points.
-        Returns points TL, TR, BR, BL using common heuristics:
+        corners: (N,2) float32
+        returns TL, TR, BR, BL based on:
           TL = min(x+y)
           BR = max(x+y)
           TR = max(x-y)
@@ -97,39 +107,37 @@ class ArenaProcessor:
         """
         s = corners[:, 0] + corners[:, 1]
         d = corners[:, 0] - corners[:, 1]
-
         tl = corners[np.argmin(s)]
         br = corners[np.argmax(s)]
         tr = corners[np.argmax(d)]
         bl = corners[np.argmin(d)]
-
         return np.array([tl, tr, br, bl], dtype=np.float32)
 
-    def process_bgr(self, frame_bgr: np.ndarray) -> None:
-        markers = self.detector.detect(frame_bgr)
+    def _maybe_refresh_homography(self, markers: Dict[int, ArucoMarker]) -> None:
+        """
+        Refresh cached homography only if:
+          - no cache yet, OR
+          - refresh interval elapsed AND required markers are present
+        """
+        now = time.monotonic()
 
-        # Overlay: raw + green boxes
-        overlay = frame_bgr.copy()
-        self._draw_marker_boxes(overlay, markers, self.cfg.box_thickness, self.cfg.draw_ids)
-        overlay_jpg = self._encode_jpeg(overlay, quality=80)
-        if overlay_jpg is not None:
-            self.latest_overlay_jpeg = overlay_jpg
+        need_first = self._M_cached is None
+        interval_elapsed = (now - self._M_last_update_monotonic) >= float(self.cfg.crop_refresh_seconds)
 
-        # Crop: require markers 0-3
-        if not self._have_required_corners(markers):
-            self._last_have_corners = False
-            self.latest_cropped_jpeg = None
-            self._frames_processed += 1
+        if not need_first and not interval_elapsed:
             return
 
-        # Gather all 16 corners from markers 0-3 and compute outermost quad
+        if not self._have_required_corners(markers):
+            # Can't refresh now; keep old transform if we have one.
+            return
+
+        # Use all corners from required markers to robustly define outer arena quad.
         pts = []
         for mid in self.cfg.required_corner_ids:
             pts.append(markers[mid].corners)
         all_corners = np.vstack(pts).astype(np.float32)  # (16,2)
 
         src = self._outermost_quad_from_corners(all_corners)
-        self._last_have_corners = True
 
         dst = np.array(
             [
@@ -141,8 +149,62 @@ class ArenaProcessor:
             dtype=np.float32,
         )
 
-        M = cv2.getPerspectiveTransform(src, dst)
+        self._M_cached = cv2.getPerspectiveTransform(src, dst)
+        self._M_last_update_monotonic = now
+
+    @staticmethod
+    def _warp_points(M: np.ndarray, pts_xy: np.ndarray) -> np.ndarray:
+        """
+        pts_xy: (N,2) float32
+        returns: (N,2) float32 warped points
+        """
+        pts = pts_xy.reshape(-1, 1, 2).astype(np.float32)
+        warped = cv2.perspectiveTransform(pts, M)
+        return warped.reshape(-1, 2)
+
+    def process_bgr(self, frame_bgr: np.ndarray) -> None:
+        markers = self.detector.detect(frame_bgr)
+
+        # Overlay: raw + green boxes
+        overlay = frame_bgr.copy()
+        self._draw_marker_boxes(overlay, markers, self.cfg.box_thickness, self.cfg.draw_ids)
+        overlay_jpg = self._encode_jpeg(overlay, quality=80)
+        if overlay_jpg is not None:
+            self.latest_overlay_jpeg = overlay_jpg
+
+        # Crop: update cached transform at most every 10 minutes (or first time)
+        self._maybe_refresh_homography(markers)
+
+        if self._M_cached is None:
+            # No crop available yet.
+            self.latest_cropped_jpeg = None
+            self._frames_processed += 1
+            return
+
+        M = self._M_cached
+
         warped = cv2.warpPerspective(frame_bgr, M, (self.cfg.output_width, self.cfg.output_height))
+
+        # Draw green boxes for all detected markers on the CROPPED view as well.
+        # Transform each marker's corners and draw in warped coordinate space.
+        for mid, m in markers.items():
+            warped_corners = self._warp_points(M, m.corners)
+            pts = warped_corners.astype(int).reshape(-1, 1, 2)
+            cv2.polylines(warped, [pts], isClosed=True, color=(0, 255, 0), thickness=self.cfg.box_thickness)
+
+            if self.cfg.draw_ids:
+                wc = self._warp_points(M, np.array([[m.center[0], m.center[1]]], dtype=np.float32))[0]
+                cx, cy = int(wc[0]), int(wc[1])
+                cv2.putText(
+                    warped,
+                    str(mid),
+                    (cx + 6, cy - 6),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (0, 255, 0),
+                    2,
+                    cv2.LINE_AA,
+                )
 
         cropped_jpg = self._encode_jpeg(warped, quality=80)
         if cropped_jpg is not None:
