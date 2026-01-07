@@ -25,21 +25,9 @@
       color: #fff;
       box-shadow: 0 2px 0 rgba(0,0,0,0.2);
     }
-
-    .vs-title {
-      font-weight: 700;
-      font-size: 26px;
-      white-space: nowrap;
-    }
-
+    .vs-title { font-weight: 700; font-size: 26px; white-space: nowrap; }
     .vs-nav { display: flex; gap: 18px; }
-    .vs-nav a {
-      color: #fff;
-      text-decoration: none;
-      font-weight: 600;
-      font-size: 14px;
-      opacity: 0.95;
-    }
+    .vs-nav a { color: #fff; text-decoration: none; font-weight: 600; font-size: 14px; opacity: 0.95; }
     .vs-nav a:hover { text-decoration: underline; opacity: 1.0; }
 
     /* Main layout */
@@ -49,7 +37,7 @@
       background: #000;
     }
 
-    /* LEFT COLUMN ~75% of prior */
+    /* Left column */
     .vs-left {
       width: 540px;
       min-width: 500px;
@@ -73,8 +61,6 @@
       border-bottom: 1px solid rgba(255,255,255,0.10);
       background: rgba(255,255,255,0.03);
     }
-
-    .vs-panel-body { padding: 12px; }
 
     .vs-team-select {
       width: 100%;
@@ -102,7 +88,6 @@
 
     .vs-table th { background: rgba(255,255,255,0.05); }
 
-    /* Scrollboxes: always scroll + preserve newlines */
     .vs-scrollbox {
       width: 100%;
       background: #0d0d0d;
@@ -119,30 +104,18 @@
       box-sizing: border-box;
     }
 
-    /* Left column layout to maximize prints area without affecting controls */
-    .vs-left-stack {
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-    }
-
+    .vs-left-stack { height: 100%; display: flex; flex-direction: column; }
     .vs-left-top { padding: 12px 12px 0 12px; }
-
     .vs-left-bottom {
       flex: 1;
-      min-height: 0; /* crucial for inner scrolling */
+      min-height: 0;
       padding: 0 12px 12px 12px;
       display: flex;
       flex-direction: column;
     }
+    .vs-left-prints { flex: 1; min-height: 0; margin-bottom: 10px; }
 
-    .vs-left-prints {
-      flex: 1;
-      min-height: 0; /* crucial for inner scrolling */
-      margin-bottom: 10px;
-    }
-
-    /* Toggle switches (rolling ball) */
+    /* Switches */
     .vs-switch-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
     .vs-switch { position: relative; width: 52px; height: 28px; flex: 0 0 auto; }
     .vs-switch input { opacity: 0; width: 0; height: 0; }
@@ -174,80 +147,70 @@
       font-weight: 800;
       background: #c63a37;
       color: #fff;
+      margin-top: 10px;
     }
     .vs-btn:disabled { opacity: 0.75; }
 
-    /* RIGHT SIDE */
+    /* Right side as grid: Video row is always 2:1, system prints fills remainder */
     .vs-right {
       flex: 1;
       height: 100%;
-      display: flex;
-      flex-direction: column;
       padding: 12px 12px 12px 0;
+      box-sizing: border-box;
+      display: grid;
+      grid-template-rows: auto 1fr;   /* video row auto (2:1), prints row fills remaining */
       gap: 10px;
       min-width: 0;
-      box-sizing: border-box;
+      align-content: start;
     }
 
-    /* Video region fills available space */
+    /* Video container */
     .vs-video-region {
-      flex: 1;
-      min-height: 0;
       background: #1a1a1a;
       border: 1px solid rgba(255,255,255,0.12);
       border-radius: 8px;
       overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
       padding: 10px;
       box-sizing: border-box;
     }
 
-    /* The actual 2:1 frame inside the region */
+    /* True 2:1 frame */
     .vs-video-frame {
       width: 100%;
-      max-height: 100%;
-      aspect-ratio: 2 / 1;     /* ENFORCES 2:1 */
+      aspect-ratio: 2 / 1;
       background: #000;
       border-radius: 6px;
       overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: block;
     }
 
     .vs-video {
       width: 100%;
       height: 100%;
       object-fit: contain;
-      background: #000;
       display: block;
+      background: #000;
     }
 
-    /* System printouts fixed-height with guaranteed scrollbar */
+    /* System prints: fill remaining height, scroll inside */
     .vs-system-prints {
-      height: 220px;
       background: #1a1a1a;
       border: 1px solid rgba(255,255,255,0.12);
       border-radius: 8px;
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      min-height: 0;
+      min-height: 160px; /* can shrink if needed to preserve 2:1 video */
     }
 
     .vs-system-prints .vs-panel-body {
       flex: 1;
-      min-height: 0; /* crucial for inner scrolling */
+      min-height: 0;
       padding: 10px;
       box-sizing: border-box;
     }
 
-    .vs-system-prints-box {
-      height: 100%;
-      min-height: 0;
-    }
+    .vs-system-prints-box { height: 100%; min-height: 0; }
   </style>
 </head>
 
@@ -300,10 +263,9 @@
       <div class="vs-left-bottom">
         <div class="vs-scrollbox vs-left-prints" id="teamPrints">[INFO] Placeholder team printouts...</div>
 
-        <!-- Autoscroll toggle (default ON for system printouts, but controls both) -->
         <div class="vs-switch-row">
           <label class="vs-switch">
-            <input type="checkbox" id="autoscroll">
+            <input type="checkbox" id="autoscroll" checked>
             <span class="vs-slider"></span>
           </label>
           <span>Autoscroll</span>
@@ -317,7 +279,7 @@
           <span>Show disconnected teams</span>
         </div>
 
-        <button class="vs-btn" id="clearPrints" disabled style="margin-top:10px;">CLEAR PRINTS (placeholder)</button>
+        <button class="vs-btn" id="clearPrints" disabled>CLEAR PRINTS (placeholder)</button>
       </div>
     </div>
   </aside>
@@ -345,9 +307,6 @@
     const teamBox = document.getElementById("teamPrints");
     const systemBox = document.getElementById("systemPrints");
     const autoscroll = document.getElementById("autoscroll");
-
-    // System Printouts should autoscroll by default
-    autoscroll.checked = true;
 
     function maybeScroll(box) {
       if (autoscroll.checked) {
