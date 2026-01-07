@@ -270,6 +270,8 @@
 
 </div>
 
+<script src="/static/uiconfig.js"></script>
+
 <script>
   (function () {
     const teamBox = document.getElementById("teamPrints");
@@ -277,56 +279,10 @@
     const autoscroll = document.getElementById("autoscroll");
     const clearBtn = document.getElementById("clearPrints");
 
-    clearBtn.addEventListener("click", () => {
-      teamBox.textContent = "";
-    });
+    clearBtn.addEventListener("click", () => { teamBox.textContent = ""; });
 
     function maybeScroll(box) {
       if (autoscroll.checked) box.scrollTop = box.scrollHeight;
-    }
-
-    async function loadUiConfig() {
-      const fallbackLinks = () => {
-        const nav = document.getElementById("headerLinks");
-        nav.innerHTML = "";
-        for (let i = 1; i <= 5; i++) {
-          const a = document.createElement("a");
-          a.textContent = `Link${i}`;
-          a.href = "#";
-          a.onclick = () => false;
-          nav.appendChild(a);
-        }
-      };
-
-      try {
-        const r = await fetch("/static/ui-config.json", { cache: "no-store" });
-        if (!r.ok) throw new Error("ui-config.json not found");
-        const cfg = await r.json();
-
-        const cls = (cfg.class_name || "<Class Name>").trim();
-        const room = (cfg.room || "<Room Placeholder>").trim();
-        document.getElementById("headerTitle").textContent = `${cls} ${room} Vision System`;
-
-        const nav = document.getElementById("headerLinks");
-        nav.innerHTML = "";
-        const links = Array.isArray(cfg.links) ? cfg.links : [];
-        for (const item of links.slice(0, 5)) {
-          const name = (item?.name || "").trim();
-          const url = (item?.url || "").trim();
-          if (!name) continue;
-
-          const a = document.createElement("a");
-          a.textContent = name;
-          a.href = url || "#";
-          a.target = "_blank";
-          a.rel = "noopener noreferrer";
-          nav.appendChild(a);
-        }
-
-        if (!nav.children.length) fallbackLinks();
-      } catch (_) {
-        fallbackLinks();
-      }
     }
 
     function connectWs() {
@@ -349,10 +305,9 @@
       ws.onerror = () => { try { ws.close(); } catch (_) {} };
     }
 
-    loadUiConfig();
     connectWs();
 
-    // temporary placeholder activity
+    // temporary placeholder activity to validate autoscroll + clear
     setInterval(() => {
       teamBox.textContent += (teamBox.textContent.length ? "\n" : "") + "[INFO] Team heartbeat";
       maybeScroll(teamBox);
