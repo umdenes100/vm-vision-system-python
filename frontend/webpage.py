@@ -1,11 +1,12 @@
 import asyncio
+import json
 from pathlib import Path
 from aiohttp import web
 
 import cv2
 import numpy as np
 
-from utils.logging import get_logger, register_web_sink
+from utils.logging import get_logger, register_web_event_sink
 
 _BOUNDARY = "frame"
 
@@ -71,9 +72,9 @@ def create_app(stop_event: asyncio.Event, arenacam, arena_processor):
     static_dir = Path(__file__).parent / "static"
     index_path = static_dir / "index.html"
 
-    # Web log broadcast state
+    # WebSocket + event queue
     app["ws_clients"] = set()
-    app["web_log_queue"] = asyncio.Queue(maxsize=1000)
+    app["web_evt_queue"] = asyncio.Queue(maxsize=2000)
 
     async def index(request: web.Request) -> web.Response:
         if not index_path.exists():
@@ -106,7 +107,7 @@ def create_app(stop_event: asyncio.Event, arenacam, arena_processor):
         logger.info("WebSocket client connected to /ws")
         try:
             async for _msg in ws:
-                # We don't handle inbound messages yet
+                # No inbound messages for now
                 pass
         finally:
             app["ws_clients"].discard(ws)
@@ -115,50 +116,51 @@ def create_app(stop_event: asyncio.Event, arenacam, arena_processor):
 
     async def broadcaster_task(app_: web.Application):
         while not stop_event.is_set():
-            line = await app_["web_log_queue"].get()
+            evt = await app_["web_evt_queue"].get()
+            payload = json.dumps(evt)
+
             dead = []
             for ws in list(app_["ws_clients"]):
                 try:
-                    await ws.send_str(line)
+                    await ws.send_str(payload)
                 except Exception:
                     dead.append(ws)
             for ws in dead:
                 app_["ws_clients"].discard(ws)
 
     async def on_startup(app_: web.Application):
-        # Register sink for utils.logging web log calls
         loop = asyncio.get_running_loop()
 
-        def sink(line: str):
-            # Called from anywhere (possibly other threads); schedule safely
+        def sink(evt: dict):
+            # Can be called from any thread; enqueue safely
             def _put_nowait():
-                q: asyncio.Queue = app_["web_log_queue"]
+                q: asyncio.Queue = app_["web_evt_queue"]
                 try:
-                    q.put_nowait(line)
+                    q.put_nowait(evt)
                 except asyncio.QueueFull:
-                    # Drop oldest by draining one item, then retry
+                    # drop oldest then retry
                     try:
                         _ = q.get_nowait()
                     except Exception:
                         pass
                     try:
-                        q.put_nowait(line)
+                        q.put_nowait(evt)
                     except Exception:
                         pass
 
             loop.call_soon_threadsafe(_put_nowait)
 
-        register_web_sink(sink)
+        register_web_event_sink(sink)
         app_["broadcaster"] = asyncio.create_task(broadcaster_task(app_))
 
     async def on_cleanup(app_: web.Application):
         task = app_.get("broadcaster")
         if task:
-          task.cancel()
-          try:
-              await task
-          except Exception:
-              pass
+            task.cancel()
+            try:
+                await task
+            except Exception:
+                pass
 
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
