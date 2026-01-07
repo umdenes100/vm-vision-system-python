@@ -1,0 +1,6 @@
+{
+  "system": {
+    "name": "vm-vision-system",
+    "log_level": "INFO"
+  }
+}
