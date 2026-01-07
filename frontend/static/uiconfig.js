@@ -4,14 +4,22 @@
     const navEl = document.getElementById("headerLinks");
     if (!titleEl || !navEl) return;
 
-    function styleHeaderLink(a) {
-      // Make absolutely sure it is visible regardless of other CSS.
-      a.style.display = "inline-block";
-      a.style.color = "#fff";
-      a.style.opacity = "1";
-      a.style.textDecoration = "none";
-      a.style.fontWeight = "600";
-      a.style.fontSize = "14px";
+    function forceVisibleText(el) {
+      // Use important to defeat external CSS (bootstrap/theme/index.css)
+      el.style.setProperty("display", "inline-block", "important");
+      el.style.setProperty("color", "#ffffff", "important");
+      el.style.setProperty("-webkit-text-fill-color", "#ffffff", "important");
+      el.style.setProperty("opacity", "1", "important");
+      el.style.setProperty("visibility", "visible", "important");
+      el.style.setProperty("text-decoration", "none", "important");
+      el.style.setProperty("font-weight", "600", "important");
+      el.style.setProperty("font-size", "14px", "important");
+      el.style.setProperty("line-height", "1", "important");
+
+      // Defeat weird theme tricks
+      el.style.setProperty("filter", "none", "important");
+      el.style.setProperty("mix-blend-mode", "normal", "important");
+      el.style.setProperty("text-shadow", "0 0 1px rgba(0,0,0,0.35)", "important");
     }
 
     function renderFallbackLinks() {
@@ -21,14 +29,12 @@
         a.textContent = `Link${i}`;
         a.href = "#";
         a.onclick = () => false;
-        styleHeaderLink(a);
+        forceVisibleText(a);
         navEl.appendChild(a);
       }
     }
 
     function normalizeLinks(cfg) {
-      // Preferred schema:
-      // { links: [ {name:"...", url:"..."}, ... ] }
       if (Array.isArray(cfg.links)) {
         return cfg.links
           .slice(0, 5)
@@ -39,8 +45,6 @@
           .filter((x) => x.name.length > 0);
       }
 
-      // Alternate schemas:
-      // link1_name/link1_url, or link1/link1_url
       const out = [];
       for (let i = 1; i <= 5; i++) {
         const name =
@@ -71,7 +75,9 @@
 
       const cls = String(cfg.class_name || "<Class Name>").trim();
       const room = String(cfg.room || "<Room Placeholder>").trim();
+
       titleEl.textContent = `${cls} ${room} Vision System`;
+      forceVisibleText(titleEl);
 
       const links = normalizeLinks(cfg);
 
@@ -87,11 +93,12 @@
         a.href = item.url || "#";
         a.target = "_blank";
         a.rel = "noopener noreferrer";
-        styleHeaderLink(a);
+        forceVisibleText(a);
         navEl.appendChild(a);
       }
     } catch (_e) {
       renderFallbackLinks();
+      if (titleEl) forceVisibleText(titleEl);
     }
   }
 
