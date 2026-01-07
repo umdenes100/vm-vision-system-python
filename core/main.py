@@ -47,7 +47,6 @@ async def arena_processing_loop(
     target_fps: float = 30.0,
 ):
     frame_period = 1.0 / max(1.0, float(target_fps))
-
     try:
         while not stop_event.is_set():
             start = time.perf_counter()
@@ -150,32 +149,42 @@ async def run():
 
         await stop_event.wait()
 
+    except asyncio.CancelledError:
+        # Normal during shutdown (SIGINT)
+        stop_event.set()
+
     finally:
-        # Begin shutdown
         stop_event.set()
 
         if proc_task is not None:
             proc_task.cancel()
             try:
                 await asyncio.wait_for(proc_task, timeout=2.0)
+            except asyncio.CancelledError:
+                pass
             except Exception:
                 pass
 
         if site is not None:
             try:
                 await asyncio.wait_for(site.stop(), timeout=2.0)
+            except asyncio.CancelledError:
+                pass
             except Exception:
                 pass
 
         if runner is not None:
             try:
                 await asyncio.wait_for(runner.cleanup(), timeout=2.0)
+            except asyncio.CancelledError:
+                pass
             except Exception:
                 pass
 
-        # GStreamer can wedge; don't hang forever
         try:
             await asyncio.wait_for(arenacam.stop(), timeout=2.5)
+        except asyncio.CancelledError:
+            pass
         except Exception:
             pass
 
