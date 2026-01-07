@@ -2,10 +2,10 @@
   "class_name": "<Class Name>",
   "room": "<Room Placeholder>",
   "links": [
-    { "name": "Link1", "url": "#" },
-    { "name": "Link2", "url": "#" },
-    { "name": "Link3", "url": "#" },
-    { "name": "Link4", "url": "#" },
-    { "name": "Link5", "url": "#" }
+    { "Mission + Arena Details": "Link1", "url": "#" },
+    { "Micropython": "Link2", "url": "#" },
+    { "C++/Arduino": "Link3", "url": "#" },
+    { "Simulator": "Link4", "url": "#" },
+    { "FAQs": "Link5", "url": "#" }
   ]
 }
