@@ -4,13 +4,16 @@ A modular, headless vision system for an introductory robotics course.
 
 ## What it does (current + planned)
 
-Current (implemented scaffolding):
-- Receives a streamed video feed over UDP (current receiver assumes one JPEG frame per UDP datagram).
-- Hosts a simple webpage showing the raw video feed (MJPEG stream).
+Current:
+- Receives a streamed video feed over UDP as RTP/H.264 (from a Raspberry Pi sender).
+- Decodes the RTP/H.264 stream into JPEG frames using GStreamer on the VM.
+- Hosts a simple webpage showing the raw video feed as MJPEG.
 
 Planned:
-- Detects ArUco markers, crops the arena using markers 0–3, computes robot pose (X, Y, θ).
-- Communicates pose + print messages with ESP-based clients using WebSocket.
+- Detect ArUco markers.
+- Crop the arena using markers 0–3.
+- Compute robot pose (X, Y, theta).
+- Communicate with ESP-based clients using WebSocket.
 
 ## Repo layout
 
@@ -33,41 +36,58 @@ vm-vision-system-python/
 
 ## Install
 
-1) Create and install into a virtual environment:
-- cd install
-- chmod +x install.sh
-- ./install.sh
+Python dependencies:
+
+cd install
+chmod +x install.sh
+./install.sh
+
+System requirement (VM):
+- GStreamer must be installed and able to decode H.264.
+
+Typical Ubuntu/Debian packages (install via apt):
+- gstreamer1.0-tools
+- gstreamer1.0-plugins-base
+- gstreamer1.0-plugins-good
+- gstreamer1.0-plugins-bad
+- gstreamer1.0-plugins-ugly
+- gstreamer1.0-libav
 
 ## Run
 
-1) Start the system:
-- cd core
-- chmod +x run.sh
-- ./run.sh
+cd core
+chmod +x run.sh
+./run.sh
 
-2) Open the webpage:
-- http://<VM_IP>:8080/
+Then open:
+http://<VM_IP>:8080/
 
 ## Configuration
 
 Edit:
-- core/config.json
+core/config.json
 
-### Notes on UDP video
+## Camera sender (Raspberry Pi 5)
 
-The current UDP receiver expects each UDP datagram contains exactly one complete JPEG frame.
+Your sender is producing RTP/H.264 over UDP, for example:
 
-This is a simple and common approach for teaching systems. If your camera stream splits frames across multiple packets
-(or uses RTP or another encoding), we will update the receiver to reassemble frames or support the correct format.
+rpicam-vid ... --codec h264 ... -o - | \
+gst-launch-1.0 fdsrc ! h264parse ! rtph264pay config-interval=1 pt=96 ! \
+  udpsink host=<VM_IP> port=5000
+
+This project expects that exact transport:
+- UDP port matches core/config.json
+- RTP payload type matches core/config.json (default 96)
 
 ## Logging
 
 Configured via core/config.json:
-- DEBUG
-- INFO
-- WARN
-- ERROR
-- FATAL
+
+DEBUG
+INFO
+WARN
+ERROR
+FATAL
 
 Console format:
-- [LEVEL] Message
+[LEVEL] Message
