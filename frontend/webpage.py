@@ -72,7 +72,6 @@ def create_app(stop_event: asyncio.Event, arenacam, arena_processor):
     static_dir = Path(__file__).parent / "static"
     index_path = static_dir / "index.html"
 
-    # WebSocket + event queue
     app["ws_clients"] = set()
     app["web_evt_queue"] = asyncio.Queue(maxsize=2000)
 
@@ -107,38 +106,41 @@ def create_app(stop_event: asyncio.Event, arenacam, arena_processor):
         logger.info("WebSocket client connected to /ws")
         try:
             async for _msg in ws:
-                # No inbound messages for now
                 pass
+        except asyncio.CancelledError:
+            pass
         finally:
             app["ws_clients"].discard(ws)
             logger.info("WebSocket client disconnected from /ws")
         return ws
 
     async def broadcaster_task(app_: web.Application):
-        while not stop_event.is_set():
-            evt = await app_["web_evt_queue"].get()
-            payload = json.dumps(evt)
+        try:
+            while not stop_event.is_set():
+                evt = await app_["web_evt_queue"].get()
+                payload = json.dumps(evt)
 
-            dead = []
-            for ws in list(app_["ws_clients"]):
-                try:
-                    await ws.send_str(payload)
-                except Exception:
-                    dead.append(ws)
-            for ws in dead:
-                app_["ws_clients"].discard(ws)
+                dead = []
+                for ws in list(app_["ws_clients"]):
+                    try:
+                        await ws.send_str(payload)
+                    except Exception:
+                        dead.append(ws)
+                for ws in dead:
+                    app_["ws_clients"].discard(ws)
+        except asyncio.CancelledError:
+            # Normal during shutdown
+            return
 
     async def on_startup(app_: web.Application):
         loop = asyncio.get_running_loop()
 
         def sink(evt: dict):
-            # Can be called from any thread; enqueue safely
             def _put_nowait():
                 q: asyncio.Queue = app_["web_evt_queue"]
                 try:
                     q.put_nowait(evt)
                 except asyncio.QueueFull:
-                    # drop oldest then retry
                     try:
                         _ = q.get_nowait()
                     except Exception:
@@ -159,6 +161,8 @@ def create_app(stop_event: asyncio.Event, arenacam, arena_processor):
             task.cancel()
             try:
                 await task
+            except asyncio.CancelledError:
+                pass
             except Exception:
                 pass
 
