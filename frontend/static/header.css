@@ -1,24 +1,45 @@
-/* Header layout + strong overrides to keep links visible */
+/* Strong header overrides to ensure text is always visible */
 .vs-header {
   background: #e21833;
-  color: #ffffff;
+  color: #ffffff !important;
 }
 
-/* Make sure header title stays white */
+/* Title */
 .vs-header .vs-title,
 .vs-header #headerTitle {
   color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  filter: none !important;
+  mix-blend-mode: normal !important;
 }
 
-/* Force link visibility no matter what other CSS files do */
+/* Links container */
+.vs-header .vs-nav,
+.vs-header #headerLinks {
+  display: flex !important;
+  gap: 18px !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Links themselves */
 .vs-header .vs-nav a,
 .vs-header #headerLinks a {
   color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
   opacity: 1 !important;
+  visibility: visible !important;
   text-decoration: none !important;
-  font-weight: 600;
-  font-size: 14px;
-  display: inline-block;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  display: inline-block !important;
+  filter: none !important;
+  mix-blend-mode: normal !important;
+  text-shadow: 0 0 1px rgba(0,0,0,0.35) !important;
 }
 
 .vs-header .vs-nav a:hover,
