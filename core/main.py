@@ -86,8 +86,6 @@ async def run():
     )
 
     stop_event = asyncio.Event()
-
-    # Signal handlers for clean one-shot Ctrl+C
     loop = asyncio.get_running_loop()
 
     def _request_stop():
@@ -99,7 +97,6 @@ async def run():
         try:
             loop.add_signal_handler(sig, _request_stop)
         except NotImplementedError:
-            # Some environments don't support it (rare on Linux VM)
             pass
 
     arenacam = create_arenacam(
@@ -112,18 +109,20 @@ async def run():
     )
     await arenacam.start()
 
-    # Corner marker IDs (presence required to refresh transform)
-    # Physical layout noted by you: 0 BL, 1 TL, 2 TR, 3 BR
     arena_processor = ArenaProcessor(
         ArenaConfig(
-            required_corner_ids=(0, 1, 2, 3),
-            crop_refresh_seconds=600,  # 10 minutes
+            id_bl=0,
+            id_tl=1,
+            id_tr=2,
+            id_br=3,
+            crop_refresh_seconds=600,
+            border_marker_fraction=0.5,
         )
     )
 
     proc_task = asyncio.create_task(arena_processing_loop(stop_event, logger, arenacam, arena_processor))
 
-    app = create_app(arenacam, arena_processor)
+    app = create_app(stop_event, arenacam, arena_processor)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, tcp_host, tcp_port)
@@ -132,24 +131,35 @@ async def run():
     ip = _get_best_local_ip()
     logger.info(f"Vision system running. Open http://{ip}:{tcp_port}/")
 
-    # Wait for stop signal
+    # wait until Ctrl+C
     await stop_event.wait()
 
-    # Shutdown sequence
+    # Stop accepting new connections
+    try:
+        await site.stop()
+    except Exception:
+        pass
+
+    # Let streaming handlers notice stop_event and exit
+    await asyncio.sleep(0.1)
+
+    # Stop processing
     proc_task.cancel()
     try:
         await proc_task
     except asyncio.CancelledError:
         pass
 
+    # Stop camera decode
     await arenacam.stop()
+
+    # Cleanup web server
     await runner.cleanup()
 
     logger.info("Stopped cleanly")
 
 
 def main():
-    # No KeyboardInterrupt leakage; handled via signals
     asyncio.run(run())
 
 
