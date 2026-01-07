@@ -59,7 +59,7 @@ async def arena_processing_loop(stop_event: asyncio.Event, logger, arenacam, are
                 continue
 
             arena_processor.process_bgr(bgr)
-            await asyncio.sleep(0)  # yield
+            await asyncio.sleep(0)
     except asyncio.CancelledError:
         return
 
@@ -111,10 +111,7 @@ async def run():
 
     arena_processor = ArenaProcessor(
         ArenaConfig(
-            id_bl=0,
-            id_tl=1,
-            id_tr=2,
-            id_br=3,
+            id_bl=0, id_tl=1, id_tr=2, id_br=3,
             crop_refresh_seconds=600,
             border_marker_fraction=0.5,
         )
@@ -131,29 +128,22 @@ async def run():
     ip = _get_best_local_ip()
     logger.info(f"Vision system running. Open http://{ip}:{tcp_port}/")
 
-    # wait until Ctrl+C
     await stop_event.wait()
 
-    # Stop accepting new connections
     try:
         await site.stop()
     except Exception:
         pass
 
-    # Let streaming handlers notice stop_event and exit
     await asyncio.sleep(0.1)
 
-    # Stop processing
     proc_task.cancel()
     try:
         await proc_task
     except asyncio.CancelledError:
         pass
 
-    # Stop camera decode
     await arenacam.stop()
-
-    # Cleanup web server
     await runner.cleanup()
 
     logger.info("Stopped cleanly")
