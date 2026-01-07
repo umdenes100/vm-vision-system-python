@@ -1,0 +1,11 @@
+{
+  "class_name": "<Class Name>",
+  "room": "<Room Placeholder>",
+  "links": [
+    { "name": "Link1", "url": "#" },
+    { "name": "Link2", "url": "#" },
+    { "name": "Link3", "url": "#" },
+    { "name": "Link4", "url": "#" },
+    { "name": "Link5", "url": "#" }
+  ]
+}
