@@ -32,17 +32,15 @@
       white-space: nowrap;
     }
 
-    .vs-nav {
-      display: flex;
-      gap: 18px;
-    }
-
+    .vs-nav { display: flex; gap: 18px; }
     .vs-nav a {
       color: #fff;
       text-decoration: none;
       font-weight: 600;
       font-size: 14px;
+      opacity: 0.95;
     }
+    .vs-nav a:hover { text-decoration: underline; opacity: 1.0; }
 
     /* Main layout */
     .vs-main {
@@ -51,7 +49,7 @@
       background: #000;
     }
 
-    /* LEFT COLUMN — reduced to ~75% */
+    /* LEFT COLUMN ~75% of prior */
     .vs-left {
       width: 540px;
       min-width: 500px;
@@ -99,12 +97,12 @@
       border: 1px solid rgba(255,255,255,0.10);
       padding: 6px;
       white-space: nowrap;
+      text-align: left;
     }
 
-    .vs-table th {
-      background: rgba(255,255,255,0.05);
-    }
+    .vs-table th { background: rgba(255,255,255,0.05); }
 
+    /* Scrollboxes: always scroll + preserve newlines */
     .vs-scrollbox {
       width: 100%;
       background: #0d0d0d;
@@ -112,27 +110,27 @@
       border-radius: 6px;
       padding: 8px;
       color: #eaeaea;
-      font-family: monospace;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       font-size: 12px;
       line-height: 1.35;
       overflow-y: scroll;
+      overflow-x: hidden;
       white-space: pre-wrap;
       box-sizing: border-box;
     }
 
+    /* Left column layout to maximize prints area without affecting controls */
     .vs-left-stack {
       height: 100%;
       display: flex;
       flex-direction: column;
     }
 
-    .vs-left-top {
-      padding: 12px 12px 0 12px;
-    }
+    .vs-left-top { padding: 12px 12px 0 12px; }
 
     .vs-left-bottom {
       flex: 1;
-      min-height: 0;
+      min-height: 0; /* crucial for inner scrolling */
       padding: 0 12px 12px 12px;
       display: flex;
       flex-direction: column;
@@ -140,54 +138,33 @@
 
     .vs-left-prints {
       flex: 1;
-      min-height: 0;
+      min-height: 0; /* crucial for inner scrolling */
       margin-bottom: 10px;
     }
 
-    /* Toggle switches */
-    .vs-switch-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-top: 8px;
-    }
-
-    .vs-switch {
-      position: relative;
-      width: 52px;
-      height: 28px;
-    }
-
-    .vs-switch input { opacity: 0; }
-
+    /* Toggle switches (rolling ball) */
+    .vs-switch-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+    .vs-switch { position: relative; width: 52px; height: 28px; flex: 0 0 auto; }
+    .vs-switch input { opacity: 0; width: 0; height: 0; }
     .vs-slider {
-      position: absolute;
-      inset: 0;
+      position: absolute; inset: 0;
       background: #444;
       border-radius: 999px;
       transition: .2s;
+      border: 1px solid rgba(255,255,255,0.18);
     }
-
     .vs-slider:before {
       content: "";
       position: absolute;
-      width: 22px;
-      height: 22px;
-      left: 3px;
-      bottom: 3px;
+      width: 22px; height: 22px;
+      left: 3px; top: 2.5px;
       background: #ddd;
       border-radius: 50%;
       transition: .2s;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.5);
     }
-
-    .vs-switch input:checked + .vs-slider {
-      background: #2b7a2b;
-    }
-
-    .vs-switch input:checked + .vs-slider:before {
-      transform: translateX(24px);
-      background: #fff;
-    }
+    .vs-switch input:checked + .vs-slider { background: #2b7a2b; }
+    .vs-switch input:checked + .vs-slider:before { transform: translateX(24px); background: #fff; }
 
     .vs-btn {
       width: 100%;
@@ -198,6 +175,7 @@
       background: #c63a37;
       color: #fff;
     }
+    .vs-btn:disabled { opacity: 0.75; }
 
     /* RIGHT SIDE */
     .vs-right {
@@ -208,16 +186,35 @@
       padding: 12px 12px 12px 0;
       gap: 10px;
       min-width: 0;
+      box-sizing: border-box;
     }
 
-    /* VIDEO — forced 2:1 */
-    .vs-video-wrap {
-      aspect-ratio: 2 / 1;
-      width: 100%;
-      background: #000;
+    /* Video region fills available space */
+    .vs-video-region {
+      flex: 1;
+      min-height: 0;
+      background: #1a1a1a;
+      border: 1px solid rgba(255,255,255,0.12);
       border-radius: 8px;
       overflow: hidden;
-      border: 1px solid rgba(255,255,255,0.12);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+
+    /* The actual 2:1 frame inside the region */
+    .vs-video-frame {
+      width: 100%;
+      max-height: 100%;
+      aspect-ratio: 2 / 1;     /* ENFORCES 2:1 */
+      background: #000;
+      border-radius: 6px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .vs-video {
@@ -225,8 +222,10 @@
       height: 100%;
       object-fit: contain;
       background: #000;
+      display: block;
     }
 
+    /* System printouts fixed-height with guaranteed scrollbar */
     .vs-system-prints {
       height: 220px;
       background: #1a1a1a;
@@ -235,6 +234,19 @@
       overflow: hidden;
       display: flex;
       flex-direction: column;
+      min-height: 0;
+    }
+
+    .vs-system-prints .vs-panel-body {
+      flex: 1;
+      min-height: 0; /* crucial for inner scrolling */
+      padding: 10px;
+      box-sizing: border-box;
+    }
+
+    .vs-system-prints-box {
+      height: 100%;
+      min-height: 0;
     }
   </style>
 </head>
@@ -244,7 +256,11 @@
 <header class="vs-header">
   <div class="vs-title">&lt;Class Name&gt; &lt;Room Placeholder&gt; Vision System</div>
   <nav class="vs-nav">
-    <a href="#">Link1</a><a href="#">Link2</a><a href="#">Link3</a><a href="#">Link4</a><a href="#">Link5</a>
+    <a href="#" onclick="return false;">Link1</a>
+    <a href="#" onclick="return false;">Link2</a>
+    <a href="#" onclick="return false;">Link3</a>
+    <a href="#" onclick="return false;">Link4</a>
+    <a href="#" onclick="return false;">Link5</a>
   </nav>
 </header>
 
@@ -256,18 +272,27 @@
       <div class="vs-panel-header">Team</div>
 
       <div class="vs-left-top">
-        <select class="vs-team-select">
-          <option>Team (placeholder)</option>
+        <select class="vs-team-select" id="teamSelect">
+          <option selected>Team (placeholder)</option>
+          <option>Team 1</option>
+          <option>Team 2</option>
         </select>
 
         <table class="vs-table">
           <thead>
             <tr>
-              <th>Mission Type</th><th>ArUco ID</th><th>ArUco Visible</th><th>X</th><th>Y</th><th>Theta</th>
+              <th>Mission Type</th>
+              <th>ArUco ID</th>
+              <th>ArUco Visible</th>
+              <th>X</th>
+              <th>Y</th>
+              <th>Theta</th>
             </tr>
           </thead>
           <tbody>
-            <tr><td>--</td><td>--</td><td>--</td><td>--</td><td>--</td><td>--</td></tr>
+            <tr>
+              <td>--</td><td>--</td><td>--</td><td>--</td><td>--</td><td>--</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -275,9 +300,10 @@
       <div class="vs-left-bottom">
         <div class="vs-scrollbox vs-left-prints" id="teamPrints">[INFO] Placeholder team printouts...</div>
 
+        <!-- Autoscroll toggle (default ON for system printouts, but controls both) -->
         <div class="vs-switch-row">
           <label class="vs-switch">
-            <input type="checkbox" checked>
+            <input type="checkbox" id="autoscroll">
             <span class="vs-slider"></span>
           </label>
           <span>Autoscroll</span>
@@ -285,27 +311,29 @@
 
         <div class="vs-switch-row">
           <label class="vs-switch">
-            <input type="checkbox">
+            <input type="checkbox" id="showDisconnected">
             <span class="vs-slider"></span>
           </label>
           <span>Show disconnected teams</span>
         </div>
 
-        <button class="vs-btn" disabled>CLEAR PRINTS (placeholder)</button>
+        <button class="vs-btn" id="clearPrints" disabled style="margin-top:10px;">CLEAR PRINTS (placeholder)</button>
       </div>
     </div>
   </aside>
 
   <!-- RIGHT -->
   <section class="vs-right">
-    <div class="vs-video-wrap">
-      <img class="vs-video" src="/crop" />
+    <div class="vs-video-region">
+      <div class="vs-video-frame">
+        <img class="vs-video" id="mainStream" src="/crop" alt="Cropped Stream" />
+      </div>
     </div>
 
     <div class="vs-system-prints">
-      <div class="vs-panel-header">System Printouts</div>
+      <div class="vs-panel-header">System Printouts (placeholder)</div>
       <div class="vs-panel-body">
-        <div class="vs-scrollbox" id="systemPrints">[INFO] Placeholder system printouts...</div>
+        <div class="vs-scrollbox vs-system-prints-box" id="systemPrints">[INFO] Placeholder system printouts...</div>
       </div>
     </div>
   </section>
@@ -313,14 +341,27 @@
 </div>
 
 <script>
-  const teamBox = document.getElementById("teamPrints");
-  const systemBox = document.getElementById("systemPrints");
+  (function () {
+    const teamBox = document.getElementById("teamPrints");
+    const systemBox = document.getElementById("systemPrints");
+    const autoscroll = document.getElementById("autoscroll");
 
-  setInterval(() => {
-    teamBox.textContent += "\n[INFO] Team heartbeat";
-    systemBox.textContent += "\n[INFO] System tick";
-    systemBox.scrollTop = systemBox.scrollHeight; // autoscroll ON by default
-  }, 4000);
+    // System Printouts should autoscroll by default
+    autoscroll.checked = true;
+
+    function maybeScroll(box) {
+      if (autoscroll.checked) {
+        box.scrollTop = box.scrollHeight;
+      }
+    }
+
+    setInterval(() => {
+      teamBox.textContent += "\n[INFO] Team heartbeat";
+      systemBox.textContent += "\n[INFO] System tick";
+      maybeScroll(teamBox);
+      maybeScroll(systemBox);
+    }, 4000);
+  })();
 </script>
 
 </body>
