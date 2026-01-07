@@ -14,14 +14,13 @@
   <style>
     html, body { height: 100%; margin: 0; }
 
-    /* Header */
     .vs-header {
       height: 64px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 0 18px;
-      background: #b53a37;
+      background: #e21833; /* requested */
       color: #fff;
       box-shadow: 0 2px 0 rgba(0,0,0,0.2);
     }
@@ -30,21 +29,11 @@
     .vs-nav a { color: #fff; text-decoration: none; font-weight: 600; font-size: 14px; opacity: 0.95; }
     .vs-nav a:hover { text-decoration: underline; opacity: 1.0; }
 
-    /* Main layout */
-    .vs-main {
-      height: calc(100vh - 64px);
-      display: flex;
-      background: #000;
-    }
+    .vs-main { height: calc(100vh - 64px); display: flex; background: #000; }
 
-    /* Left column */
     .vs-left {
-      width: 540px;
-      min-width: 500px;
-      max-width: 640px;
-      height: 100%;
-      padding: 12px;
-      box-sizing: border-box;
+      width: 540px; min-width: 500px; max-width: 640px;
+      height: 100%; padding: 12px; box-sizing: border-box;
     }
 
     .vs-panel {
@@ -72,20 +61,13 @@
       padding: 8px 10px;
     }
 
-    .vs-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 12px;
-      margin-bottom: 10px;
-    }
-
+    .vs-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 10px; }
     .vs-table th, .vs-table td {
       border: 1px solid rgba(255,255,255,0.10);
       padding: 6px;
       white-space: nowrap;
       text-align: left;
     }
-
     .vs-table th { background: rgba(255,255,255,0.05); }
 
     .vs-scrollbox {
@@ -107,15 +89,12 @@
     .vs-left-stack { height: 100%; display: flex; flex-direction: column; }
     .vs-left-top { padding: 12px 12px 0 12px; }
     .vs-left-bottom {
-      flex: 1;
-      min-height: 0;
+      flex: 1; min-height: 0;
       padding: 0 12px 12px 12px;
-      display: flex;
-      flex-direction: column;
+      display: flex; flex-direction: column;
     }
     .vs-left-prints { flex: 1; min-height: 0; margin-bottom: 10px; }
 
-    /* Switches */
     .vs-switch-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
     .vs-switch { position: relative; width: 52px; height: 28px; flex: 0 0 auto; }
     .vs-switch input { opacity: 0; width: 0; height: 0; }
@@ -151,20 +130,18 @@
     }
     .vs-btn:disabled { opacity: 0.75; }
 
-    /* Right side as grid: Video row is always 2:1, system prints fills remainder */
     .vs-right {
       flex: 1;
       height: 100%;
       padding: 12px 12px 12px 0;
       box-sizing: border-box;
       display: grid;
-      grid-template-rows: auto 1fr;   /* video row auto (2:1), prints row fills remaining */
+      grid-template-rows: auto 1fr;
       gap: 10px;
       min-width: 0;
       align-content: start;
     }
 
-    /* Video container */
     .vs-video-region {
       background: #1a1a1a;
       border: 1px solid rgba(255,255,255,0.12);
@@ -174,7 +151,6 @@
       box-sizing: border-box;
     }
 
-    /* True 2:1 frame */
     .vs-video-frame {
       width: 100%;
       aspect-ratio: 2 / 1;
@@ -192,7 +168,6 @@
       background: #000;
     }
 
-    /* System prints: fill remaining height, scroll inside */
     .vs-system-prints {
       background: #1a1a1a;
       border: 1px solid rgba(255,255,255,0.12);
@@ -200,7 +175,7 @@
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      min-height: 160px; /* can shrink if needed to preserve 2:1 video */
+      min-height: 160px;
     }
 
     .vs-system-prints .vs-panel-body {
@@ -229,7 +204,6 @@
 
 <div class="vs-main">
 
-  <!-- LEFT -->
   <aside class="vs-left">
     <div class="vs-panel vs-left-stack">
       <div class="vs-panel-header">Team</div>
@@ -284,7 +258,6 @@
     </div>
   </aside>
 
-  <!-- RIGHT -->
   <section class="vs-right">
     <div class="vs-video-region">
       <div class="vs-video-frame">
