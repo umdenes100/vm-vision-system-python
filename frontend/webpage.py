@@ -22,12 +22,21 @@ HTML = """
 </html>
 """
 
-# 1x1 JPEG placeholder so /video starts streaming immediately.
-_PLACEHOLDER_JPEG = base64.b64decode(
+_BOUNDARY = "frame"
+
+
+def _b64decode_padded(s: bytes) -> bytes:
+    # Base64 strings must be padded to a multiple of 4.
+    pad = (-len(s)) % 4
+    if pad:
+        s += b"=" * pad
+    return base64.b64decode(s)
+
+
+# Placeholder 1x1 JPEG (base64). Padding is handled automatically.
+_PLACEHOLDER_JPEG = _b64decode_padded(
     b"/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQH/wAALCAABAAEBAREA/8QAFQABAQAAAAAAAAAAAAAAAAAAAAf/xAAVAQEBAAAAAAAAAAAAAAAAAAAABP/aAAwDAQACEAMQAAAByw//xAAXEAADAQAAAAAAAAAAAAAAAAAAAREC/9oACAEBAAEFAlp//8QAFBEBAAAAAAAAAAAAAAAAAAAAEP/aAAgBAwEBPwFH/8QAFBEBAAAAAAAAAAAAAAAAAAAAEP/aAAgBAgEBPwFH/8QAFxABAQEBAAAAAAAAAAAAAAAAAQARIf/aAAgBAQAGPwJvF//8QAFxABAQEBAAAAAAAAAAAAAAAAAQARIf/aAAgBAQABPyG3p//aAAwDAQACEAMQAAAQx//EABcRAQEBAQAAAAAAAAAAAAAAAAEAERL/2gAIAQMBAT8QkV//xAAXEQEBAQEAAAAAAAAAAAAAAAABABEh/9oACAECAQE/EJpG/8QAFxABAQEBAAAAAAAAAAAAAAAAAQARIf/aAAgBAQABPxCk3//Z"
 )
-
-_BOUNDARY = "frame"
 
 
 def create_app(arenacam):
@@ -51,17 +60,9 @@ def create_app(arenacam):
         await resp.prepare(request)
         logger.info("Web client connected")
 
-        last_sent = None
-
         try:
             while True:
                 frame = arenacam.latest_frame or _PLACEHOLDER_JPEG
-
-                # Avoid resending identical placeholder too fast if no frames exist.
-                if frame is last_sent:
-                    await asyncio.sleep(0.05)
-                    continue
-                last_sent = frame
 
                 header = (
                     f"--{_BOUNDARY}\r\n"
@@ -74,8 +75,7 @@ def create_app(arenacam):
                 await resp.write(frame)
                 await resp.write(b"\r\n")
 
-                await asyncio.sleep(0.05)
-
+                await asyncio.sleep(0.05)  # ~20 FPS
         except (asyncio.CancelledError, ConnectionResetError, BrokenPipeError):
             pass
         finally:
