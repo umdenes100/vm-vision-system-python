@@ -22,3 +22,7 @@ Thumbs.db
 
 # Runtime artifacts
 *.lock
+*.pid
+
+# Local overrides
+config.local.json
