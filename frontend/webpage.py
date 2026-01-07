@@ -1,6 +1,8 @@
 import asyncio
-import base64
 from aiohttp import web
+
+import cv2
+import numpy as np
 
 from utils.logging import get_logger
 
@@ -49,19 +51,32 @@ HTML = """
 _BOUNDARY = "frame"
 
 
-def _b64decode_padded(s: bytes) -> bytes:
-    pad = (-len(s)) % 4
-    if pad:
-        s += b"=" * pad
-    return base64.b64decode(s)
+def _make_placeholder_jpeg() -> bytes:
+    """
+    Guaranteed-valid JPEG placeholder.
+    """
+    img = np.zeros((240, 320, 3), dtype=np.uint8)
+    cv2.putText(
+        img,
+        "Waiting for markers 0-3...",
+        (10, 120),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.6,
+        (255, 255, 255),
+        2,
+        cv2.LINE_AA,
+    )
+    ok, buf = cv2.imencode(".jpg", img, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+    if not ok:
+        # As a last resort, return a minimal empty-ish bytes; but imencode should not fail here.
+        return b""
+    return buf.tobytes()
 
 
-_PLACEHOLDER_JPEG = _b64decode_padded(
-    b"/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQH/wAALCAABAAEBAREA/8QAFQABAQAAAAAAAAAAAAAAAAAAAAf/xAAVAQEBAAAAAAAAAAAAAAAAAAAABP/aAAwDAQACEAMQAAAByw//xAAXEAADAQAAAAAAAAAAAAAAAAAAAREC/9oACAEBAAEFAlp//8QAFBEBAAAAAAAAAAAAAAAAAAAAEP/aAAgBAwEBPwFH/8QAFBEBAAAAAAAAAAAAAAAAAAAAEP/aAAgBAgEBPwFH/8QAFxABAQEBAAAAAAAAAAAAAAAAAQARIf/aAAgBAQAGPwJvF//8QAFxABAQEBAAAAAAAAAAAAAAAAAQARIf/aAAgBAQABPyG3p//aAAwDAQACEAMQAAAQx//EABcRAQEBAQAAAAAAAAAAAAAAAAEAERL/2gAIAQMBAT8QkV//xAAXEQEBAQEAAAAAAAAAAAAAAAABABEh/9oACAECAQE/EJpG/8QAFxABAQEBAAAAAAAAAAAAAAAAAQARIf/aAAgBAQABPxCk3//Z"
-)
+_PLACEHOLDER_JPEG = _make_placeholder_jpeg()
 
 
-async def _mjpeg_stream(request: web.Request, logger, frame_getter):
+async def _mjpeg_stream(request: web.Request, frame_getter):
     resp = web.StreamResponse(
         status=200,
         reason="OK",
@@ -105,19 +120,19 @@ def create_app(arenacam, arena_processor):
 
     async def video(request):
         logger.info("Web client connected to /video")
-        resp = await _mjpeg_stream(request, logger, lambda: arenacam.latest_frame)
+        resp = await _mjpeg_stream(request, lambda: arenacam.latest_frame)
         logger.info("Web client disconnected from /video")
         return resp
 
     async def overlay(request):
         logger.info("Web client connected to /overlay")
-        resp = await _mjpeg_stream(request, logger, lambda: arena_processor.latest_overlay_jpeg)
+        resp = await _mjpeg_stream(request, lambda: arena_processor.latest_overlay_jpeg)
         logger.info("Web client disconnected from /overlay")
         return resp
 
     async def crop(request):
         logger.info("Web client connected to /crop")
-        resp = await _mjpeg_stream(request, logger, lambda: arena_processor.latest_cropped_jpeg)
+        resp = await _mjpeg_stream(request, lambda: arena_processor.latest_cropped_jpeg)
         logger.info("Web client disconnected from /crop")
         return resp
 
