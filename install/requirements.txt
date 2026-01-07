@@ -1,3 +1,7 @@
 # Intentionally minimal — add dependencies only as needed.
-# Web frontend server:
+# Web / Frontend Server
 aiohttp>=3.9
+
+# Vision / ArUco
+numpy>=1.24
+opencv-contrib-python>=4.8
