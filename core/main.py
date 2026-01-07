@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import socket
 from pathlib import Path
 from typing import Optional
 
@@ -26,32 +27,46 @@ def _decode_jpeg_to_bgr(jpeg_bytes: bytes) -> Optional[np.ndarray]:
     return img
 
 
+def _get_best_local_ip() -> str:
+    """
+    Best-effort way to get the VM's primary LAN IP without external dependencies.
+    """
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        # No traffic is actually sent for UDP connect; it's just used to pick an interface.
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
+
 async def arena_processing_loop(logger, arenacam, arena_processor: ArenaProcessor):
-    """
-    Reads latest decoded JPEG bytes from arenacam and updates arena_processor outputs.
-    """
-    last_frame_ref = None
+    last_frame_obj = None
+    try:
+        while True:
+            frame = arenacam.latest_frame
+            if frame is None:
+                await asyncio.sleep(0.01)
+                continue
 
-    while True:
-        frame = arenacam.latest_frame
-        if frame is None:
-            await asyncio.sleep(0.01)
-            continue
+            if frame is last_frame_obj:
+                await asyncio.sleep(0.01)
+                continue
+            last_frame_obj = frame
 
-        # Avoid reprocessing the exact same bytes reference too aggressively
-        if frame is last_frame_ref:
-            await asyncio.sleep(0.01)
-            continue
-        last_frame_ref = frame
+            bgr = _decode_jpeg_to_bgr(frame)
+            if bgr is None:
+                logger.debug("Failed to decode JPEG frame")
+                await asyncio.sleep(0.01)
+                continue
 
-        bgr = _decode_jpeg_to_bgr(frame)
-        if bgr is None:
-            logger.debug("Failed to decode JPEG frame")
-            await asyncio.sleep(0.01)
-            continue
-
-        arena_processor.process_bgr(bgr)
-        await asyncio.sleep(0)  # yield
+            arena_processor.process_bgr(bgr)
+            await asyncio.sleep(0)  # yield
+    except asyncio.CancelledError:
+        # clean exit
+        return
 
 
 async def run():
@@ -85,12 +100,15 @@ async def run():
     )
     await arenacam.start()
 
-    arena_processor = ArenaProcessor(ArenaConfig())
+    # Marker layout you provided:
+    # 0 BL, 1 TL, 2 TR, 3 BR
+    # (Crop logic now only requires presence of 0-3; it auto-computes outer quad robustly.)
+    arena_processor = ArenaProcessor(
+        ArenaConfig(required_corner_ids=(0, 1, 2, 3))
+    )
 
-    # Start processing loop
     proc_task = asyncio.create_task(arena_processing_loop(logger, arenacam, arena_processor))
 
-    # Start frontend
     app = create_app(arenacam, arena_processor)
     runner = web.AppRunner(app)
     await runner.setup()
@@ -98,18 +116,27 @@ async def run():
     site = web.TCPSite(runner, tcp_host, tcp_port)
     await site.start()
 
-    logger.info(f"Vision system running. Open http://<VM_IP>:{tcp_port}/")
+    ip = _get_best_local_ip()
+    logger.info(f"Vision system running. Open http://{ip}:{tcp_port}/")
 
     try:
         while True:
             await asyncio.sleep(5)
     except KeyboardInterrupt:
-        logger.info("Shutdown requested")
+        logger.info("Shutdown requested (Ctrl+C)")
     finally:
+        # Stop processing task cleanly
         proc_task.cancel()
+        try:
+            await proc_task
+        except asyncio.CancelledError:
+            pass
+
+        # Stop camera and frontend
         await arenacam.stop()
         await runner.cleanup()
-        logger.info("Stopped")
+
+        logger.info("Stopped cleanly")
 
 
 def main():
