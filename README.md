@@ -1,21 +1,11 @@
 # VM Vision System (Python)
 
-A modular, headless vision system designed for an introductory robotics course.
+A modular, headless vision system for an introductory robotics course.
 
-## Purpose
-- Track ArUco markers in an arena
-- Compute robot pose (X, Y, θ)
-- Communicate with ESP-based clients via WebSocket
-- Host a single-page status UI
-- Run on a headless virtual machine
+## What it does (current + planned)
+- **Receives** a streamed video feed over **UDP** (current scaffolding assumes one JPEG frame per datagram).
+- **Hosts** a simple webpage showing the **raw video feed** (MJPEG stream).
+- (Planned) Detects ArUco markers, crops arena using markers 0–3, computes robot pose (X, Y, θ).
+- (Planned) Communicates pose + print messages with ESP-based clients using **WebSocket**.
 
-## Status
-Foundation setup (logging, install, startup scaffolding)
-
-## Usage
-```bash
-cd install
-./install.sh
-
-cd core
-./run.sh
+## Repo layout
