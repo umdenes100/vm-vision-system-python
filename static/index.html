@@ -1,327 +1,126 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ENES100 Vision System</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description"
+          content="This class webpage for UMD's ENES100 allows users to access the Vision System and Documentation for the class.">
+    <meta name="google-site-verification" content="4clMxUDhEpHHjak_ML03ekw8pFif-G4_l9lwBw8WfeM"/>
 
-  <link rel="stylesheet" href="/static/bootstrap.css">
-  <link rel="stylesheet" href="/static/header.css">
-  <link rel="stylesheet" href="/static/index.css">
-  <link rel="stylesheet" href="/static/inputs.css">
-  <link rel="stylesheet" href="/static/theme.css">
+    <title>ENES100 Vision System 2</title>
 
-  <style>
-    html, body { height: 100%; margin: 0; }
-
-    /* Header */
-    .vs-header {
-      height: 64px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 18px;
-      background: #b53a37;
-      color: #fff;
-      box-shadow: 0 2px 0 rgba(0,0,0,0.2);
-    }
-
-    .vs-title {
-      font-weight: 700;
-      font-size: 26px;
-      white-space: nowrap;
-    }
-
-    .vs-nav {
-      display: flex;
-      gap: 18px;
-    }
-
-    .vs-nav a {
-      color: #fff;
-      text-decoration: none;
-      font-weight: 600;
-      font-size: 14px;
-    }
-
-    /* Main layout */
-    .vs-main {
-      height: calc(100vh - 64px);
-      display: flex;
-      background: #000;
-    }
-
-    /* LEFT COLUMN — reduced to ~75% */
-    .vs-left {
-      width: 540px;
-      min-width: 500px;
-      max-width: 640px;
-      height: 100%;
-      padding: 12px;
-      box-sizing: border-box;
-    }
-
-    .vs-panel {
-      background: #1a1a1a;
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 8px;
-      color: #eaeaea;
-      overflow: hidden;
-    }
-
-    .vs-panel-header {
-      padding: 10px 12px;
-      font-weight: 700;
-      border-bottom: 1px solid rgba(255,255,255,0.10);
-      background: rgba(255,255,255,0.03);
-    }
-
-    .vs-panel-body { padding: 12px; }
-
-    .vs-team-select {
-      width: 100%;
-      margin-bottom: 10px;
-      background: #0f0f0f;
-      color: #eaeaea;
-      border: 1px solid rgba(255,255,255,0.18);
-      border-radius: 6px;
-      padding: 8px 10px;
-    }
-
-    .vs-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 12px;
-      margin-bottom: 10px;
-    }
-
-    .vs-table th, .vs-table td {
-      border: 1px solid rgba(255,255,255,0.10);
-      padding: 6px;
-      white-space: nowrap;
-    }
-
-    .vs-table th {
-      background: rgba(255,255,255,0.05);
-    }
-
-    .vs-scrollbox {
-      width: 100%;
-      background: #0d0d0d;
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 6px;
-      padding: 8px;
-      color: #eaeaea;
-      font-family: monospace;
-      font-size: 12px;
-      line-height: 1.35;
-      overflow-y: scroll;
-      white-space: pre-wrap;
-      box-sizing: border-box;
-    }
-
-    .vs-left-stack {
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .vs-left-top {
-      padding: 12px 12px 0 12px;
-    }
-
-    .vs-left-bottom {
-      flex: 1;
-      min-height: 0;
-      padding: 0 12px 12px 12px;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .vs-left-prints {
-      flex: 1;
-      min-height: 0;
-      margin-bottom: 10px;
-    }
-
-    /* Toggle switches */
-    .vs-switch-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-top: 8px;
-    }
-
-    .vs-switch {
-      position: relative;
-      width: 52px;
-      height: 28px;
-    }
-
-    .vs-switch input { opacity: 0; }
-
-    .vs-slider {
-      position: absolute;
-      inset: 0;
-      background: #444;
-      border-radius: 999px;
-      transition: .2s;
-    }
-
-    .vs-slider:before {
-      content: "";
-      position: absolute;
-      width: 22px;
-      height: 22px;
-      left: 3px;
-      bottom: 3px;
-      background: #ddd;
-      border-radius: 50%;
-      transition: .2s;
-    }
-
-    .vs-switch input:checked + .vs-slider {
-      background: #2b7a2b;
-    }
-
-    .vs-switch input:checked + .vs-slider:before {
-      transform: translateX(24px);
-      background: #fff;
-    }
-
-    .vs-btn {
-      width: 100%;
-      border-radius: 8px;
-      border: none;
-      padding: 10px;
-      font-weight: 800;
-      background: #c63a37;
-      color: #fff;
-    }
-
-    /* RIGHT SIDE */
-    .vs-right {
-      flex: 1;
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-      padding: 12px 12px 12px 0;
-      gap: 10px;
-      min-width: 0;
-    }
-
-    /* VIDEO — forced 2:1 */
-    .vs-video-wrap {
-      aspect-ratio: 2 / 1;
-      width: 100%;
-      background: #000;
-      border-radius: 8px;
-      overflow: hidden;
-      border: 1px solid rgba(255,255,255,0.12);
-    }
-
-    .vs-video {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      background: #000;
-    }
-
-    .vs-system-prints {
-      height: 220px;
-      background: #1a1a1a;
-      border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 8px;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-    }
-  </style>
+    <link rel="stylesheet" href="bootstrap.css">
+    <link rel="stylesheet" href="header.css">
+    <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="inputs.css">
+    <link rel="stylesheet" href="theme.css">
+    <script src="ui-config.js"></script>
 </head>
 
-<body>
+<body style="width: 100%; height: 100%">
+<nav class="navbar navbar-expand-lg umd">
+    <div style="color: white; width: 40%" class="umd">
+        Tip: This screen too crowded? <br><small style="display: inline-block;">Open it yourself: Go to enes100.umd.edu and go to "Vision System"</small>
+    </div>
+    <div class="container">
+        <!--Logo-->
+        <h1 id="logo" class="navbar-brand">
+            ENES100 Vision System 2
+        </h1>
 
-<header class="vs-header">
-  <div class="vs-title">&lt;Class Name&gt; &lt;Room Placeholder&gt; Vision System</div>
-  <nav class="vs-nav">
-    <a href="#">Link1</a><a href="#">Link2</a><a href="#">Link3</a><a href="#">Link4</a><a href="#">Link5</a>
-  </nav>
-</header>
 
-<div class="vs-main">
+        <!--Hamburger Button-->
+        <button class="navbar-toggler float-right" type="button" data-toggle="collapse"
+                data-target="#collapsibleNavbar">
+            <span class="navbar-toggler-icon mt-3">☰</span>
+        </button>
+        <!--Collapsible Content-->
+        <div id="collapsibleNavbar" class="navbar-collapse collapse">
+            <ul class="navbar-nav ml-auto">
+                <li class="nav-item">
+                    <a class="nav-link" data-link-id="oldVisionSystem" href="https://enes100.umd.edu/oldvisionsystem">Old Vision System</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-link-id="libraries" href="https://enes100.umd.edu/libraries/">Libraries</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-link-id="simulator" href="https://enes100.umd.edu/simulatorweb">Simulator</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-link-id="examples" href="https://enes100.umd.edu/examples">Examples</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-link-id="faq" href="https://enes100.umd.edu/faq">FAQ</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+<!--The whole window-->
+<div class="container-fluid h-100">
+    <!--The main row for all the elements-->
+    <div class="row h-100">
+        <!--The left column for the 'communication panel'-->
+        <div id="communication-panel" class="col-3">
+            <div id="select-container" class="h-5">
+                <select id="port">
+                    <option>Waiting for connection...</option>
+                </select>
+                <small style="padding-left: 4px">Team not here? See <a target="_blank"
+                                                                       id="troubleshooting-link" href="https://docs.google.com/document/d/1hrvkhNof1VFIL7retfn17tdnPCOo5d2WmNKgmRgjyy8/edit?usp=sharing">Vision
+                    System Troubleshooting</a>.</small>
+                <span id="info"></span>
+            </div>
 
-  <!-- LEFT -->
-  <aside class="vs-left">
-    <div class="vs-panel vs-left-stack">
-      <div class="vs-panel-header">Team</div>
+            <div id="timer" class="row">
+                <div class="h-100 w-100 pt-3 pb-3">
+                    Timer:
+                    <span id="minutes">--</span>:<span id="seconds">--</span>
+                </div>
+            </div>
 
-      <div class="vs-left-top">
-        <select class="vs-team-select">
-          <option>Team (placeholder)</option>
-        </select>
+            <textarea id="communication-window" style="height: 55%; width: 100%" readonly></textarea>
 
-        <table class="vs-table">
-          <thead>
-            <tr>
-              <th>Mission Type</th><th>ArUco ID</th><th>ArUco Visible</th><th>X</th><th>Y</th><th>Theta</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr><td>--</td><td>--</td><td>--</td><td>--</td><td>--</td><td>--</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="vs-left-bottom">
-        <div class="vs-scrollbox vs-left-prints" id="teamPrints">[INFO] Placeholder team printouts...</div>
-
-        <div class="vs-switch-row">
-          <label class="vs-switch">
-            <input type="checkbox" checked>
-            <span class="vs-slider"></span>
-          </label>
-          <span>Autoscroll</span>
+            <div id="communication-window-options" class="col-12">
+                <label class="switch">
+                    <input id="autoscroll" type="checkbox" checked>
+                    <span class="slider round"></span>
+                </label>
+                Autoscroll
+                <br>
+                <label class="switch">
+                    <input id="show-disconnected-teams" type="checkbox"
+                           onclick="updateOptionsList(); changePort()">
+                    <span class="slider round"></span>
+                </label>
+                Show disconnected teams
+                <br>
+                <button class='sexy' onclick="cachedPrints = {}; comm_window.value = ''">Clear Prints</button>
+            </div>
         </div>
 
-        <div class="vs-switch-row">
-          <label class="vs-switch">
-            <input type="checkbox">
-            <span class="vs-slider"></span>
-          </label>
-          <span>Show disconnected teams</span>
+        <div class="col-9">
+            <div id="stream-container">
+                <img id="stream"
+                     alt="Failed to get image from Vision System. Restart the Vision System by closing all open windows and opening Vision System 2 from the desktop.">
+            </div>
+            <textarea id="console" style="width: 100%" readonly></textarea>
         </div>
-
-        <button class="vs-btn" disabled>CLEAR PRINTS (placeholder)</button>
-      </div>
     </div>
-  </aside>
-
-  <!-- RIGHT -->
-  <section class="vs-right">
-    <div class="vs-video-wrap">
-      <img class="vs-video" src="/crop" />
-    </div>
-
-    <div class="vs-system-prints">
-      <div class="vs-panel-header">System Printouts</div>
-      <div class="vs-panel-body">
-        <div class="vs-scrollbox" id="systemPrints">[INFO] Placeholder system printouts...</div>
-      </div>
-    </div>
-  </section>
-
 </div>
-
-<script>
-  const teamBox = document.getElementById("teamPrints");
-  const systemBox = document.getElementById("systemPrints");
-
-  setInterval(() => {
-    teamBox.textContent += "\n[INFO] Team heartbeat";
-    systemBox.textContent += "\n[INFO] System tick";
-    systemBox.scrollTop = systemBox.scrollHeight; // autoscroll ON by default
-  }, 4000);
-</script>
 
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+<script>
+    const local = false;
+    const WEBSOCKET_ADDRESS = `ws://${location.host.split(':')[0]}:9000/`
