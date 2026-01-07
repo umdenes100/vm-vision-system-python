@@ -3,6 +3,7 @@ import json
 import logging
 import signal
 import socket
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -43,28 +44,40 @@ async def arena_processing_loop(
     logger,
     arenacam,
     arena_processor: ArenaProcessor,
+    target_fps: float = 30.0,
 ):
     """
-    Always process frames when available.
+    Continuously updates overlay/crop frames using the latest available camera frame.
+    Homography refresh is handled inside ArenaProcessor and can be infrequent,
+    but warp/encode still runs every tick using the cached transform.
 
-    NOTE: Do NOT rely on object identity for frame skipping.
-    Some pipelines reuse buffers, making the 'bytes' object look constant.
+    Heavy work is moved off the asyncio loop using asyncio.to_thread so MJPEG
+    streaming stays smooth.
     """
+    frame_period = 1.0 / max(1.0, float(target_fps))
+    last_tick = time.perf_counter()
+
     try:
         while not stop_event.is_set():
-            frame = arenacam.latest_frame
-            if frame is None:
-                await asyncio.sleep(0.01)
-                continue
+            start = time.perf_counter()
 
-            bgr = _decode_jpeg_to_bgr(frame)
-            if bgr is None:
-                logger.debug("Failed to decode JPEG frame")
-                await asyncio.sleep(0.01)
-                continue
+            jpeg = arenacam.latest_frame
+            if jpeg is not None:
+                bgr = _decode_jpeg_to_bgr(jpeg)
+                if bgr is not None:
+                    # Run CPU-heavy processing off the event loop
+                    await asyncio.to_thread(arena_processor.process_bgr, bgr)
 
-            arena_processor.process_bgr(bgr)
-            await asyncio.sleep(0)  # yield
+            # pace loop to target FPS
+            elapsed = time.perf_counter() - start
+            sleep_time = frame_period - elapsed
+            if sleep_time > 0:
+                await asyncio.sleep(sleep_time)
+            else:
+                # yield if we're overloaded
+                await asyncio.sleep(0)
+
+            last_tick = start
     except asyncio.CancelledError:
         return
 
@@ -120,15 +133,19 @@ async def run():
             id_tl=1,
             id_tr=2,
             id_br=3,
-            output_width=1800,
-            output_height=900,
-            crop_refresh_seconds=600,
+            output_width=1000,
+            output_height=500,          # 2:1
+            crop_refresh_seconds=600,    # refresh homography every 10 min
             border_marker_fraction=0.5,
-            vertical_padding_fraction=0.025,  # reduced (was too much)
+            vertical_padding_fraction=0.01,  # small, avoids huge top/bottom padding
+            crop_jpeg_quality=75,
+            overlay_jpeg_quality=80,
         )
     )
 
-    proc_task = asyncio.create_task(arena_processing_loop(stop_event, logger, arenacam, arena_processor))
+    proc_task = asyncio.create_task(
+        arena_processing_loop(stop_event, logger, arenacam, arena_processor, target_fps=30.0)
+    )
 
     app = create_app(stop_event, arenacam, arena_processor)
     runner = web.AppRunner(app)
@@ -145,8 +162,6 @@ async def run():
         await site.stop()
     except Exception:
         pass
-
-    await asyncio.sleep(0.1)
 
     proc_task.cancel()
     try:
