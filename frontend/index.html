@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>ENES100 Vision System</title>
 
-  <!-- Existing static CSS -->
   <link rel="stylesheet" href="/static/bootstrap.css">
   <link rel="stylesheet" href="/static/header.css">
   <link rel="stylesheet" href="/static/index.css">
@@ -26,26 +25,24 @@
       color: #fff;
       box-shadow: 0 2px 0 rgba(0,0,0,0.2);
     }
+
     .vs-title {
       font-weight: 700;
       font-size: 26px;
-      letter-spacing: 0.5px;
       white-space: nowrap;
     }
+
     .vs-nav {
       display: flex;
       gap: 18px;
-      align-items: center;
-      white-space: nowrap;
     }
+
     .vs-nav a {
       color: #fff;
       text-decoration: none;
       font-weight: 600;
       font-size: 14px;
-      opacity: 0.95;
     }
-    .vs-nav a:hover { text-decoration: underline; opacity: 1.0; }
 
     /* Main layout */
     .vs-main {
@@ -54,11 +51,11 @@
       background: #000;
     }
 
-    /* Left column (2x width-ish) */
+    /* LEFT COLUMN — reduced to ~75% */
     .vs-left {
-      width: 720px;         /* was ~360 */
-      min-width: 640px;
-      max-width: 860px;
+      width: 540px;
+      min-width: 500px;
+      max-width: 640px;
       height: 100%;
       padding: 12px;
       box-sizing: border-box;
@@ -97,15 +94,17 @@
       font-size: 12px;
       margin-bottom: 10px;
     }
+
     .vs-table th, .vs-table td {
       border: 1px solid rgba(255,255,255,0.10);
-      padding: 6px 6px;
-      text-align: left;
+      padding: 6px;
       white-space: nowrap;
     }
-    .vs-table th { background: rgba(255,255,255,0.05); font-weight: 700; }
 
-    /* Scrollboxes: force scrollbars and preserve newlines */
+    .vs-table th {
+      background: rgba(255,255,255,0.05);
+    }
+
     .vs-scrollbox {
       width: 100%;
       background: #0d0d0d;
@@ -113,16 +112,14 @@
       border-radius: 6px;
       padding: 8px;
       color: #eaeaea;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-family: monospace;
       font-size: 12px;
       line-height: 1.35;
-      overflow-y: scroll;          /* always show scrollbar */
-      overflow-x: hidden;
+      overflow-y: scroll;
+      white-space: pre-wrap;
       box-sizing: border-box;
-      white-space: pre-wrap;       /* render \n as real newlines */
     }
 
-    /* Left stack layout: make prints box take max space */
     .vs-left-stack {
       height: 100%;
       display: flex;
@@ -134,113 +131,93 @@
     }
 
     .vs-left-bottom {
+      flex: 1;
+      min-height: 0;
       padding: 0 12px 12px 12px;
       display: flex;
       flex-direction: column;
-      flex: 1;                /* fill remaining space */
-      min-height: 0;          /* IMPORTANT: enables child scroll within flex */
     }
 
     .vs-left-prints {
-      flex: 1;                /* take maximal height */
-      min-height: 0;          /* IMPORTANT: enables scroll */
+      flex: 1;
+      min-height: 0;
       margin-bottom: 10px;
     }
 
-    /* Toggle "rolling ball" (switch) */
+    /* Toggle switches */
     .vs-switch-row {
       display: flex;
       align-items: center;
       gap: 10px;
       margin-top: 8px;
-      user-select: none;
     }
 
     .vs-switch {
       position: relative;
-      display: inline-block;
       width: 52px;
       height: 28px;
-      flex: 0 0 auto;
     }
 
-    .vs-switch input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-    }
+    .vs-switch input { opacity: 0; }
 
     .vs-slider {
       position: absolute;
-      cursor: pointer;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background-color: #444;
-      transition: .2s;
+      inset: 0;
+      background: #444;
       border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.18);
+      transition: .2s;
     }
 
     .vs-slider:before {
-      position: absolute;
       content: "";
-      height: 22px;
+      position: absolute;
       width: 22px;
+      height: 22px;
       left: 3px;
-      bottom: 2.5px;
-      background-color: #ddd;
-      transition: .2s;
+      bottom: 3px;
+      background: #ddd;
       border-radius: 50%;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.5);
+      transition: .2s;
     }
 
     .vs-switch input:checked + .vs-slider {
-      background-color: #2b7a2b;
+      background: #2b7a2b;
     }
 
     .vs-switch input:checked + .vs-slider:before {
       transform: translateX(24px);
-      background-color: #fff;
-    }
-
-    .vs-switch-label {
-      color: #eaeaea;
-      font-size: 14px;
+      background: #fff;
     }
 
     .vs-btn {
       width: 100%;
       border-radius: 8px;
       border: none;
-      padding: 10px 12px;
+      padding: 10px;
       font-weight: 800;
-      color: #fff;
       background: #c63a37;
+      color: #fff;
     }
-    .vs-btn:disabled { opacity: 0.75; }
 
-    /* Right side */
+    /* RIGHT SIDE */
     .vs-right {
       flex: 1;
       height: 100%;
       display: flex;
       flex-direction: column;
       padding: 12px 12px 12px 0;
-      box-sizing: border-box;
       gap: 10px;
       min-width: 0;
     }
 
+    /* VIDEO — forced 2:1 */
     .vs-video-wrap {
-      flex: 1;
-      background: #1a1a1a;
-      border: 1px solid rgba(255,255,255,0.12);
+      aspect-ratio: 2 / 1;
+      width: 100%;
+      background: #000;
       border-radius: 8px;
       overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: relative;
-      min-height: 300px;
+      border: 1px solid rgba(255,255,255,0.12);
     }
 
     .vs-video {
@@ -248,7 +225,6 @@
       height: 100%;
       object-fit: contain;
       background: #000;
-      display: block;
     }
 
     .vs-system-prints {
@@ -259,141 +235,93 @@
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      min-height: 0;
-    }
-
-    .vs-system-prints .vs-panel-body {
-      height: 100%;
-      padding: 10px;
-      box-sizing: border-box;
-      min-height: 0;
-    }
-
-    .vs-system-prints-box {
-      height: 100%;
-      min-height: 0;
     }
   </style>
 </head>
 
 <body>
 
-  <!-- Header -->
-  <header class="vs-header">
-    <div class="vs-title">&lt;Class Name&gt; &lt;Room Placeholder&gt; Vision System</div>
-    <nav class="vs-nav">
-      <a href="#" onclick="return false;">Link1</a>
-      <a href="#" onclick="return false;">Link2</a>
-      <a href="#" onclick="return false;">Link3</a>
-      <a href="#" onclick="return false;">Link4</a>
-      <a href="#" onclick="return false;">Link5</a>
-    </nav>
-  </header>
+<header class="vs-header">
+  <div class="vs-title">&lt;Class Name&gt; &lt;Room Placeholder&gt; Vision System</div>
+  <nav class="vs-nav">
+    <a href="#">Link1</a><a href="#">Link2</a><a href="#">Link3</a><a href="#">Link4</a><a href="#">Link5</a>
+  </nav>
+</header>
 
-  <!-- Main -->
-  <div class="vs-main">
+<div class="vs-main">
 
-    <!-- Left Column -->
-    <aside class="vs-left">
-      <div class="vs-panel vs-left-stack" style="height:100%;">
-        <div class="vs-panel-header">Team</div>
+  <!-- LEFT -->
+  <aside class="vs-left">
+    <div class="vs-panel vs-left-stack">
+      <div class="vs-panel-header">Team</div>
 
-        <!-- Top section -->
-        <div class="vs-left-top">
-          <select class="vs-team-select" id="teamSelect">
-            <option selected>Team (placeholder)</option>
-            <option>Team 1</option>
-            <option>Team 2</option>
-          </select>
+      <div class="vs-left-top">
+        <select class="vs-team-select">
+          <option>Team (placeholder)</option>
+        </select>
 
-          <table class="vs-table">
-            <thead>
-              <tr>
-                <th>Mission Type</th>
-                <th>ArUco ID</th>
-                <th>ArUco Visible</th>
-                <th>X</th>
-                <th>Y</th>
-                <th>Theta</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>--</td>
-                <td>--</td>
-                <td>--</td>
-                <td>--</td>
-                <td>--</td>
-                <td>--</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <!-- Bottom section: prints + toggles + button -->
-        <div class="vs-left-bottom">
-          <div class="vs-scrollbox vs-left-prints" id="teamPrints">[INFO] Placeholder team printouts...</div>
-
-          <div class="vs-switch-row">
-            <label class="vs-switch">
-              <input type="checkbox" id="autoscroll">
-              <span class="vs-slider"></span>
-            </label>
-            <div class="vs-switch-label">Autoscroll</div>
-          </div>
-
-          <div class="vs-switch-row">
-            <label class="vs-switch">
-              <input type="checkbox" id="showDisconnected">
-              <span class="vs-slider"></span>
-            </label>
-            <div class="vs-switch-label">Show disconnected teams</div>
-          </div>
-
-          <div style="margin-top: 10px;">
-            <button class="vs-btn" id="clearPrints" disabled>CLEAR PRINTS (placeholder)</button>
-          </div>
-        </div>
-      </div>
-    </aside>
-
-    <!-- Right side -->
-    <section class="vs-right">
-      <div class="vs-video-wrap">
-        <img class="vs-video" id="mainStream" src="/crop" alt="Cropped Stream" />
+        <table class="vs-table">
+          <thead>
+            <tr>
+              <th>Mission Type</th><th>ArUco ID</th><th>ArUco Visible</th><th>X</th><th>Y</th><th>Theta</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>--</td><td>--</td><td>--</td><td>--</td><td>--</td><td>--</td></tr>
+          </tbody>
+        </table>
       </div>
 
-      <div class="vs-system-prints">
-        <div class="vs-panel-header">System Printouts (placeholder)</div>
-        <div class="vs-panel-body">
-          <div class="vs-scrollbox vs-system-prints-box" id="systemPrints">[INFO] Placeholder system printouts...</div>
+      <div class="vs-left-bottom">
+        <div class="vs-scrollbox vs-left-prints" id="teamPrints">[INFO] Placeholder team printouts...</div>
+
+        <div class="vs-switch-row">
+          <label class="vs-switch">
+            <input type="checkbox" checked>
+            <span class="vs-slider"></span>
+          </label>
+          <span>Autoscroll</span>
         </div>
+
+        <div class="vs-switch-row">
+          <label class="vs-switch">
+            <input type="checkbox">
+            <span class="vs-slider"></span>
+          </label>
+          <span>Show disconnected teams</span>
+        </div>
+
+        <button class="vs-btn" disabled>CLEAR PRINTS (placeholder)</button>
       </div>
-    </section>
+    </div>
+  </aside>
 
-  </div>
+  <!-- RIGHT -->
+  <section class="vs-right">
+    <div class="vs-video-wrap">
+      <img class="vs-video" src="/crop" />
+    </div>
 
-  <script>
-    (function () {
-      const teamBox = document.getElementById("teamPrints");
-      const systemBox = document.getElementById("systemPrints");
-      const autoscroll = document.getElementById("autoscroll");
+    <div class="vs-system-prints">
+      <div class="vs-panel-header">System Printouts</div>
+      <div class="vs-panel-body">
+        <div class="vs-scrollbox" id="systemPrints">[INFO] Placeholder system printouts...</div>
+      </div>
+    </div>
+  </section>
 
-      function maybeScroll(box) {
-        if (autoscroll.checked) {
-          box.scrollTop = box.scrollHeight;
-        }
-      }
+</div>
 
-      // Use textContent + real newline characters (NOT "\\n")
-      setInterval(() => {
-        teamBox.textContent += "\n[INFO] Placeholder heartbeat...";
-        systemBox.textContent += "\n[INFO] Placeholder system tick...";
-        maybeScroll(teamBox);
-        maybeScroll(systemBox);
-      }, 4000);
-    })();
-  </script>
+<script>
+  const teamBox = document.getElementById("teamPrints");
+  const systemBox = document.getElementById("systemPrints");
+
+  setInterval(() => {
+    teamBox.textContent += "\n[INFO] Team heartbeat";
+    systemBox.textContent += "\n[INFO] System tick";
+    systemBox.scrollTop = systemBox.scrollHeight; // autoscroll ON by default
+  }, 4000);
+</script>
 
 </body>
 </html>
