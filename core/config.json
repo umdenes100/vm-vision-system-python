@@ -3,13 +3,14 @@
     "name": "vm-vision-system",
     "log_level": "INFO"
   },
-  "camera_udp": {
+  "camera": {
+    "mode": "rtp_h264",
     "bind_ip": "0.0.0.0",
-    "bind_port": 5000
+    "bind_port": 5000,
+    "rtp_payload": 96
   },
   "frontend": {
     "host": "0.0.0.0",
     "port": 8080
   }
 }
-
