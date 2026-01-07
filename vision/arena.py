@@ -10,31 +10,45 @@ from vision.aruco import ArucoDetector, ArucoMarker
 
 @dataclass
 class ArenaConfig:
-    # 0 = BL, 1 = TL, 2 = TR, 3 = BR
+    # Corner marker layout: 0=BL, 1=TL, 2=TR, 3=BR
     id_bl: int = 0
     id_tl: int = 1
     id_tr: int = 2
     id_br: int = 3
 
-    # Output crop size (pixels) — 2:1
-    output_width: int = 1800
-    output_height: int = 900
+    # Output crop size (pixels)
+    output_width: int = 1000
+    output_height: int = 500  # 2:1
 
     draw_ids: bool = True
     box_thickness: int = 2
 
-    crop_refresh_seconds: int = 600  # 10 min
+    # Only recompute the homography this often (seconds)
+    crop_refresh_seconds: int = 600
+
+    # Border around crop based on marker size (in marker widths)
     border_marker_fraction: float = 0.5
 
-    # Extra vertical padding as a fraction of arena vertical axis (smaller than before)
-    vertical_padding_fraction: float = 0.025  # 2.5% top + 2.5% bottom
+    # Extra vertical padding fraction to prevent clipping (small)
+    vertical_padding_fraction: float = 0.01
 
-    # JPEG quality for the cropped output (lower = faster)
-    crop_jpeg_quality: int = 70
+    # JPEG quality controls
+    crop_jpeg_quality: int = 75
     overlay_jpeg_quality: int = 80
 
 
 class ArenaProcessor:
+    """
+    Produces:
+      - latest_overlay_jpeg: raw frame + green boxes around all detected ArUco markers
+      - latest_cropped_jpeg: warped arena crop using cached homography (also with boxes)
+
+    Behavior:
+      - Homography is cached and persists through corner marker flicker.
+      - Homography refresh occurs at most once per crop_refresh_seconds (when all 0-3 are visible).
+      - Warp + draw + encode happen every process_bgr call using the cached homography.
+    """
+
     def __init__(self, cfg: ArenaConfig):
         self.cfg = cfg
         self.detector = ArucoDetector(dict_name="DICT_4X4_50")
@@ -42,18 +56,8 @@ class ArenaProcessor:
         self.latest_overlay_jpeg: Optional[bytes] = None
         self.latest_cropped_jpeg: Optional[bytes] = None
 
-        self._frames_processed = 0
         self._M_cached: Optional[np.ndarray] = None
         self._M_last_update_monotonic: float = 0.0
-
-    def stats(self) -> dict:
-        return {
-            "frames_processed": self._frames_processed,
-            "have_cached_homography": self._M_cached is not None,
-            "seconds_since_crop_refresh": (
-                None if self._M_cached is None else (time.monotonic() - self._M_last_update_monotonic)
-            ),
-        }
 
     @staticmethod
     def _encode_jpeg(bgr: np.ndarray, quality: int) -> Optional[bytes]:
@@ -118,12 +122,9 @@ class ArenaProcessor:
         pad = float(self.cfg.vertical_padding_fraction)
         if pad <= 0:
             return src
-
-        # src order: TL, TR, BR, BL
         top_mid = (src[0] + src[1]) * 0.5
         bot_mid = (src[2] + src[3]) * 0.5
         v = bot_mid - top_mid
-
         src2 = src.copy()
         src2[0] -= v * pad
         src2[1] -= v * pad
@@ -170,7 +171,6 @@ class ArenaProcessor:
 
         if not need_first and not interval_elapsed:
             return
-
         if not self._have_corner_markers(markers):
             return
 
@@ -202,12 +202,11 @@ class ArenaProcessor:
         if overlay_jpg is not None:
             self.latest_overlay_jpeg = overlay_jpg
 
-        # Crop
+        # Crop: refresh homography occasionally, but warp every call using cached M
         self._maybe_refresh_homography(markers)
 
         if self._M_cached is None:
             self.latest_cropped_jpeg = None
-            self._frames_processed += 1
             return
 
         M = self._M_cached
@@ -236,5 +235,3 @@ class ArenaProcessor:
         cropped_jpg = self._encode_jpeg(warped, self.cfg.crop_jpeg_quality)
         if cropped_jpg is not None:
             self.latest_cropped_jpeg = cropped_jpg
-
-        self._frames_processed += 1
