@@ -40,7 +40,7 @@ table {
 }
 
 td {
-    border: 1px black solid;
+    border: 1px solid #e6e6e6;
     padding-right: 5px;
 }
 
@@ -66,4 +66,9 @@ td {
 #stream {
     width: auto; /*to maintain aspect ratio. You can use 100% if you don't care about that*/
     height: 100%;
+}
+/* Space between header and body */
+.navbar {
+    margin-bottom: 12px;
+    box-shadow: 0 2px 0 #7f7f7f;
 }

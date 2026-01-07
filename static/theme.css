@@ -1,0 +1,137 @@
+/* Modern dark theme + ENES100 palette overrides.
+   Main colors:
+   - Red:    #e21833
+   - Yellow: #ffd200
+   - White:  #ffffff
+   - Black:  #000000
+   Optional neutrals:
+   - #454545, #7f7f7f, #e6e6e6, #ad7231
+*/
+
+:root{
+  --vs-red:#e21833;
+  --vs-yellow:#ffd200;
+  --vs-white:#ffffff;
+  --vs-black:#000000;
+
+  --vs-n-900:#000000;
+  --vs-n-800:#111111;
+  --vs-n-700:#1a1a1a;
+  --vs-n-600:#2a2a2a;
+  --vs-n-500:#454545;
+  --vs-n-400:#7f7f7f;
+  --vs-n-200:#e6e6e6;
+
+  --vs-text: var(--vs-white);
+  --vs-muted: #cfcfcf;
+  --vs-border: var(--vs-n-500);
+  --vs-panel: var(--vs-n-800);
+  --vs-panel-2: var(--vs-n-700);
+  --vs-bg: var(--vs-black);
+
+  --vs-radius: 14px;
+}
+
+html, body {
+  background: var(--vs-bg);
+  color: var(--vs-text);
+}
+
+a { color: var(--vs-yellow); }
+a:hover { color: var(--vs-white); text-decoration: none; }
+
+nav.navbar.umd{
+  background-color: var(--vs-red) !important;
+  border-bottom: 1px solid rgba(255,255,255,0.12);
+}
+
+#logo{
+  color: var(--vs-white) !important;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+}
+
+/* Layout panels */
+#communication-panel{
+  background-color: var(--vs-panel) !important;
+  border-right: 1px solid var(--vs-border) !important;
+}
+
+#select-container, #stream-container{
+  background: var(--vs-panel-2);
+  border: 1px solid var(--vs-border);
+  border-radius: var(--vs-radius);
+}
+
+textarea, input, select{
+  background: var(--vs-n-700) !important;
+  color: var(--vs-white) !important;
+  border: 1px solid var(--vs-border) !important;
+  border-radius: 10px !important;
+}
+
+textarea::placeholder, input::placeholder{
+  color: var(--vs-muted);
+}
+
+/* Buttons (class "sexy") */
+.sexy{
+  border-radius: 12px !important;
+  box-shadow: none !important;
+  border: 1px solid rgba(255,255,255,0.12) !important;
+  background-image: none !important;
+  background: linear-gradient(135deg, var(--vs-red), #b90f26) !important;
+  color: var(--vs-white) !important;
+  text-shadow: none !important;
+}
+.sexy:hover{
+  filter: brightness(1.06);
+}
+.sexy:active{
+  filter: brightness(0.98);
+}
+
+/* Secondary buttons if any */
+.sexy.secondary{
+  background: linear-gradient(135deg, var(--vs-yellow), #ad7231) !important;
+  color: var(--vs-black) !important;
+}
+
+/* Toggle switch */
+.slider{
+  background-color: var(--vs-n-500) !important;
+}
+input:checked + .slider{
+  background-color: var(--vs-yellow) !important;
+}
+.slider:before{
+  background-color: var(--vs-white) !important;
+}
+
+/* Bootstrap components (light defaults) */
+.nav-link{
+  color: var(--vs-white) !important;
+  opacity: 0.95;
+}
+.nav-link:hover{
+  color: var(--vs-yellow) !important;
+}
+
+/* Thin scrollbars (Chromium) */
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb { background: var(--vs-n-500); border-radius: 999px; }
+*::-webkit-scrollbar-track { background: var(--vs-n-800); }
+
+/* Small helper */
+.vs-pill{
+  display:inline-block;
+  padding: 2px 10px;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+}
+/* Move the main title over a bit */
+.navbar-brand {
+    margin-left: -80px;
+}
+
