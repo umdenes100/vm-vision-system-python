@@ -4,8 +4,9 @@ import logging
 from pathlib import Path
 
 from aiohttp import web
+
 from utils.logging import get_logger, parse_level
-from communications.arenacam import ArenaCamUDP, ArenaCamConfig
+from communications.arenacam import ArenaCamConfig, create_arenacam
 from frontend.webpage import create_app
 
 
@@ -17,28 +18,33 @@ def load_config(path: Path) -> dict:
 async def run():
     config = load_config(Path(__file__).parent / "config.json")
 
-    level = parse_level(config["system"].get("log_level", "INFO"))
+    level = parse_level(config.get("system", {}).get("log_level", "INFO"), default=logging.INFO)
     logger = get_logger("main", level=level)
 
-    cam_cfg = config["camera_udp"]
-    arenacam = ArenaCamUDP(
-        ArenaCamConfig(cam_cfg["bind_ip"], cam_cfg["bind_port"])
+    cam_cfg = config.get("camera", {})
+    arenacam = create_arenacam(
+        ArenaCamConfig(
+            mode=cam_cfg.get("mode", "rtp_h264"),
+            bind_ip=cam_cfg.get("bind_ip", "0.0.0.0"),
+            bind_port=int(cam_cfg.get("bind_port", 5000)),
+            rtp_payload=int(cam_cfg.get("rtp_payload", 96)),
+        )
     )
+
     await arenacam.start()
 
     app = create_app(arenacam)
     runner = web.AppRunner(app)
     await runner.setup()
 
-    frontend_cfg = config["frontend"]
-    site = web.TCPSite(
-        runner,
-        frontend_cfg["host"],
-        frontend_cfg["port"],
-    )
+    frontend_cfg = config.get("frontend", {})
+    host = frontend_cfg.get("host", "0.0.0.0")
+    port = int(frontend_cfg.get("port", 8080))
+
+    site = web.TCPSite(runner, host, port)
     await site.start()
 
-    logger.info("Vision system running")
+    logger.info(f"Vision system running. Open http://<VM_IP>:{port}/")
 
     try:
         while True:
@@ -48,6 +54,7 @@ async def run():
     finally:
         await arenacam.stop()
         await runner.cleanup()
+        logger.info("Stopped")
 
 
 def main():
