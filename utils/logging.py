@@ -79,10 +79,6 @@ def set_team_list(teams: List[str]) -> None:
 
 
 def emit_team_roster(teams: List[Dict[str, Any]]) -> None:
-    """
-    Push structured team state to the UI:
-      teams: [{name, connected, teamType, aruco, visible, x, y, theta}, ...]
-    """
     _emit_web_event({"type": "team_roster", "teams": teams})
 
 
@@ -94,6 +90,9 @@ def _ensure_team_known(team: str) -> None:
 
 
 def team_log(team_name: str, level: str, message: str) -> None:
+    """
+    Team log WITH [LEVEL] prefix.
+    """
     team = str(team_name).strip()
     if not team:
         web_log(level, message)
@@ -105,17 +104,15 @@ def team_log(team_name: str, level: str, message: str) -> None:
 
 def team_raw(team_name: str, message: str) -> None:
     """
-    Emit a team log line WITHOUT any [LEVEL] prefix.
-    Intended for ESP-originated prints so they appear exactly as sent.
+    Team log WITHOUT any [LEVEL] prefix.
+    Intended for ESP-originated prints.
     """
     team = str(team_name).strip()
     if not team:
         return
 
     _ensure_team_known(team)
-
-    # Preserve newlines exactly. Frontend renders with pre-wrap.
-    _emit_web_event({"type": "team_log", "team": team, "line": str(message)})
+    _emit_web_event({"type": "team_raw", "team": team, "line": str(message)})
 
 
 def team_debug(team_name: str, message: str) -> None:
