@@ -12,5 +12,9 @@
   "frontend": {
     "host": "0.0.0.0",
     "port": 8080
+  },
+  "machinelearning": {
+    "listener_enabled": true,
+    "models_dir": "machinelearning/models"
   }
 }
