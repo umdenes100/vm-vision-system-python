@@ -26,3 +26,6 @@ Thumbs.db
 
 # Local overrides
 config.local.json
+
+# Downloaded ML models
+machinelearning/models/
