@@ -1,14 +1,18 @@
 import asyncio
+import base64
 import json
 import time
 from dataclasses import dataclass, field
 from typing import Dict, Optional, Tuple, Any, Callable, List
 from collections import deque
+from pathlib import Path
 
+import cv2
+import numpy as np
 from aiohttp import web, WSMsgType
 
-from utils.logging import web_info, web_warn, team_raw
-from utils.logging import emit_team_roster
+from utils.logging import web_info, web_warn, web_error, team_raw, emit_team_roster, emit_team_ml_image
+from machinelearning.predictor import Predictor
 
 
 @dataclass
@@ -30,12 +34,29 @@ class TeamState:
 
 
 class WifiServer:
+    """
+    ESP <-> Vision system WebSocket server.
+
+    Ops supported (incoming):
+      - begin: {op:"begin", teamName, aruco:int, teamType:str}
+      - print: {op:"print", teamName, message:str}
+      - ping:  {op:"ping", teamName, status:"ping"|"pong"}
+      - aruco: {op:"aruco", teamName}
+      - prediction_request: {op:"prediction_request", teamName, index:int, frame:str(base64 jpeg)}
+
+    Replies:
+      - ping: {op:"ping", teamName, status:"pong"} when ESP pings
+      - aruco: {op:"aruco", x,y,theta,is_visible}
+      - prediction: {op:"prediction", prediction:int}
+    """
+
     def __init__(
         self,
         host: str,
         port: int,
         get_marker_pose: Callable[[int], Tuple[float, float, float]],
         is_marker_seen: Callable[[int], bool],
+        models_dir: Optional[str] = None,
     ):
         self.host = host
         self.port = port
@@ -53,6 +74,9 @@ class WifiServer:
 
         self._ping_task: Optional[asyncio.Task] = None
         self._roster_task: Optional[asyncio.Task] = None
+
+        # ML Predictor
+        self._predictor = Predictor(models_dir=models_dir)
 
         self._app.router.add_get("/", self._health)
         self._app.router.add_get("/ws", self._ws_handler)
@@ -188,6 +212,16 @@ class WifiServer:
                 return float(x), float(y), float(th), True
         return -1.0, -1.0, -1.0, False
 
+    @staticmethod
+    def _decode_base64_jpeg_to_bgr(frame_b64: str) -> Optional[np.ndarray]:
+        try:
+            raw = base64.b64decode(frame_b64.encode())
+            arr = np.frombuffer(raw, np.uint8)
+            img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+            return img
+        except Exception:
+            return None
+
     async def _ws_handler(self, request: web.Request) -> web.WebSocketResponse:
         ws = web.WebSocketResponse()
         await ws.prepare(request)
@@ -233,7 +267,7 @@ class WifiServer:
                     self._push_roster_to_ui()
 
                 elif op == "print":
-                    # ESP prints: NO [INFO] prefix, ever.
+                    # ESP prints: show exactly as sent (no [INFO])
                     message = str(data.get("message", ""))
                     team_raw(tname, message)
 
@@ -253,15 +287,43 @@ class WifiServer:
                     try:
                         await ws.send_str(
                             json.dumps(
-                                {
-                                    "op": "aruco",
-                                    "x": float(x),
-                                    "y": float(y),
-                                    "theta": float(th),
-                                    "is_visible": bool(vis),
-                                }
+                                {"op": "aruco", "x": float(x), "y": float(y), "theta": float(th), "is_visible": bool(vis)}
                             )
                         )
+                    except Exception:
+                        await self._mark_disconnected(tname)
+
+                elif op == "prediction_request":
+                    # Required fields: index:int, frame:str(base64 jpeg)
+                    try:
+                        model_index = int(data.get("index"))
+                    except Exception:
+                        model_index = -1
+
+                    frame_b64 = data.get("frame")
+                    if not isinstance(frame_b64, str) or len(frame_b64) < 8:
+                        web_error(f"ML request from {tname} missing/invalid frame")
+                        continue
+
+                    img = self._decode_base64_jpeg_to_bgr(frame_b64)
+                    if img is None:
+                        web_error(f"ML request from {tname} had undecodable frame")
+                        continue
+
+                    # Push the request image to the UI for that team
+                    # UI expects a data URL
+                    emit_team_ml_image(tname, "data:image/jpeg;base64," + frame_b64)
+
+                    # Run prediction in a thread to avoid blocking the asyncio loop
+                    try:
+                        pred = await asyncio.to_thread(self._predictor.predict, img, tname, model_index)
+                    except Exception as e:
+                        web_error(f"ML prediction failed for {tname} idx={model_index}: {e}")
+                        continue
+
+                    # Reply to ESP
+                    try:
+                        await ws.send_str(json.dumps({"op": "prediction", "prediction": int(pred)}))
                     except Exception:
                         await self._mark_disconnected(tname)
 
