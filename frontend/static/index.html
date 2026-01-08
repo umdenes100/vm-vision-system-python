@@ -221,7 +221,12 @@
           </thead>
           <tbody>
             <tr>
-              <td>--</td><td>--</td><td>--</td><td>--</td><td>--</td><td>--</td>
+              <td id="cellMissionType">--</td>
+              <td id="cellArucoId">--</td>
+              <td id="cellVisible">--</td>
+              <td id="cellX">--</td>
+              <td id="cellY">--</td>
+              <td id="cellTheta">--</td>
             </tr>
           </tbody>
         </table>
@@ -276,17 +281,30 @@
     const teamBox = document.getElementById("teamPrints");
     const systemBox = document.getElementById("systemPrints");
     const autoscroll = document.getElementById("autoscroll");
+    const showDisconnected = document.getElementById("showDisconnected");
     const clearBtn = document.getElementById("clearPrints");
+
+    const cellMissionType = document.getElementById("cellMissionType");
+    const cellArucoId = document.getElementById("cellArucoId");
+    const cellVisible = document.getElementById("cellVisible");
+    const cellX = document.getElementById("cellX");
+    const cellY = document.getElementById("cellY");
+    const cellTheta = document.getElementById("cellTheta");
 
     // Per-team log buffers (cap at 100)
     const teamLogs = new Map(); // team -> array of lines (<=100)
+
+    // Team roster state from backend:
+    // name -> {connected, teamType, aruco, visible, x, y, theta}
+    const roster = new Map();
+
     let selectedTeam = null;
 
     function maybeScroll(box) {
       if (autoscroll.checked) box.scrollTop = box.scrollHeight;
     }
 
-    function renderSelectedTeam() {
+    function renderSelectedTeamLogs() {
       if (!selectedTeam) {
         teamBox.textContent = "";
         return;
@@ -296,56 +314,86 @@
       maybeScroll(teamBox);
     }
 
-    function setTeams(teams) {
-      const list = Array.isArray(teams) ? teams.slice() : [];
-      const prev = selectedTeam;
-
-      // Preserve existing logs for teams we already have; create buffers for new ones
-      for (const t of list) {
-        if (!teamLogs.has(t)) teamLogs.set(t, []);
+    function renderSelectedTeamRow() {
+      if (!selectedTeam || !roster.has(selectedTeam)) {
+        cellMissionType.textContent = "--";
+        cellArucoId.textContent = "--";
+        cellVisible.textContent = "--";
+        cellX.textContent = "--";
+        cellY.textContent = "--";
+        cellTheta.textContent = "--";
+        return;
       }
 
-      // Rebuild dropdown
+      const st = roster.get(selectedTeam);
+
+      cellMissionType.textContent = st.teamType || "--";
+      cellArucoId.textContent = (st.aruco === undefined || st.aruco === null) ? "--" : String(st.aruco);
+      cellVisible.textContent = st.visible ? "YES" : "NO";
+      cellX.textContent = (typeof st.x === "number") ? st.x.toFixed(3) : "--";
+      cellY.textContent = (typeof st.y === "number") ? st.y.toFixed(3) : "--";
+      cellTheta.textContent = (typeof st.theta === "number") ? st.theta.toFixed(6) : "--";
+    }
+
+    function rebuildDropdown() {
+      const allowDisconnected = showDisconnected.checked;
+
+      const names = [...roster.keys()]
+        .filter(name => {
+          const st = roster.get(name);
+          if (!st) return false;
+          return st.connected || allowDisconnected;
+        })
+        .sort((a, b) => a.localeCompare(b));
+
       teamSelect.innerHTML = "";
-      if (list.length === 0) {
+
+      if (names.length === 0) {
         teamSelect.disabled = true;
         const opt = document.createElement("option");
         opt.selected = true;
         opt.textContent = "No Teams Connected";
         teamSelect.appendChild(opt);
         selectedTeam = null;
-        renderSelectedTeam();
+        renderSelectedTeamLogs();
+        renderSelectedTeamRow();
         return;
       }
 
       teamSelect.disabled = false;
-      for (const t of list) {
+      for (const n of names) {
         const opt = document.createElement("option");
-        opt.value = t;
-        opt.textContent = t;
+        opt.value = n;
+        opt.textContent = n;
         teamSelect.appendChild(opt);
       }
 
-      // Choose selection: keep previous if still present, else first
-      if (prev && list.includes(prev)) {
-        selectedTeam = prev;
+      // keep current selection if possible
+      if (selectedTeam && names.includes(selectedTeam)) {
+        teamSelect.value = selectedTeam;
       } else {
-        selectedTeam = list[0];
+        selectedTeam = names[0];
+        teamSelect.value = selectedTeam;
       }
-      teamSelect.value = selectedTeam;
-      renderSelectedTeam();
+
+      renderSelectedTeamLogs();
+      renderSelectedTeamRow();
     }
 
     teamSelect.addEventListener("change", () => {
       selectedTeam = teamSelect.value || null;
-      renderSelectedTeam();
+      renderSelectedTeamLogs();
+      renderSelectedTeamRow();
     });
 
-    // Clear only current team
+    showDisconnected.addEventListener("change", () => {
+      rebuildDropdown();
+    });
+
     clearBtn.addEventListener("click", () => {
       if (!selectedTeam) return;
       teamLogs.set(selectedTeam, []);
-      renderSelectedTeam();
+      renderSelectedTeamLogs();
     });
 
     function appendSystemLine(line) {
@@ -353,8 +401,7 @@
         systemBox.textContent = "";
       }
       systemBox.textContent += (systemBox.textContent.length ? "\n" : "") + line;
-      // system printouts should autoscroll by default (per earlier request)
-      systemBox.scrollTop = systemBox.scrollHeight;
+      systemBox.scrollTop = systemBox.scrollHeight; // autoscroll system by default
     }
 
     function appendTeamLine(team, line) {
@@ -363,12 +410,35 @@
       const buf = teamLogs.get(team);
 
       buf.push(line);
-      // Cap at 100
       while (buf.length > 100) buf.shift();
 
       if (team === selectedTeam) {
-        renderSelectedTeam();
+        renderSelectedTeamLogs();
       }
+    }
+
+    function updateRoster(list) {
+      if (!Array.isArray(list)) return;
+
+      for (const item of list) {
+        const name = String(item?.name || "").trim();
+        if (!name) continue;
+        roster.set(name, {
+          connected: !!item.connected,
+          teamType: String(item.teamType || ""),
+          aruco: (item.aruco === undefined || item.aruco === null) ? -1 : Number(item.aruco),
+          visible: !!item.visible,
+          x: Number(item.x),
+          y: Number(item.y),
+          theta: Number(item.theta),
+        });
+
+        // Ensure log buffer exists
+        if (!teamLogs.has(name)) teamLogs.set(name, []);
+      }
+
+      rebuildDropdown();
+      renderSelectedTeamRow();
     }
 
     function connectWs() {
@@ -379,7 +449,6 @@
         const raw = String(ev.data || "");
         if (!raw) return;
 
-        // Prefer JSON events
         try {
           const msg = JSON.parse(raw);
 
@@ -388,20 +457,19 @@
             return;
           }
 
-          if (msg.type === "team_list" && Array.isArray(msg.teams)) {
-            setTeams(msg.teams);
-            return;
-          }
-
           if (msg.type === "team_log" && typeof msg.team === "string" && typeof msg.line === "string") {
             appendTeamLine(msg.team, msg.line);
             return;
           }
-        } catch (_) {
-          // Backward compat: treat as system line
-        }
 
-        appendSystemLine(raw);
+          if (msg.type === "team_roster" && Array.isArray(msg.teams)) {
+            updateRoster(msg.teams);
+            return;
+          }
+
+        } catch (_) {
+          // ignore non-json
+        }
       };
 
       ws.onclose = () => setTimeout(connectWs, 1000);
@@ -409,9 +477,8 @@
     }
 
     connectWs();
-
-    // Initial state
-    setTeams([]);
+    rebuildDropdown();
+    renderSelectedTeamRow();
   })();
 </script>
 
