@@ -32,9 +32,14 @@
 
     .vs-main { height: calc(100vh - 64px); display: flex; background: #000; }
 
+    /* left column width ~75% of prior “2x” state */
     .vs-left {
-      width: 540px; min-width: 500px; max-width: 640px;
-      height: 100%; padding: 12px; box-sizing: border-box;
+      width: 510px;
+      min-width: 460px;
+      max-width: 600px;
+      height: 100%;
+      padding: 12px;
+      box-sizing: border-box;
     }
 
     .vs-panel {
@@ -90,13 +95,21 @@
     .vs-left-stack { height: 100%; display: flex; flex-direction: column; }
     .vs-left-top { padding: 12px 12px 0 12px; }
     .vs-left-bottom {
-      flex: 1; min-height: 0;
+      flex: 1;
+      min-height: 0;
       padding: 0 12px 12px 12px;
-      display: flex; flex-direction: column;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
     }
-    .vs-left-prints { flex: 1; min-height: 0; margin-bottom: 10px; }
 
-    .vs-switch-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+    /* Team prints box height reduced by ~half */
+    .vs-left-prints {
+      flex: 0 0 32%;
+      min-height: 0;
+    }
+
+    .vs-switch-row { display: flex; align-items: center; gap: 10px; }
     .vs-switch { position: relative; width: 52px; height: 28px; flex: 0 0 auto; }
     .vs-switch input { opacity: 0; width: 0; height: 0; }
     .vs-slider {
@@ -118,6 +131,67 @@
     }
     .vs-switch input:checked + .vs-slider { background: #2b7a2b; }
     .vs-switch input:checked + .vs-slider:before { transform: translateX(24px); background: #fff; }
+
+    .vs-btn {
+      width: 100%;
+      border-radius: 8px;
+      border: none;
+      padding: 10px;
+      font-weight: 800;
+      background: #e21833;
+      color: #fff;
+      cursor: pointer;
+    }
+
+    /* ML image area uses remaining space */
+    .vs-ml-wrap {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .vs-ml-label {
+      font-weight: 700;
+      color: #eaeaea;
+      padding-left: 2px;
+    }
+
+    .vs-ml-frame {
+      flex: 1;
+      min-height: 0;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 6px;
+      background: #000;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .vs-ml-img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      background: #000;
+    }
+
+    .vs-ml-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 14px;
+      color: rgba(255,255,255,0.80);
+      font-size: 13px;
+      pointer-events: none;
+      white-space: pre-wrap;
+    }
 
     .vs-right {
       flex: 1;
@@ -175,18 +249,6 @@
     }
 
     .vs-system-prints-box { height: 100%; min-height: 0; }
-
-    .vs-btn {
-      width: 100%;
-      border-radius: 8px;
-      border: none;
-      padding: 10px;
-      font-weight: 800;
-      background: #e21833;
-      color: #fff;
-      margin-top: 10px;
-      cursor: pointer;
-    }
   </style>
 </head>
 
@@ -252,6 +314,14 @@
         </div>
 
         <button class="vs-btn" id="clearPrints">CLEAR PRINTS</button>
+
+        <div class="vs-ml-wrap">
+          <div class="vs-ml-label">ML Camera Image</div>
+          <div class="vs-ml-frame">
+            <img class="vs-ml-img" id="mlImage" alt="ML request image" />
+            <div class="vs-ml-placeholder" id="mlPlaceholder">Camera image will appear here on ML request.</div>
+          </div>
+        </div>
       </div>
     </div>
   </aside>
@@ -284,6 +354,9 @@
     const showDisconnected = document.getElementById("showDisconnected");
     const clearBtn = document.getElementById("clearPrints");
 
+    const mlImage = document.getElementById("mlImage");
+    const mlPlaceholder = document.getElementById("mlPlaceholder");
+
     const cellMissionType = document.getElementById("cellMissionType");
     const cellArucoId = document.getElementById("cellArucoId");
     const cellVisible = document.getElementById("cellVisible");
@@ -291,8 +364,9 @@
     const cellY = document.getElementById("cellY");
     const cellTheta = document.getElementById("cellTheta");
 
-    const teamLogs = new Map(); // team -> array of lines (<=100)
-    const roster = new Map();   // team -> state
+    const teamLogs = new Map();     // team -> array of lines (<=100)
+    const roster = new Map();       // team -> state
+    const teamML = new Map();       // team -> data_url string (most recent ML request image)
     let selectedTeam = null;
 
     function maybeScroll(box) {
@@ -328,6 +402,22 @@
       cellTheta.textContent = (typeof st.theta === "number") ? st.theta.toFixed(6) : "--";
     }
 
+    function renderMLImage() {
+      if (!selectedTeam) {
+        mlImage.removeAttribute("src");
+        mlPlaceholder.style.display = "flex";
+        return;
+      }
+      const dataUrl = teamML.get(selectedTeam);
+      if (dataUrl && typeof dataUrl === "string" && dataUrl.length > 0) {
+        mlImage.src = dataUrl;
+        mlPlaceholder.style.display = "none";
+      } else {
+        mlImage.removeAttribute("src");
+        mlPlaceholder.style.display = "flex";
+      }
+    }
+
     function rebuildDropdown() {
       const allowDisconnected = showDisconnected.checked;
 
@@ -349,6 +439,7 @@
         selectedTeam = null;
         renderSelectedTeamLogs();
         renderSelectedTeamRow();
+        renderMLImage();
         return;
       }
 
@@ -369,12 +460,14 @@
 
       renderSelectedTeamLogs();
       renderSelectedTeamRow();
+      renderMLImage();
     }
 
     teamSelect.addEventListener("change", () => {
       selectedTeam = teamSelect.value || null;
       renderSelectedTeamLogs();
       renderSelectedTeamRow();
+      renderMLImage();
     });
 
     showDisconnected.addEventListener("change", rebuildDropdown);
@@ -449,7 +542,6 @@
             return;
           }
 
-          // NEW: raw team prints from ESP (no prefix)
           if (msg.type === "team_raw" && typeof msg.team === "string" && typeof msg.line === "string") {
             appendTeamLine(msg.team, msg.line);
             return;
@@ -457,6 +549,15 @@
 
           if (msg.type === "team_roster" && Array.isArray(msg.teams)) {
             updateRoster(msg.teams);
+            return;
+          }
+
+          // NEW: ML request image per team
+          if (msg.type === "team_ml_image" && typeof msg.team === "string" && typeof msg.data_url === "string") {
+            teamML.set(msg.team, msg.data_url);
+            if (msg.team === selectedTeam) {
+              renderMLImage();
+            }
             return;
           }
 
@@ -470,6 +571,7 @@
     connectWs();
     rebuildDropdown();
     renderSelectedTeamRow();
+    renderMLImage();
   })();
 </script>
 
