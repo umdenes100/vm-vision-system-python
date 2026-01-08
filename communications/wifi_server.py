@@ -118,8 +118,8 @@ class WifiServer:
         out = []
         for name, st in sorted(self.teams.items(), key=lambda kv: kv[0].lower()):
             self._update_team_pose_and_history(st)
-
             visible = (st.x != -1.0 and st.y != -1.0 and st.theta != -1.0)
+
             out.append(
                 {
                     "name": st.name,
@@ -183,11 +183,9 @@ class WifiServer:
 
     def _best_recent_pose(self, st: TeamState) -> Tuple[float, float, float, bool]:
         self._update_team_pose_and_history(st)
-
         for (x, y, th, vis) in reversed(st.pose_hist):
             if vis and x != -1.0 and y != -1.0 and th != -1.0:
                 return float(x), float(y), float(th), True
-
         return -1.0, -1.0, -1.0, False
 
     async def _ws_handler(self, request: web.Request) -> web.WebSocketResponse:
@@ -235,10 +233,9 @@ class WifiServer:
                     self._push_roster_to_ui()
 
                 elif op == "print":
-                    # IMPORTANT: ESP-originated prints should be shown EXACTLY as sent (no [INFO]).
+                    # ESP prints: NO [INFO] prefix, ever.
                     message = str(data.get("message", ""))
                     team_raw(tname, message)
-                    self._push_roster_to_ui()
 
                 elif op == "ping":
                     status = str(data.get("status", "")).strip().lower()
