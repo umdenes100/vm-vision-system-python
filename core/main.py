@@ -1,22 +1,23 @@
 import asyncio
 import json
 import logging
+import os
 import signal
 import socket
+import sys
 import time
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 import cv2
 import numpy as np
 from aiohttp import web
 
-from utils.logging import get_logger, parse_level, web_info
+from utils.logging import get_logger, parse_level
 from utils.port_guard import ensure_ports_available
 from communications.arenacam import ArenaCamConfig, create_arenacam
 from vision.arena import ArenaConfig, ArenaProcessor
 from frontend.webpage import create_app
-from communications.wifi_server import WifiServer
 
 
 def load_config(path: Path) -> dict:
@@ -40,8 +41,50 @@ def _get_best_local_ip() -> str:
         return "127.0.0.1"
 
 
+async def _start_ml_listener(logger, models_dir: Optional[str]) -> tuple[asyncio.subprocess.Process, asyncio.Task]:
+    """Start machinelearning/listener.py as a subprocess and stream its stdout to the logger."""
+    repo_root = Path(__file__).resolve().parents[1]
+    listener_path = repo_root / "machinelearning" / "listener.py"
+
+    env = os.environ.copy()
+    if models_dir:
+        env["VISION_ML_MODELS_DIR"] = str(
+            (repo_root / models_dir).resolve() if not Path(models_dir).is_absolute() else models_dir
+        )
+
+    proc = await asyncio.create_subprocess_exec(
+        sys.executable,
+        "-u",
+        str(listener_path),
+        cwd=str(repo_root),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.STDOUT,
+        env=env,
+    )
+
+    async def _pump_stdout():
+        assert proc.stdout is not None
+        try:
+            while True:
+                line = await proc.stdout.readline()
+                if not line:
+                    break
+                try:
+                    txt = line.decode("utf-8", errors="replace").rstrip("\n")
+                except Exception:
+                    txt = str(line)
+                if txt:
+                    logger.info(txt)
+        except asyncio.CancelledError:
+            return
+
+    task = asyncio.create_task(_pump_stdout())
+    return proc, task
+
+
 async def arena_processing_loop(
     stop_event: asyncio.Event,
+    logger,
     arenacam,
     arena_processor: ArenaProcessor,
     target_fps: float = 30.0,
@@ -75,29 +118,18 @@ async def run():
 
     cam_cfg = config.get("camera", {})
     fe_cfg = config.get("frontend", {})
-    wifi_cfg = config.get("wifi_server", {})
+    ml_cfg = config.get("machinelearning", {})
 
     udp_host = cam_cfg.get("bind_ip", "0.0.0.0")
     udp_port = int(cam_cfg.get("bind_port", 5000))
-
-    web_host = fe_cfg.get("host", "0.0.0.0")
-    web_port = int(fe_cfg.get("port", 8080))
-
-    wifi_host = wifi_cfg.get("host", "0.0.0.0")
-    wifi_port = int(wifi_cfg.get("port", 7755))
+    tcp_host = fe_cfg.get("host", "0.0.0.0")
+    tcp_port = int(fe_cfg.get("port", 8080))
 
     ensure_ports_available(
         udp_host=udp_host,
         udp_port=udp_port,
-        tcp_host=web_host,
-        tcp_port=web_port,
-    )
-    # Also ensure wifi port isn't already in use
-    ensure_ports_available(
-        udp_host="0.0.0.0",
-        udp_port=0,
-        tcp_host=wifi_host,
-        tcp_port=wifi_port,
+        tcp_host=tcp_host,
+        tcp_port=tcp_port,
     )
 
     stop_event = asyncio.Event()
@@ -123,58 +155,52 @@ async def run():
         )
     )
 
-    arena_processor = ArenaProcessor(
-        ArenaConfig(
-            id_bl=0,
-            id_tl=1,
-            id_tr=2,
-            id_br=3,
-            output_width=1000,
-            output_height=500,
-            crop_refresh_seconds=600,
-            border_marker_fraction=0.5,
-            vertical_padding_fraction=0.01,
-            crop_jpeg_quality=75,
-            overlay_jpeg_quality=80,
-        )
-    )
-
-    def get_pose_for_id(marker_id: int) -> Tuple[float, float, float]:
-        return arena_processor.poses_arena.get(marker_id, (-1.0, -1.0, -1.0))
-
-    def is_seen(marker_id: int) -> bool:
-        return marker_id in arena_processor.seen_ids
-
-    wifi_server = WifiServer(
-        host=wifi_host,
-        port=wifi_port,
-        get_marker_pose=get_pose_for_id,
-        is_marker_seen=is_seen,
-    )
-
     runner = None
     site = None
     proc_task = None
+    ml_proc = None
+    ml_stdout_task = None
 
     try:
+        # Optional: machine learning model sync listener
+        if bool(ml_cfg.get("listener_enabled", False)):
+            try:
+                models_dir = ml_cfg.get("models_dir")
+                ml_proc, ml_stdout_task = await _start_ml_listener(logger, models_dir=models_dir)
+                logger.info("[ml] Listener started")
+            except Exception as e:
+                logger.error(f"[ml] Failed to start listener: {e}")
+
         await arenacam.start()
 
-        proc_task = asyncio.create_task(
-            arena_processing_loop(stop_event, arenacam, arena_processor, target_fps=30.0)
+        arena_processor = ArenaProcessor(
+            ArenaConfig(
+                id_bl=0,
+                id_tl=1,
+                id_tr=2,
+                id_br=3,
+                output_width=1000,
+                output_height=500,
+                crop_refresh_seconds=600,
+                border_marker_fraction=0.5,
+                vertical_padding_fraction=0.01,
+                crop_jpeg_quality=75,
+                overlay_jpeg_quality=80,
+            )
         )
 
-        # Frontend web server
+        proc_task = asyncio.create_task(
+            arena_processing_loop(stop_event, logger, arenacam, arena_processor, target_fps=30.0)
+        )
+
         app = create_app(stop_event, arenacam, arena_processor)
         runner = web.AppRunner(app)
         await runner.setup()
-        site = web.TCPSite(runner, web_host, web_port)
+        site = web.TCPSite(runner, tcp_host, tcp_port)
         await site.start()
 
-        # ESP WiFi server
-        await wifi_server.start()
-
         ip = _get_best_local_ip()
-        logger.info(f"Vision system running. Open http://{ip}:{web_port}/")
+        logger.info(f"Vision system running. Open http://{ip}:{tcp_port}/")
 
         await stop_event.wait()
 
@@ -184,6 +210,35 @@ async def run():
     finally:
         stop_event.set()
 
+        # Stop ML listener first
+        if ml_proc is not None:
+            try:
+                ml_proc.terminate()
+            except ProcessLookupError:
+                pass
+            except Exception:
+                pass
+
+        if ml_stdout_task is not None:
+            ml_stdout_task.cancel()
+            try:
+                await asyncio.wait_for(ml_stdout_task, timeout=1.0)
+            except Exception:
+                pass
+
+        if ml_proc is not None:
+            try:
+                await asyncio.wait_for(ml_proc.wait(), timeout=2.0)
+            except Exception:
+                try:
+                    ml_proc.kill()
+                except Exception:
+                    pass
+                try:
+                    await asyncio.wait_for(ml_proc.wait(), timeout=1.0)
+                except Exception:
+                    pass
+
         if proc_task is not None:
             proc_task.cancel()
             try:
@@ -192,12 +247,6 @@ async def run():
                 pass
             except Exception:
                 pass
-
-        # Stop wifi server
-        try:
-            await asyncio.wait_for(wifi_server.stop(), timeout=3.0)
-        except Exception:
-            pass
 
         if site is not None:
             try:
