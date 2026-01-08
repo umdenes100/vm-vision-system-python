@@ -1,25 +1,11 @@
 import logging
-from typing import Callable, Dict, List, Optional, Set, Any
+from typing import Callable, Dict, Optional, Any, Set, List
 
-# =========================================
-# Web event sink plumbing (System + Teams)
-# =========================================
-
-# Sink receives dict events, e.g.
-# {"type":"system_log","line":"[INFO] ..."}
-# {"type":"team_log","team":"Team A","line":"[INFO] ..."}
-# {"type":"team_list","teams":["Team A","Team B"]}
 _WEB_EVENT_SINK: Optional[Callable[[Dict[str, Any]], None]] = None
-
-# Track teams seen so far (until you wire in real team presence)
 _KNOWN_TEAMS: Set[str] = set()
 
 
 def register_web_event_sink(sink: Callable[[Dict[str, Any]], None]) -> None:
-    """
-    Register a sink that receives web events (system logs, team logs, team list updates).
-    The sink must be thread-safe on the caller side (webpage.py uses call_soon_threadsafe).
-    """
     global _WEB_EVENT_SINK
     _WEB_EVENT_SINK = sink
 
@@ -31,7 +17,6 @@ def _emit_web_event(evt: Dict[str, Any]) -> None:
     try:
         sink(evt)
     except Exception:
-        # Never break normal logging due to web logging issues
         pass
 
 
@@ -49,9 +34,6 @@ def _format_line(level: str, message: str) -> str:
 # -------------------------
 
 def web_log(level: str, message: str) -> None:
-    """
-    Send a line to the webpage System Printouts.
-    """
     _emit_web_event({"type": "system_log", "line": _format_line(level, message)})
 
 
@@ -80,10 +62,6 @@ def web_fatal(message: str) -> None:
 # -------------------------
 
 def set_team_list(teams: List[str]) -> None:
-    """
-    Replace the current team list (dynamic; call whenever your ESP/WS layer changes).
-    Broadcasts the new list to the webpage.
-    """
     global _KNOWN_TEAMS
     cleaned = []
     seen = set()
@@ -100,17 +78,20 @@ def set_team_list(teams: List[str]) -> None:
     _emit_web_event({"type": "team_list", "teams": cleaned})
 
 
+def emit_team_roster(teams: List[Dict[str, Any]]) -> None:
+    """
+    Push structured team state to the UI:
+      teams: [{name, connected, teamType, aruco, visible, x, y, theta}, ...]
+    """
+    _emit_web_event({"type": "team_roster", "teams": teams})
+
+
 def team_log(team_name: str, level: str, message: str) -> None:
-    """
-    Log a line associated with a team. Shows in the Team column when that team is selected.
-    """
     team = str(team_name).strip()
     if not team:
-        # If no team is given, route to system printouts
         web_log(level, message)
         return
 
-    # Auto-add team to list for now (until real presence is wired in)
     if team not in _KNOWN_TEAMS:
         _KNOWN_TEAMS.add(team)
         _emit_web_event({"type": "team_list", "teams": sorted(_KNOWN_TEAMS)})
