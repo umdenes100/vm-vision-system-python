@@ -48,20 +48,18 @@ class ArenaConfig:
     box_thickness: int = 2
     draw_ids: bool = True
 
+    # Arena bounds (for validity check)
+    arena_x_min: float = 0.0
+    arena_x_max: float = 4.0
+    arena_y_min: float = 0.0
+    arena_y_max: float = 2.0
+
+    # Origin marker point visualization (red box)
+    origin_box_half_size_px: int = 4  # half-size of the red square (pixels)
+
 
 class ArenaProcessor:
-    """Detect markers, draw overlays, compute a stable crop, and map marker pose to arena coords.
-
-    Responsibilities:
-      - Uses ArucoDetector to discover & localize all markers (pixel space).
-      - Uses corner markers 0-3 to compute:
-          (a) a crop transform for a 2:1 MJPEG stream
-          (b) a pixel->arena transform for (x, y) + heading
-      - Produces:
-          latest_overlay_jpeg: full frame with green boxes + arrows
-          latest_cropped_jpeg: cropped/warped frame with same overlays
-      - Emits system-printouts once per second with per-marker (x, y, theta) in radians.
-    """
+    """Detect markers, draw overlays, compute a stable crop, and map marker pose to arena coords."""
 
     def __init__(self, cfg: ArenaConfig):
         self.cfg = cfg
@@ -95,8 +93,19 @@ class ArenaProcessor:
     def _marker_topleft_px(m: ArucoMarker) -> np.ndarray:
         return m.corners[0].astype(np.float32)
 
-    @staticmethod
-    def _draw_marker_boxes_and_arrows(
+    def _draw_origin_box(self, img: np.ndarray, origin_xy: Tuple[int, int]) -> None:
+        hs = int(self.cfg.origin_box_half_size_px)
+        x, y = int(origin_xy[0]), int(origin_xy[1])
+        cv2.rectangle(
+            img,
+            (x - hs, y - hs),
+            (x + hs, y + hs),
+            color=(0, 0, 255),  # red (BGR)
+            thickness=-1,
+        )
+
+    def _draw_marker_boxes_arrows_origins(
+        self,
         img: np.ndarray,
         markers: Dict[int, ArucoMarker],
         thickness: int,
@@ -106,10 +115,13 @@ class ArenaProcessor:
             pts = m.corners.astype(int).reshape(-1, 1, 2)
             cv2.polylines(img, [pts], isClosed=True, color=(0, 255, 0), thickness=thickness)
 
-            # Arrow: from origin (bottom-left) to top-left (along left edge)
+            # Arrow: from origin (bottom-left) to top-left (along left edge) in RED
             o = m.corners[3].astype(int)
             tl = m.corners[0].astype(int)
-            cv2.arrowedLine(img, tuple(o), tuple(tl), color=(0, 255, 0), thickness=thickness, tipLength=0.25)
+            cv2.arrowedLine(img, tuple(o), tuple(tl), color=(0, 0, 255), thickness=thickness, tipLength=0.25)
+
+            # Red box at the origin point used for position reference
+            self._draw_origin_box(img, (int(o[0]), int(o[1])))
 
             if draw_ids:
                 cx, cy = int(m.center[0]), int(m.center[1])
@@ -134,7 +146,6 @@ class ArenaProcessor:
 
     @staticmethod
     def _mean_marker_size_px(marker: ArucoMarker) -> float:
-        # Rough size: average edge length
         c = marker.corners
         edges = [
             np.linalg.norm(c[0] - c[1]),
@@ -177,16 +188,13 @@ class ArenaProcessor:
         """
         IMPORTANT: All perspective transforms use consistent point order:
           TL, TR, BR, BL
-        If you mix orders, the crop/arena mapping will rotate or twist.
         """
-
         bl = markers[self.cfg.id_bl]
         tl = markers[self.cfg.id_tl]
         tr = markers[self.cfg.id_tr]
         br = markers[self.cfg.id_br]
 
-        # For arena mapping, we use the *origin point* (bottom-left corner) of each marker
-        # and create the correspondences in TL, TR, BR, BL order.
+        # Arena mapping uses marker origin (bottom-left) points, in TL, TR, BR, BL order.
         src_arena = np.array(
             [
                 self._marker_origin_px(tl),  # TL
@@ -199,19 +207,17 @@ class ArenaProcessor:
 
         dst_arena = np.array(
             [
-                self.cfg.arena_tl,  # TL -> (0,2)
-                self.cfg.arena_tr,  # TR -> (4,2)
-                self.cfg.arena_br,  # BR -> (4,0)
-                self.cfg.arena_bl,  # BL -> (0,0)
+                self.cfg.arena_tl,  # (0,2)
+                self.cfg.arena_tr,  # (4,2)
+                self.cfg.arena_br,  # (4,0)
+                self.cfg.arena_bl,  # (0,0)
             ],
             dtype=np.float32,
         )
 
-        # For cropping, use the arena boundary points in TL, TR, BR, BL order.
-        # We approximate the outer boundary by choosing the outward-facing corner of each marker quad.
+        # Crop transform uses outer boundary points in TL, TR, BR, BL order.
         def outer_corner(m: ArucoMarker, which: str) -> np.ndarray:
-            c = m.corners
-            # Corner order: TL, TR, BR, BL
+            c = m.corners  # TL, TR, BR, BL
             if which == "tl":
                 return c[0]
             if which == "tr":
@@ -232,7 +238,6 @@ class ArenaProcessor:
             dtype=np.float32,
         )
 
-        # Border size based on average marker size
         mean_size = float(
             np.mean(
                 [
@@ -284,13 +289,21 @@ class ArenaProcessor:
         tl_px = self._marker_topleft_px(m)
 
         ox, oy = self._transform_point(self._H_img_to_arena, o_px)
-        tlx, tly = self._transform_point(self._H_img_to_arena, tl_px)
 
+        # Bounds check: if out of arena range, return -1s
+        if (
+            ox < self.cfg.arena_x_min
+            or ox > self.cfg.arena_x_max
+            or oy < self.cfg.arena_y_min
+            or oy > self.cfg.arena_y_max
+        ):
+            return -1.0, -1.0, -1.0
+
+        tlx, tly = self._transform_point(self._H_img_to_arena, tl_px)
         vx = tlx - ox
         vy = tly - oy
 
-        # Theta in radians:
-        # 0 along +x, +pi/2 along +y, -pi/2 along -y
+        # Theta in radians: 0 along +x, +pi/2 along +y, -pi/2 along -y
         theta = math.atan2(vy, vx)
         return ox, oy, theta
 
@@ -308,7 +321,13 @@ class ArenaProcessor:
             web_info(f"Markers detected: {sorted(markers.keys())} (waiting for corner markers 0-3 for arena coords)")
             return
 
-        ids = sorted(markers.keys())
+        corner_ids = {self.cfg.id_bl, self.cfg.id_tl, self.cfg.id_tr, self.cfg.id_br}
+        ids = [i for i in sorted(markers.keys()) if i not in corner_ids]
+
+        if not ids:
+            web_info("Markers: none (non-corner)")
+            return
+
         web_info(f"Markers ({len(ids)}): " + ", ".join(str(i) for i in ids))
         for mid in ids:
             pose = self._marker_pose_arena(markers[mid])
@@ -325,7 +344,7 @@ class ArenaProcessor:
 
         # Overlay: full frame
         overlay = frame_bgr.copy()
-        self._draw_marker_boxes_and_arrows(overlay, markers, self.cfg.box_thickness, self.cfg.draw_ids)
+        self._draw_marker_boxes_arrows_origins(overlay, markers, self.cfg.box_thickness, self.cfg.draw_ids)
         overlay_jpg = self._encode_jpeg(overlay, self.cfg.overlay_jpeg_quality)
         if overlay_jpg is not None:
             self.latest_overlay_jpeg = overlay_jpg
@@ -340,24 +359,29 @@ class ArenaProcessor:
                 (self.cfg.output_width, self.cfg.output_height),
             )
 
-            # Draw transformed boxes + arrows in cropped space as well
+            # Draw transformed boxes + arrows + origin box in cropped space
             for mid, m in markers.items():
                 pts = m.corners.reshape(-1, 1, 2).astype(np.float32)
                 pts_w = cv2.perspectiveTransform(pts, self._M_img_to_crop).astype(int)
                 cv2.polylines(warped, [pts_w], isClosed=True, color=(0, 255, 0), thickness=self.cfg.box_thickness)
 
+                # Arrow in red from origin to top-left
                 o = m.corners[3].reshape(1, 1, 2).astype(np.float32)
                 tl = m.corners[0].reshape(1, 1, 2).astype(np.float32)
                 o_w = cv2.perspectiveTransform(o, self._M_img_to_crop)[0][0].astype(int)
                 tl_w = cv2.perspectiveTransform(tl, self._M_img_to_crop)[0][0].astype(int)
+
                 cv2.arrowedLine(
                     warped,
                     (int(o_w[0]), int(o_w[1])),
                     (int(tl_w[0]), int(tl_w[1])),
-                    color=(0, 255, 0),
+                    color=(0, 0, 255),
                     thickness=self.cfg.box_thickness,
                     tipLength=0.25,
                 )
+
+                # Red origin reference box
+                self._draw_origin_box(warped, (int(o_w[0]), int(o_w[1])))
 
                 if self.cfg.draw_ids:
                     c = np.array([[m.center]], dtype=np.float32)
