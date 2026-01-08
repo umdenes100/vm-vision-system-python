@@ -7,7 +7,7 @@ from collections import deque
 
 from aiohttp import web, WSMsgType
 
-from utils.logging import web_info, web_warn, team_info
+from utils.logging import web_info, web_warn, team_raw
 from utils.logging import emit_team_roster
 
 
@@ -18,32 +18,18 @@ class TeamState:
     team_type: str = ""
     aruco_id: int = -1
 
-    # Latest pose (arena coords). If unseen or invalid: (-1,-1,-1)
     x: float = -1.0
     y: float = -1.0
     theta: float = -1.0
 
-    # Pose history: newest at right, maxlen=5
-    # elements: (x, y, theta, is_visible)
+    # (x, y, theta, is_visible) newest at right
     pose_hist: deque = field(default_factory=lambda: deque(maxlen=5))
 
-    # For ping tracking
     missed_pongs: int = 0
     last_seen_monotonic: float = field(default_factory=time.monotonic)
 
 
 class WifiServer:
-    """
-    ESP <-> Vision system WebSocket server.
-    - Listens on port 7755
-    - Expects JSON messages with "op" and "teamName"
-    - begin: {op:"begin", teamName, aruco:int, teamType:str}
-    - print: {op:"print", teamName, message:str}
-    - ping:  {op:"ping", teamName, status:"ping"} -> reply status:"pong"
-    - aruco: {op:"aruco", teamName} -> reply with latest valid pose (last-5 fallback)
-    - Server sends ping every 5s; disconnect if 5 missed in a row.
-    """
-
     def __init__(
         self,
         host: str,
@@ -62,13 +48,9 @@ class WifiServer:
 
         self._stop = asyncio.Event()
 
-        # teamName -> state
         self.teams: Dict[str, TeamState] = {}
-
-        # teamName -> ws
         self._sockets: Dict[str, web.WebSocketResponse] = {}
 
-        # background tasks
         self._ping_task: Optional[asyncio.Task] = None
         self._roster_task: Optional[asyncio.Task] = None
 
@@ -89,7 +71,6 @@ class WifiServer:
     async def stop(self) -> None:
         self._stop.set()
 
-        # close sockets
         for name, ws in list(self._sockets.items()):
             try:
                 await ws.close()
@@ -121,12 +102,6 @@ class WifiServer:
         return web.Response(text="OK")
 
     def _update_team_pose_and_history(self, st: TeamState) -> None:
-        """
-        Update st.x/y/theta and push into pose_hist (maxlen=5).
-        Visible means:
-          - marker is currently seen
-          - AND pose != (-1,-1,-1)
-        """
         x, y, th = (-1.0, -1.0, -1.0)
 
         if st.connected and st.aruco_id >= 0:
@@ -136,7 +111,6 @@ class WifiServer:
                 x, y, th = (-1.0, -1.0, -1.0)
 
         st.x, st.y, st.theta = float(x), float(y), float(th)
-
         visible = (st.x != -1.0 and st.y != -1.0 and st.theta != -1.0)
         st.pose_hist.append((st.x, st.y, st.theta, bool(visible)))
 
@@ -145,9 +119,7 @@ class WifiServer:
         for name, st in sorted(self.teams.items(), key=lambda kv: kv[0].lower()):
             self._update_team_pose_and_history(st)
 
-            # visible based on latest cached pose
             visible = (st.x != -1.0 and st.y != -1.0 and st.theta != -1.0)
-
             out.append(
                 {
                     "name": st.name,
@@ -166,7 +138,6 @@ class WifiServer:
         emit_team_roster(self._snapshot_roster())
 
     async def _roster_loop(self) -> None:
-        # Push roster at ~5 Hz so UI feels responsive (lightweight JSON)
         try:
             while not self._stop.is_set():
                 self._push_roster_to_ui()
@@ -184,14 +155,12 @@ class WifiServer:
                     if st is None or not st.connected:
                         continue
 
-                    # send ping
                     try:
                         await ws.send_str(json.dumps({"op": "ping", "teamName": name, "status": "ping"}))
                     except Exception:
                         await self._mark_disconnected(name)
                         continue
 
-                    # increment missed counter; pong will reset it
                     st.missed_pongs += 1
                     if st.missed_pongs >= 5:
                         web_warn(f"{name} lost connection (ping timeout)")
@@ -213,14 +182,8 @@ class WifiServer:
         self._push_roster_to_ui()
 
     def _best_recent_pose(self, st: TeamState) -> Tuple[float, float, float, bool]:
-        """
-        Return newest valid pose from last 5 samples.
-        If none valid, return (-1,-1,-1,False).
-        """
-        # Make sure history has at least the latest sample
         self._update_team_pose_and_history(st)
 
-        # Search newest->oldest
         for (x, y, th, vis) in reversed(st.pose_hist):
             if vis and x != -1.0 and y != -1.0 and th != -1.0:
                 return float(x), float(y), float(th), True
@@ -245,15 +208,12 @@ class WifiServer:
 
                 op = str(data.get("op", "")).strip().lower()
                 tname = str(data.get("teamName", "")).strip()
-
                 if not tname:
                     continue
 
-                # Adopt team name on first message
                 if team_name is None:
                     team_name = tname
 
-                # Ensure state exists
                 st = self.teams.get(tname)
                 if st is None:
                     st = TeamState(name=tname)
@@ -271,17 +231,16 @@ class WifiServer:
                     st.missed_pongs = 0
 
                     self._sockets[tname] = ws
-
                     web_info(f"{tname} has connected")
                     self._push_roster_to_ui()
 
                 elif op == "print":
+                    # IMPORTANT: ESP-originated prints should be shown EXACTLY as sent (no [INFO]).
                     message = str(data.get("message", ""))
-                    team_info(tname, message)
+                    team_raw(tname, message)
                     self._push_roster_to_ui()
 
                 elif op == "ping":
-                    # ESP -> Server ping; reply pong. Also accept pong replies.
                     status = str(data.get("status", "")).strip().lower()
                     if status == "ping":
                         st.missed_pongs = 0
@@ -293,7 +252,6 @@ class WifiServer:
                         st.missed_pongs = 0
 
                 elif op == "aruco":
-                    # ESP requests latest valid pose (fallback across last 5 samples)
                     x, y, th, vis = self._best_recent_pose(st)
                     try:
                         await ws.send_str(
@@ -311,7 +269,6 @@ class WifiServer:
                         await self._mark_disconnected(tname)
 
                 else:
-                    # Unknown op: ignore
                     pass
 
         except asyncio.CancelledError:
