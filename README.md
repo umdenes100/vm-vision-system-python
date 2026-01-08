@@ -2,54 +2,86 @@
 
 A modular, headless vision system for an introductory robotics course.
 
-## What it does (current)
-- Receives a streamed video feed over UDP as RTP/H.264 (from a Raspberry Pi sender).
-- Decodes the RTP/H.264 stream into JPEG frames using GStreamer on the VM.
-- Detects ArUco markers, draws marker boxes.
-- Crops the arena using corner markers (0–3) and outputs a stabilized cropped stream.
-- Hosts a web UI:
-  - Static frontend assets (HTML/CSS/JS) served from `frontend/static/`
-  - Dynamic endpoints (streams, placeholder WS/API) handled in `frontend/webpage.py`
-- Hosts an ESP WebSocket server for team connections and messaging.
+---
 
-## Repo layout
+## Overview
+
+This system runs on a headless Linux VM and provides:
+
+- UDP ingestion of an RTP/H.264 camera stream (e.g., from a Raspberry Pi)
+- ArUco marker detection and arena cropping
+- A web-based UI for visualization and team monitoring
+- WebSocket communication with ESP-based robots
+- A machine learning model listener that syncs student models from Firebase
+
+---
+
+## Repository Layout
 
 vm-vision-system-python/
-  .gitignore
-  README.md
-  communications/
-    arenacam.py
-    wifi_server.py
-  vision/
-    aruco.py
-    arena.py
-  machinelearning/
-    listener.py
-    models/
-  frontend/
-    webpage.py
-    static/
-      index.html
-      bootstrap.css
-      header.css
-      index.css
-      inputs.css
-      theme.css
-      uiconfig.js
-      ui-config.json
-  core/
-    main.py
-    run.sh
-    config.json
-  install/
-    requirements.txt
-    install.sh
-  utils/
-    logging.py
-    port_guard.py
+├── .gitignore
+├── README.md
+├── communications/
+│   ├── arenacam.py
+│   └── wifi_server.py
+├── vision/
+│   ├── aruco.py
+│   └── arena.py
+├── machinelearning/
+│   ├── listener.py
+│   └── models/
+├── frontend/
+│   ├── webpage.py
+│   └── static/
+│       ├── index.html
+│       ├── bootstrap.css
+│       ├── header.css
+│       ├── index.css
+│       ├── inputs.css
+│       ├── theme.css
+│       ├── uiconfig.js
+│       └── ui-config.json
+├── core/
+│   ├── main.py
+│   ├── run.sh
+│   └── config.json
+├── install/
+│   ├── install.sh
+│   └── requirements.txt
+└── utils/
+    ├── logging.py
+    └── port_guard.py
 
-## Run
+---
 
-```bash
+## Core Features
+
+Camera & Vision
+- Receives RTP/H.264 video over UDP
+- Decodes frames using GStreamer
+- Detects all ArUco markers
+- Uses markers 0–3 to define the arena
+- Crops the arena and outputs a stabilized stream
+
+Web Interface
+- Static frontend served from frontend/static
+- Dynamic backend via frontend/webpage.py
+
+ESP Communication
+- WebSocket server on port 7755
+- begin / print / ping / aruco ops supported
+
+Machine Learning Listener
+- Mirrors legacy Firebase-based model sync
+- Downloads models into machinelearning/models
+- Started and stopped automatically by core/main.py
+
+---
+
+## Running
+
 cd core
 ./run.sh
+
+Open:
+http://<VM_IP>:8080/
