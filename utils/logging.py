@@ -61,23 +61,6 @@ def web_fatal(message: str) -> None:
 # Team Printouts helpers
 # -------------------------
 
-def set_team_list(teams: List[str]) -> None:
-    global _KNOWN_TEAMS
-    cleaned = []
-    seen = set()
-    for t in teams:
-        name = str(t).strip()
-        if not name:
-            continue
-        if name in seen:
-            continue
-        seen.add(name)
-        cleaned.append(name)
-
-    _KNOWN_TEAMS = set(cleaned)
-    _emit_web_event({"type": "team_list", "teams": cleaned})
-
-
 def emit_team_roster(teams: List[Dict[str, Any]]) -> None:
     _emit_web_event({"type": "team_roster", "teams": teams})
 
@@ -86,7 +69,6 @@ def _ensure_team_known(team: str) -> None:
     global _KNOWN_TEAMS
     if team not in _KNOWN_TEAMS:
         _KNOWN_TEAMS.add(team)
-        _emit_web_event({"type": "team_list", "teams": sorted(_KNOWN_TEAMS)})
 
 
 def team_log(team_name: str, level: str, message: str) -> None:
@@ -115,24 +97,16 @@ def team_raw(team_name: str, message: str) -> None:
     _emit_web_event({"type": "team_raw", "team": team, "line": str(message)})
 
 
-def team_debug(team_name: str, message: str) -> None:
-    team_log(team_name, "DEBUG", message)
-
-
-def team_info(team_name: str, message: str) -> None:
-    team_log(team_name, "INFO", message)
-
-
-def team_warn(team_name: str, message: str) -> None:
-    team_log(team_name, "WARN", message)
-
-
-def team_error(team_name: str, message: str) -> None:
-    team_log(team_name, "ERROR", message)
-
-
-def team_fatal(team_name: str, message: str) -> None:
-    team_log(team_name, "FATAL", message)
+def emit_team_ml_image(team_name: str, data_url: str) -> None:
+    """
+    Push the most recent ML request image for a team to the UI.
+    data_url should look like: data:image/jpeg;base64,<...>
+    """
+    team = str(team_name).strip()
+    if not team:
+        return
+    _ensure_team_known(team)
+    _emit_web_event({"type": "team_ml_image", "team": team, "data_url": str(data_url)})
 
 
 # =========================
