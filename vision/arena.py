@@ -19,9 +19,7 @@ class ArenaConfig:
     id_tr: int = 2
     id_br: int = 3
 
-    # Physical coordinates of the *origin* of each corner marker (units arbitrary, but consistent)
-    # User-specified:
-    #   0: (0,0), 1:(0,2), 2:(4,2), 3:(4,0)
+    # Physical coordinates of the *origin* (bottom-left) of each corner marker
     arena_bl: Tuple[float, float] = (0.0, 0.0)
     arena_tl: Tuple[float, float] = (0.0, 2.0)
     arena_tr: Tuple[float, float] = (4.0, 2.0)
@@ -31,52 +29,80 @@ class ArenaConfig:
     output_width: int = 1000
     output_height: int = 500
 
-    # How often to refresh the crop/arena homography from markers 0-3 (seconds)
+    # How often to refresh crop/arena homography from markers 0-3 (seconds)
     crop_refresh_seconds: float = 600.0  # 10 minutes
 
-    # Add a border outside the 0-3 quad, relative to a marker's average size (px)
+    # Crop border tuning
     border_marker_fraction: float = 0.5
-
-    # Additional vertical padding proportional to quad vertical span (helps prevent top/bottom clipping)
     vertical_padding_fraction: float = 0.01
 
-    # JPEG encoding quality
+    # JPEG quality
     overlay_jpeg_quality: int = 80
     crop_jpeg_quality: int = 75
 
     # Drawing
     box_thickness: int = 2
+    arrow_thickness: int = 1  # thinner than boxes
+    origin_box_thickness: int = 1  # hollow box thickness
     draw_ids: bool = True
 
-    # Arena bounds (for validity check)
+    # Arena bounds (validity check)
     arena_x_min: float = 0.0
     arena_x_max: float = 4.0
     arena_y_min: float = 0.0
     arena_y_max: float = 2.0
 
-    # Origin marker point visualization (red box)
-    origin_box_half_size_px: int = 4  # half-size of the red square (pixels)
+    # Hollow origin box half size (pixels)
+    origin_box_half_size_px: int = 5
+
+    # System printouts
+    seen_markers_print_period_s: float = 60.0
 
 
 class ArenaProcessor:
-    """Detect markers, draw overlays, compute a stable crop, and map marker pose to arena coords."""
+    """
+    - aruco.py discovers/localizes markers in pixel space
+    - arena.py:
+        * computes crop transform from corner markers (0-3)
+        * computes image->arena mapping
+        * provides marker poses (x,y,theta) in arena coords
+        * draws green boxes, red arrow, red hollow origin box
+    """
 
     def __init__(self, cfg: ArenaConfig):
         self.cfg = cfg
 
-        # Use a dictionary that supports high marker IDs (0..999).
+        # IDs like 257/467/522/697 require DICT_4X4_1000 (0..999)
         self.detector = ArucoDetector(dict_name="DICT_4X4_1000")
 
         self.latest_overlay_jpeg: Optional[bytes] = None
         self.latest_cropped_jpeg: Optional[bytes] = None
 
-        # Cached transforms refreshed occasionally
         self._M_img_to_crop: Optional[np.ndarray] = None
         self._H_img_to_arena: Optional[np.ndarray] = None
         self._last_xform_update_monotonic: float = 0.0
 
-        # Rate-limit for system printouts
-        self._last_print_monotonic: float = 0.0
+        # Latest detected IDs and latest computed poses
+        self._seen_ids: set[int] = set()
+        self._poses_arena: Dict[int, Tuple[float, float, float]] = {}
+
+        self._last_seen_print_monotonic: float = 0.0
+
+    # -------------------- Public accessors --------------------
+
+    @property
+    def seen_ids(self) -> set[int]:
+        return set(self._seen_ids)
+
+    @property
+    def poses_arena(self) -> Dict[int, Tuple[float, float, float]]:
+        """
+        marker_id -> (x,y,theta) in arena coords.
+        If marker is out of bounds OR no mapping, will be (-1,-1,-1) for that marker if present.
+        """
+        return dict(self._poses_arena)
+
+    # -------------------- Internal helpers --------------------
 
     @staticmethod
     def _encode_jpeg(bgr: np.ndarray, quality: int) -> Optional[bytes]:
@@ -85,15 +111,14 @@ class ArenaProcessor:
 
     @staticmethod
     def _marker_origin_px(m: ArucoMarker) -> np.ndarray:
-        # Bottom-left corner is the marker origin (user requirement).
-        # OpenCV corner order: TL, TR, BR, BL
+        # Bottom-left corner is origin (OpenCV order TL,TR,BR,BL => index 3 is BL)
         return m.corners[3].astype(np.float32)
 
     @staticmethod
     def _marker_topleft_px(m: ArucoMarker) -> np.ndarray:
         return m.corners[0].astype(np.float32)
 
-    def _draw_origin_box(self, img: np.ndarray, origin_xy: Tuple[int, int]) -> None:
+    def _draw_origin_hollow_box(self, img: np.ndarray, origin_xy: Tuple[int, int]) -> None:
         hs = int(self.cfg.origin_box_half_size_px)
         x, y = int(origin_xy[0]), int(origin_xy[1])
         cv2.rectangle(
@@ -101,29 +126,30 @@ class ArenaProcessor:
             (x - hs, y - hs),
             (x + hs, y + hs),
             color=(0, 0, 255),  # red (BGR)
-            thickness=-1,
+            thickness=int(self.cfg.origin_box_thickness),
         )
 
-    def _draw_marker_boxes_arrows_origins(
-        self,
-        img: np.ndarray,
-        markers: Dict[int, ArucoMarker],
-        thickness: int,
-        draw_ids: bool,
-    ) -> None:
+    def _draw_marker_boxes_arrows_origins(self, img: np.ndarray, markers: Dict[int, ArucoMarker]) -> None:
         for mid, m in markers.items():
             pts = m.corners.astype(int).reshape(-1, 1, 2)
-            cv2.polylines(img, [pts], isClosed=True, color=(0, 255, 0), thickness=thickness)
+            cv2.polylines(img, [pts], isClosed=True, color=(0, 255, 0), thickness=int(self.cfg.box_thickness))
 
-            # Arrow: from origin (bottom-left) to top-left (along left edge) in RED
+            # Arrow: origin (BL) -> top-left (left edge) in RED, thinner
             o = m.corners[3].astype(int)
             tl = m.corners[0].astype(int)
-            cv2.arrowedLine(img, tuple(o), tuple(tl), color=(0, 0, 255), thickness=thickness, tipLength=0.25)
+            cv2.arrowedLine(
+                img,
+                tuple(o),
+                tuple(tl),
+                color=(0, 0, 255),
+                thickness=int(self.cfg.arrow_thickness),
+                tipLength=0.25,
+            )
 
-            # Red box at the origin point used for position reference
-            self._draw_origin_box(img, (int(o[0]), int(o[1])))
+            # Hollow red box at the origin reference point
+            self._draw_origin_hollow_box(img, (int(o[0]), int(o[1])))
 
-            if draw_ids:
+            if self.cfg.draw_ids:
                 cx, cy = int(m.center[0]), int(m.center[1])
                 cv2.putText(
                     img,
@@ -186,15 +212,14 @@ class ArenaProcessor:
 
     def _compute_transforms_from_corners(self, markers: Dict[int, ArucoMarker]) -> None:
         """
-        IMPORTANT: All perspective transforms use consistent point order:
-          TL, TR, BR, BL
+        IMPORTANT: Point order is always TL, TR, BR, BL to avoid rotation/twist.
         """
         bl = markers[self.cfg.id_bl]
         tl = markers[self.cfg.id_tl]
         tr = markers[self.cfg.id_tr]
         br = markers[self.cfg.id_br]
 
-        # Arena mapping uses marker origin (bottom-left) points, in TL, TR, BR, BL order.
+        # Arena mapping: use marker origin (bottom-left corner) points in TL,TR,BR,BL order
         src_arena = np.array(
             [
                 self._marker_origin_px(tl),  # TL
@@ -204,7 +229,6 @@ class ArenaProcessor:
             ],
             dtype=np.float32,
         )
-
         dst_arena = np.array(
             [
                 self.cfg.arena_tl,  # (0,2)
@@ -215,25 +239,17 @@ class ArenaProcessor:
             dtype=np.float32,
         )
 
-        # Crop transform uses outer boundary points in TL, TR, BR, BL order.
+        # Crop mapping: use outer corners in TL,TR,BR,BL order
         def outer_corner(m: ArucoMarker, which: str) -> np.ndarray:
-            c = m.corners  # TL, TR, BR, BL
-            if which == "tl":
-                return c[0]
-            if which == "tr":
-                return c[1]
-            if which == "br":
-                return c[2]
-            if which == "bl":
-                return c[3]
-            raise ValueError(which)
+            c = m.corners  # TL,TR,BR,BL
+            return {"tl": c[0], "tr": c[1], "br": c[2], "bl": c[3]}[which]
 
         src_crop = np.array(
             [
-                outer_corner(tl, "tl"),  # TL
-                outer_corner(tr, "tr"),  # TR
-                outer_corner(br, "br"),  # BR
-                outer_corner(bl, "bl"),  # BL
+                outer_corner(tl, "tl"),
+                outer_corner(tr, "tr"),
+                outer_corner(br, "br"),
+                outer_corner(bl, "bl"),
             ],
             dtype=np.float32,
         )
@@ -262,8 +278,8 @@ class ArenaProcessor:
             dtype=np.float32,
         )
 
-        self._M_img_to_crop = cv2.getPerspectiveTransform(src_crop.astype(np.float32), dst_crop)
-        self._H_img_to_arena = cv2.getPerspectiveTransform(src_arena.astype(np.float32), dst_arena)
+        self._M_img_to_crop = cv2.getPerspectiveTransform(src_crop, dst_crop)
+        self._H_img_to_arena = cv2.getPerspectiveTransform(src_arena, dst_arena)
 
     def _maybe_refresh_transforms(self, markers: Dict[int, ArucoMarker]) -> None:
         if not self._have_corner_markers(markers):
@@ -277,20 +293,24 @@ class ArenaProcessor:
         self._last_xform_update_monotonic = now
 
     def _transform_point(self, H: np.ndarray, p: np.ndarray) -> Tuple[float, float]:
-        pts = np.array([[p]], dtype=np.float32)  # (1,1,2)
+        pts = np.array([[p]], dtype=np.float32)
         out = cv2.perspectiveTransform(pts, H)[0][0]
         return float(out[0]), float(out[1])
 
-    def _marker_pose_arena(self, m: ArucoMarker) -> Optional[Tuple[float, float, float]]:
+    def _marker_pose_arena(self, m: ArucoMarker) -> Tuple[float, float, float]:
+        """
+        Returns (x,y,theta) in arena coords.
+        If out of bounds or no mapping: (-1,-1,-1)
+        """
         if self._H_img_to_arena is None:
-            return None
+            return -1.0, -1.0, -1.0
 
         o_px = self._marker_origin_px(m)
         tl_px = self._marker_topleft_px(m)
 
         ox, oy = self._transform_point(self._H_img_to_arena, o_px)
 
-        # Bounds check: if out of arena range, return -1s
+        # Bounds check: if out of arena range => -1s
         if (
             ox < self.cfg.arena_x_min
             or ox > self.cfg.arena_x_max
@@ -307,49 +327,41 @@ class ArenaProcessor:
         theta = math.atan2(vy, vx)
         return ox, oy, theta
 
-    def _maybe_print_poses(self, markers: Dict[int, ArucoMarker]) -> None:
+    def _maybe_print_seen_markers(self) -> None:
         now = time.monotonic()
-        if (now - self._last_print_monotonic) < 1.0:
+        if (now - self._last_seen_print_monotonic) < float(self.cfg.seen_markers_print_period_s):
             return
-        self._last_print_monotonic = now
+        self._last_seen_print_monotonic = now
 
-        if not markers:
-            web_info("Markers: none")
-            return
-
-        if self._H_img_to_arena is None:
-            web_info(f"Markers detected: {sorted(markers.keys())} (waiting for corner markers 0-3 for arena coords)")
-            return
-
-        corner_ids = {self.cfg.id_bl, self.cfg.id_tl, self.cfg.id_tr, self.cfg.id_br}
-        ids = [i for i in sorted(markers.keys()) if i not in corner_ids]
-
+        ids = sorted(self._seen_ids)
         if not ids:
-            web_info("Markers: none (non-corner)")
-            return
+            web_info("Seen markers: none")
+        else:
+            web_info("Seen markers: " + ", ".join(str(i) for i in ids))
 
-        web_info(f"Markers ({len(ids)}): " + ", ".join(str(i) for i in ids))
-        for mid in ids:
-            pose = self._marker_pose_arena(markers[mid])
-            if pose is None:
-                continue
-            x, y, th = pose
-            web_info(f"ID {mid:>4}: x={x:7.3f}, y={y:7.3f}, theta={th: .6f} rad")
+    # -------------------- Main processing --------------------
 
     def process_bgr(self, frame_bgr: np.ndarray) -> None:
         markers = self.detector.detect(frame_bgr)
+        self._seen_ids = set(markers.keys())
 
-        # Refresh transforms (stable crop/arena mapping)
+        # Refresh transforms (stable)
         self._maybe_refresh_transforms(markers)
 
-        # Overlay: full frame
+        # Update pose cache for all seen markers
+        poses: Dict[int, Tuple[float, float, float]] = {}
+        for mid, m in markers.items():
+            poses[mid] = self._marker_pose_arena(m)
+        self._poses_arena = poses
+
+        # Full overlay
         overlay = frame_bgr.copy()
-        self._draw_marker_boxes_arrows_origins(overlay, markers, self.cfg.box_thickness, self.cfg.draw_ids)
+        self._draw_marker_boxes_arrows_origins(overlay, markers)
         overlay_jpg = self._encode_jpeg(overlay, self.cfg.overlay_jpeg_quality)
         if overlay_jpg is not None:
             self.latest_overlay_jpeg = overlay_jpg
 
-        # Cropped stream: warp every call using cached M
+        # Cropped overlay (warp every call using cached M)
         if self._M_img_to_crop is None:
             self.latest_cropped_jpeg = None
         else:
@@ -359,48 +371,39 @@ class ArenaProcessor:
                 (self.cfg.output_width, self.cfg.output_height),
             )
 
-            # Draw transformed boxes + arrows + origin box in cropped space
+            # Draw overlays in cropped space by transforming points
+            M = self._M_img_to_crop
+
             for mid, m in markers.items():
                 pts = m.corners.reshape(-1, 1, 2).astype(np.float32)
-                pts_w = cv2.perspectiveTransform(pts, self._M_img_to_crop).astype(int)
-                cv2.polylines(warped, [pts_w], isClosed=True, color=(0, 255, 0), thickness=self.cfg.box_thickness)
+                pts_w = cv2.perspectiveTransform(pts, M).astype(int)
+                cv2.polylines(warped, [pts_w], True, (0, 255, 0), int(self.cfg.box_thickness))
 
-                # Arrow in red from origin to top-left
                 o = m.corners[3].reshape(1, 1, 2).astype(np.float32)
                 tl = m.corners[0].reshape(1, 1, 2).astype(np.float32)
-                o_w = cv2.perspectiveTransform(o, self._M_img_to_crop)[0][0].astype(int)
-                tl_w = cv2.perspectiveTransform(tl, self._M_img_to_crop)[0][0].astype(int)
+                o_w = cv2.perspectiveTransform(o, M)[0][0].astype(int)
+                tl_w = cv2.perspectiveTransform(tl, M)[0][0].astype(int)
 
                 cv2.arrowedLine(
                     warped,
                     (int(o_w[0]), int(o_w[1])),
                     (int(tl_w[0]), int(tl_w[1])),
-                    color=(0, 0, 255),
-                    thickness=self.cfg.box_thickness,
+                    (0, 0, 255),
+                    int(self.cfg.arrow_thickness),
                     tipLength=0.25,
                 )
 
-                # Red origin reference box
-                self._draw_origin_box(warped, (int(o_w[0]), int(o_w[1])))
+                self._draw_origin_hollow_box(warped, (int(o_w[0]), int(o_w[1])))
 
                 if self.cfg.draw_ids:
                     c = np.array([[m.center]], dtype=np.float32)
-                    c_w = cv2.perspectiveTransform(c, self._M_img_to_crop)[0][0]
+                    c_w = cv2.perspectiveTransform(c, M)[0][0]
                     cx, cy = int(c_w[0]), int(c_w[1])
-                    cv2.putText(
-                        warped,
-                        str(mid),
-                        (cx + 6, cy - 6),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.6,
-                        (0, 255, 0),
-                        2,
-                        cv2.LINE_AA,
-                    )
+                    cv2.putText(warped, str(mid), (cx + 6, cy - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2, cv2.LINE_AA)
 
             cropped_jpg = self._encode_jpeg(warped, self.cfg.crop_jpeg_quality)
             if cropped_jpg is not None:
                 self.latest_cropped_jpeg = cropped_jpg
 
-        # System printouts (1 Hz)
-        self._maybe_print_poses(markers)
+        # 60-second system printout of seen markers
+        self._maybe_print_seen_markers()
