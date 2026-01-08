@@ -60,7 +60,7 @@ class ArenaProcessor:
       - Produces:
           latest_overlay_jpeg: full frame with green boxes + arrows
           latest_cropped_jpeg: cropped/warped frame with same overlays
-      - Emits system-printouts once per second with per-marker (x, y, theta).
+      - Emits system-printouts once per second with per-marker (x, y, theta) in radians.
     """
 
     def __init__(self, cfg: ArenaConfig):
@@ -174,43 +174,60 @@ class ArenaProcessor:
         return src2
 
     def _compute_transforms_from_corners(self, markers: Dict[int, ArucoMarker]) -> None:
-        # We use the *marker origin* (bottom-left) as the correspondence point.
+        """
+        IMPORTANT: All perspective transforms use consistent point order:
+          TL, TR, BR, BL
+        If you mix orders, the crop/arena mapping will rotate or twist.
+        """
+
         bl = markers[self.cfg.id_bl]
         tl = markers[self.cfg.id_tl]
         tr = markers[self.cfg.id_tr]
         br = markers[self.cfg.id_br]
 
+        # For arena mapping, we use the *origin point* (bottom-left corner) of each marker
+        # and create the correspondences in TL, TR, BR, BL order.
         src_arena = np.array(
             [
-                self._marker_origin_px(bl),
-                self._marker_origin_px(tl),
-                self._marker_origin_px(tr),
-                self._marker_origin_px(br),
+                self._marker_origin_px(tl),  # TL
+                self._marker_origin_px(tr),  # TR
+                self._marker_origin_px(br),  # BR
+                self._marker_origin_px(bl),  # BL
             ],
             dtype=np.float32,
         )
 
-        # Crop transform uses outer corners of the marker quads to make a stable border.
-        # For cropping, we want the *arena boundary*; we approximate by using the outer-most corner
-        # of each marker quad relative to the arena.
+        dst_arena = np.array(
+            [
+                self.cfg.arena_tl,  # TL -> (0,2)
+                self.cfg.arena_tr,  # TR -> (4,2)
+                self.cfg.arena_br,  # BR -> (4,0)
+                self.cfg.arena_bl,  # BL -> (0,0)
+            ],
+            dtype=np.float32,
+        )
+
+        # For cropping, use the arena boundary points in TL, TR, BR, BL order.
+        # We approximate the outer boundary by choosing the outward-facing corner of each marker quad.
         def outer_corner(m: ArucoMarker, which: str) -> np.ndarray:
             c = m.corners
-            if which == "bl":
-                return c[3]  # bottom-left
+            # Corner order: TL, TR, BR, BL
             if which == "tl":
-                return c[0]  # top-left
+                return c[0]
             if which == "tr":
-                return c[1]  # top-right
+                return c[1]
             if which == "br":
-                return c[2]  # bottom-right
+                return c[2]
+            if which == "bl":
+                return c[3]
             raise ValueError(which)
 
         src_crop = np.array(
             [
-                outer_corner(bl, "bl"),
-                outer_corner(tl, "tl"),
-                outer_corner(tr, "tr"),
-                outer_corner(br, "br"),
+                outer_corner(tl, "tl"),  # TL
+                outer_corner(tr, "tr"),  # TR
+                outer_corner(br, "br"),  # BR
+                outer_corner(bl, "bl"),  # BL
             ],
             dtype=np.float32,
         )
@@ -232,21 +249,10 @@ class ArenaProcessor:
 
         dst_crop = np.array(
             [
-                [0, 0],
-                [self.cfg.output_width - 1, 0],
-                [self.cfg.output_width - 1, self.cfg.output_height - 1],
-                [0, self.cfg.output_height - 1],
-            ],
-            dtype=np.float32,
-        )
-
-        # Arena coordinate target (x right, y up, as implied by corner coords)
-        dst_arena = np.array(
-            [
-                self.cfg.arena_bl,
-                self.cfg.arena_tl,
-                self.cfg.arena_tr,
-                self.cfg.arena_br,
+                [0, 0],  # TL
+                [self.cfg.output_width - 1, 0],  # TR
+                [self.cfg.output_width - 1, self.cfg.output_height - 1],  # BR
+                [0, self.cfg.output_height - 1],  # BL
             ],
             dtype=np.float32,
         )
@@ -282,7 +288,10 @@ class ArenaProcessor:
 
         vx = tlx - ox
         vy = tly - oy
-        theta = math.atan2(vy, vx)  # radians
+
+        # Theta in radians:
+        # 0 along +x, +pi/2 along +y, -pi/2 along -y
+        theta = math.atan2(vy, vx)
         return ox, oy, theta
 
     def _maybe_print_poses(self, markers: Dict[int, ArucoMarker]) -> None:
@@ -306,7 +315,7 @@ class ArenaProcessor:
             if pose is None:
                 continue
             x, y, th = pose
-            web_info(f"ID {mid:>4}: x={x:7.3f}, y={y:7.3f}, theta={math.degrees(th):7.2f} deg")
+            web_info(f"ID {mid:>4}: x={x:7.3f}, y={y:7.3f}, theta={th: .6f} rad")
 
     def process_bgr(self, frame_bgr: np.ndarray) -> None:
         markers = self.detector.detect(frame_bgr)
