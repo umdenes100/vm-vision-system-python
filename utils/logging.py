@@ -86,17 +86,36 @@ def emit_team_roster(teams: List[Dict[str, Any]]) -> None:
     _emit_web_event({"type": "team_roster", "teams": teams})
 
 
+def _ensure_team_known(team: str) -> None:
+    global _KNOWN_TEAMS
+    if team not in _KNOWN_TEAMS:
+        _KNOWN_TEAMS.add(team)
+        _emit_web_event({"type": "team_list", "teams": sorted(_KNOWN_TEAMS)})
+
+
 def team_log(team_name: str, level: str, message: str) -> None:
     team = str(team_name).strip()
     if not team:
         web_log(level, message)
         return
 
-    if team not in _KNOWN_TEAMS:
-        _KNOWN_TEAMS.add(team)
-        _emit_web_event({"type": "team_list", "teams": sorted(_KNOWN_TEAMS)})
-
+    _ensure_team_known(team)
     _emit_web_event({"type": "team_log", "team": team, "line": _format_line(level, message)})
+
+
+def team_raw(team_name: str, message: str) -> None:
+    """
+    Emit a team log line WITHOUT any [LEVEL] prefix.
+    Intended for ESP-originated prints so they appear exactly as sent.
+    """
+    team = str(team_name).strip()
+    if not team:
+        return
+
+    _ensure_team_known(team)
+
+    # Preserve newlines exactly. Frontend renders with pre-wrap.
+    _emit_web_event({"type": "team_log", "team": team, "line": str(message)})
 
 
 def team_debug(team_name: str, message: str) -> None:
