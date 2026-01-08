@@ -1,4 +1,5 @@
 # Intentionally minimal — add dependencies only as needed.
+
 # Web / Frontend Server
 aiohttp>=3.9
 
@@ -6,5 +7,10 @@ aiohttp>=3.9
 numpy>=1.24
 opencv-contrib-python>=4.8
 
-# Machine Learning / Firebase listener
+# Machine Learning listener
 requests>=2.31
+
+# ML inference (legacy .pth ResNet18 style)
+torch>=2.0
+torchvision>=0.15
+pillow>=10.0
