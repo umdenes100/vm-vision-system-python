@@ -291,13 +291,8 @@
     const cellY = document.getElementById("cellY");
     const cellTheta = document.getElementById("cellTheta");
 
-    // Per-team log buffers (cap at 100)
     const teamLogs = new Map(); // team -> array of lines (<=100)
-
-    // Team roster state from backend:
-    // name -> {connected, teamType, aruco, visible, x, y, theta}
-    const roster = new Map();
-
+    const roster = new Map();   // team -> state
     let selectedTeam = null;
 
     function maybeScroll(box) {
@@ -324,9 +319,7 @@
         cellTheta.textContent = "--";
         return;
       }
-
       const st = roster.get(selectedTeam);
-
       cellMissionType.textContent = st.teamType || "--";
       cellArucoId.textContent = (st.aruco === undefined || st.aruco === null) ? "--" : String(st.aruco);
       cellVisible.textContent = st.visible ? "YES" : "NO";
@@ -341,8 +334,7 @@
       const names = [...roster.keys()]
         .filter(name => {
           const st = roster.get(name);
-          if (!st) return false;
-          return st.connected || allowDisconnected;
+          return st && (st.connected || allowDisconnected);
         })
         .sort((a, b) => a.localeCompare(b));
 
@@ -368,7 +360,6 @@
         teamSelect.appendChild(opt);
       }
 
-      // keep current selection if possible
       if (selectedTeam && names.includes(selectedTeam)) {
         teamSelect.value = selectedTeam;
       } else {
@@ -386,9 +377,7 @@
       renderSelectedTeamRow();
     });
 
-    showDisconnected.addEventListener("change", () => {
-      rebuildDropdown();
-    });
+    showDisconnected.addEventListener("change", rebuildDropdown);
 
     clearBtn.addEventListener("click", () => {
       if (!selectedTeam) return;
@@ -401,7 +390,7 @@
         systemBox.textContent = "";
       }
       systemBox.textContent += (systemBox.textContent.length ? "\n" : "") + line;
-      systemBox.scrollTop = systemBox.scrollHeight; // autoscroll system by default
+      systemBox.scrollTop = systemBox.scrollHeight;
     }
 
     function appendTeamLine(team, line) {
@@ -412,9 +401,7 @@
       buf.push(line);
       while (buf.length > 100) buf.shift();
 
-      if (team === selectedTeam) {
-        renderSelectedTeamLogs();
-      }
+      if (team === selectedTeam) renderSelectedTeamLogs();
     }
 
     function updateRoster(list) {
@@ -423,6 +410,7 @@
       for (const item of list) {
         const name = String(item?.name || "").trim();
         if (!name) continue;
+
         roster.set(name, {
           connected: !!item.connected,
           teamType: String(item.teamType || ""),
@@ -433,7 +421,6 @@
           theta: Number(item.theta),
         });
 
-        // Ensure log buffer exists
         if (!teamLogs.has(name)) teamLogs.set(name, []);
       }
 
@@ -462,14 +449,18 @@
             return;
           }
 
+          // NEW: raw team prints from ESP (no prefix)
+          if (msg.type === "team_raw" && typeof msg.team === "string" && typeof msg.line === "string") {
+            appendTeamLine(msg.team, msg.line);
+            return;
+          }
+
           if (msg.type === "team_roster" && Array.isArray(msg.teams)) {
             updateRoster(msg.teams);
             return;
           }
 
-        } catch (_) {
-          // ignore non-json
-        }
+        } catch (_) {}
       };
 
       ws.onclose = () => setTimeout(connectWs, 1000);
