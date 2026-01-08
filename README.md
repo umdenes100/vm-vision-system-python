@@ -18,39 +18,39 @@ This system runs on a headless Linux VM and provides:
 
 ## Repository Layout
 
-vm-vision-system-python/
-├── .gitignore
-├── README.md
-├── communications/
-│   ├── arenacam.py
-│   └── wifi_server.py
-├── vision/
-│   ├── aruco.py
-│   └── arena.py
-├── machinelearning/
-│   ├── listener.py
-│   └── models/
-├── frontend/
-│   ├── webpage.py
-│   └── static/
-│       ├── index.html
-│       ├── bootstrap.css
-│       ├── header.css
-│       ├── index.css
-│       ├── inputs.css
-│       ├── theme.css
-│       ├── uiconfig.js
-│       └── ui-config.json
-├── core/
-│   ├── main.py
-│   ├── run.sh
-│   └── config.json
-├── install/
-│   ├── install.sh
-│   └── requirements.txt
-└── utils/
-    ├── logging.py
-    └── port_guard.py
+vm-vision-system-python/  
+├── .gitignore  
+├── README.md  
+├── communications/  
+│   ├── arenacam.py  
+│   └── wifi_server.py  
+├── vision/  
+│   ├── aruco.py  
+│   └── arena.py  
+├── machinelearning/  
+│   ├── listener.py  
+│   └── models/  
+├── frontend/  
+│   ├── webpage.py  
+│   └── static/  
+│       ├── index.html  
+│       ├── bootstrap.css  
+│       ├── header.css  
+│       ├── index.css  
+│       ├── inputs.css  
+│       ├── theme.css  
+│       ├── uiconfig.js  
+│       └── ui-config.json  
+├── core/  
+│   ├── main.py  
+│   ├── run.sh  
+│   └── config.json  
+├── install/  
+│   ├── install.sh  
+│   └── requirements.txt  
+└── utils/  
+    ├── logging.py  
+    └── port_guard.py  
 
 ---
 
