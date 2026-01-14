@@ -29,12 +29,14 @@ def ensure_ports_available(
     udp_port: int,
     tcp_host: str,
     tcp_port: int,
+    extra_tcp_ports: Optional[list[int]] = None,
 ) -> None:
     """
     Ensures the ports required by the system are available.
 
     - UDP port for camera ingest (RTP/H264 stream)
     - TCP port for frontend web server
+    - Optional additional TCP ports (e.g., ESP WebSocket server)
 
     If any are unavailable, logs a fatal and raises RuntimeError.
     """
@@ -45,9 +47,12 @@ def ensure_ports_available(
         logger.fatal(f"UDP port not available: {udp_host}:{udp_port} ({udp_err})")
         raise RuntimeError(f"UDP port in use: {udp_host}:{udp_port}")
 
-    tcp_err = _try_bind_tcp(tcp_host, tcp_port)
-    if tcp_err is not None:
-        logger.fatal(f"TCP port not available: {tcp_host}:{tcp_port} ({tcp_err})")
-        raise RuntimeError(f"TCP port in use: {tcp_host}:{tcp_port}")
+    ports = [int(tcp_port)] + [int(p) for p in (extra_tcp_ports or [])]
+    for p in ports:
+        tcp_err = _try_bind_tcp(tcp_host, p)
+        if tcp_err is not None:
+            logger.fatal(f"TCP port not available: {tcp_host}:{p} ({tcp_err})")
+            raise RuntimeError(f"TCP port in use: {tcp_host}:{p}")
 
-    logger.info(f"Ports OK: UDP {udp_host}:{udp_port}, TCP {tcp_host}:{tcp_port}")
+    extras = "" if not (extra_tcp_ports or []) else f", extra TCP {extra_tcp_ports}"
+    logger.info(f"Ports OK: UDP {udp_host}:{udp_port}, TCP {tcp_host}:{tcp_port}{extras}")
