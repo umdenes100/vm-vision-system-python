@@ -106,7 +106,6 @@ async def _start_ml_listener(config: dict, logger):
                 line = await proc.stdout.readline()
                 if not line:
                     break
-                # ML listener prints become system log lines
                 logger.info(line.decode("utf-8", errors="replace").rstrip("\n"))
 
         stdout_task = asyncio.create_task(_stdout_pump())
@@ -132,11 +131,9 @@ async def run():
     tcp_host = fe_cfg.get("host", "0.0.0.0")
     tcp_port = int(fe_cfg.get("port", 8080))
 
-    # ESP WebSocket server settings (defaults)
     ws_host = config.get("communications", {}).get("ws_host", tcp_host)
     ws_port = int(config.get("communications", {}).get("ws_port", 7755))
 
-    # Port guard: camera UDP + web TCP + ESP WS TCP
     ensure_ports_available(
         udp_host=udp_host,
         udp_port=udp_port,
@@ -176,7 +173,6 @@ async def run():
     ml_stdout_task = None
 
     try:
-        # ML listener (subprocess)
         ml_proc, ml_stdout_task = await _start_ml_listener(config, logger)
 
         await arenacam.start()
@@ -197,17 +193,20 @@ async def run():
             )
         )
 
-        # Start arena processing loop
         proc_task = asyncio.create_task(
             arena_processing_loop(stop_event, logger, arenacam, arena_processor, target_fps=30.0)
         )
 
-        # ---- START ESP WS SERVER (THIS WAS MISSING) ----
+        # ---- ESP WS SERVER ----
         def _get_pose(marker_id: int):
             return arena_processor.poses_arena.get(marker_id, (-1.0, -1.0, -1.0))
 
         def _is_seen(marker_id: int) -> bool:
-            return marker_id in arena_processor.seen_ids()
+            # ArenaProcessor.seen_ids is a @property returning a set.
+            # But tolerate older versions where it might be a method.
+            seen_obj = arena_processor.seen_ids
+            seen = seen_obj() if callable(seen_obj) else seen_obj
+            return marker_id in seen
 
         models_dir = config.get("machinelearning", {}).get("models_dir")
         wifi_server = WifiServer(
@@ -219,9 +218,8 @@ async def run():
         )
         await wifi_server.start()
         logger.info(f"ESP WebSocket server listening on ws://{_get_best_local_ip()}:{ws_port}/ws")
-        # -----------------------------------------------
+        # -----------------------
 
-        # Frontend server
         app = create_app(stop_event, arenacam, arena_processor)
         runner = web.AppRunner(app)
         await runner.setup()
@@ -238,12 +236,9 @@ async def run():
     finally:
         stop_event.set()
 
-        # Stop ML listener first
         if ml_proc is not None:
             try:
                 ml_proc.terminate()
-            except ProcessLookupError:
-                pass
             except Exception:
                 pass
 
@@ -263,16 +258,12 @@ async def run():
                 except Exception:
                     pass
 
-        # Stop wifi_server
         if wifi_server is not None:
             try:
                 await asyncio.wait_for(wifi_server.stop(), timeout=2.5)
-            except asyncio.CancelledError:
-                pass
             except Exception:
                 pass
 
-        # Stop arena processing loop
         if proc_task is not None:
             proc_task.cancel()
             try:
@@ -280,7 +271,6 @@ async def run():
             except Exception:
                 pass
 
-        # Stop web server
         if site is not None:
             try:
                 await site.stop()
@@ -293,11 +283,8 @@ async def run():
             except Exception:
                 pass
 
-        # Stop camera ingest
         try:
             await asyncio.wait_for(arenacam.stop(), timeout=2.5)
-        except asyncio.CancelledError:
-            pass
         except Exception:
             pass
 
