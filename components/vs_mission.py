@@ -103,12 +103,24 @@ def get_mission_message(mission: str, mission_message_type: int, msg: str):
                     mission_string += "?????"
             else:
                 mission_string += "Not a valid mission type!"
+
         elif mission == "SEED":
             if mission_message_type == 0:  # Location
                 logging.debug(f'Location mission message: {msg}')
-                mission_string += f"The location of the anomaly is {msg}"
-            if mission_message_type == 1:  # Percentage
-                mission_string += f"The percentage of the anomaly is {str(msg)}"
+                mission_string += f"The far plots are {msg}"
+                if msg == 0:
+                    mission_string += "BOTH"
+                elif msg == 1:
+                    mission_string += "NEITHER"
+                elif msg == 2:
+                    mission_string += "ADJACENT"
+                elif msg == 3:
+                    mission_string += "DIAGONAL"
+                else:
+                    mission_string += "?????"
+                mission_string += "plantable substrate."
+            else:
+                mission_string += "Not a valid mission type!"
 
         elif mission == "HYDROGEN":  # Hydrogen fuel cell
             if mission_message_type == 0:  # VOLTAGE
