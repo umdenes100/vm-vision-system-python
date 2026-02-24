@@ -379,7 +379,13 @@
         return;
       }
       const lines = teamLogs.get(selectedTeam) || [];
-      teamBox.textContent = lines.join("\n");
+      teamBox.innerHTML = "";
+
+      for (const line of lines) {
+        const div = document.createElement("div");
+        div.textContent = line;
+        teamBox.appendChild(div);
+      }
       maybeScroll(teamBox);
     }
 
