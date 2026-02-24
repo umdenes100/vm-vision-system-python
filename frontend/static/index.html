@@ -364,7 +364,9 @@
     const cellY = document.getElementById("cellY");
     const cellTheta = document.getElementById("cellTheta");
 
-    const teamLogs = new Map();     // team -> array of lines (<=100)
+    // Stream semantics: we store *chunks* and render by concatenating them.
+    // Newlines appear ONLY when the sender includes '\n' (e.g., println()).
+    const teamLogs = new Map();     // team -> array of text chunks
     const roster = new Map();       // team -> state
     const teamML = new Map();       // team -> data_url string (most recent ML request image)
     let selectedTeam = null;
@@ -378,14 +380,8 @@
         teamBox.textContent = "";
         return;
       }
-      const lines = teamLogs.get(selectedTeam) || [];
-      teamBox.innerHTML = "";
-
-      for (const line of lines) {
-        const div = document.createElement("div");
-        div.textContent = line;
-        teamBox.appendChild(div);
-      }
+      const chunks = teamLogs.get(selectedTeam) || [];
+      teamBox.textContent = chunks.join("");
       maybeScroll(teamBox);
     }
 
@@ -497,8 +493,11 @@
       if (!teamLogs.has(team)) teamLogs.set(team, []);
       const buf = teamLogs.get(team);
 
-      buf.push(line);
-      while (buf.length > 100) buf.shift();
+      buf.push(String(line));
+
+      // Keep bounded so page stays responsive.
+      // Chunk cap (not a line cap), because we render stream-style.
+      while (buf.length > 2000) buf.shift();
 
       if (team === selectedTeam) renderSelectedTeamLogs();
     }
@@ -558,7 +557,7 @@
             return;
           }
 
-          // NEW: ML request image per team
+          // ML request image per team
           if (msg.type === "team_ml_image" && typeof msg.team === "string" && typeof msg.data_url === "string") {
             teamML.set(msg.team, msg.data_url);
             if (msg.team === selectedTeam) {
