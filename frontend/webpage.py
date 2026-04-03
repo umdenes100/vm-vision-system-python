@@ -1,5 +1,7 @@
 import asyncio
 import json
+import os
+import sys
 from pathlib import Path
 from aiohttp import web
 
@@ -65,7 +67,15 @@ async def _mjpeg_stream(stop_event: asyncio.Event, request: web.Request, frame_g
     return resp
 
 
-def create_app(stop_event: asyncio.Event, arenacam, arena_processor):
+
+
+async def _restart_process_after_delay(delay_seconds: float = 0.5):
+    await asyncio.sleep(delay_seconds)
+    python = sys.executable
+    argv = [python] + sys.argv
+    os.execv(python, argv)
+
+def create_app(stop_event: asyncio.Event, arenacam, arena_processor, restart_password: str | None = None):
     logger = get_logger("frontend")
     app = web.Application()
 
@@ -113,6 +123,24 @@ def create_app(stop_event: asyncio.Event, arenacam, arena_processor):
             app["ws_clients"].discard(ws)
             logger.info("WebSocket client disconnected from /ws")
         return ws
+
+    async def restart(request: web.Request) -> web.Response:
+        if not restart_password:
+            return web.json_response({"ok": False, "error": "Restart is not configured."}, status=503)
+
+        try:
+            payload = await request.json()
+        except Exception:
+            return web.json_response({"ok": False, "error": "Invalid JSON body."}, status=400)
+
+        submitted_password = str(payload.get("password", ""))
+        if submitted_password != restart_password:
+            logger.warning("Rejected restart request due to invalid password")
+            return web.json_response({"ok": False, "error": "Invalid password."}, status=403)
+
+        logger.warning("Accepted authenticated restart request from web client")
+        asyncio.create_task(_restart_process_after_delay())
+        return web.json_response({"ok": True, "message": "Restarting vision system..."})
 
     async def broadcaster_task(app_: web.Application):
         try:
@@ -174,6 +202,7 @@ def create_app(stop_event: asyncio.Event, arenacam, arena_processor):
     app.router.add_get("/overlay", overlay)
     app.router.add_get("/crop", crop)
     app.router.add_get("/ws", ws_handler)
+    app.router.add_post("/api/restart", restart)
     app.router.add_static("/static/", path=static_dir, show_index=False)
 
     return app
