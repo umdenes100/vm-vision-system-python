@@ -16,6 +16,6 @@
   },
   "machinelearning": {
     "listener_enabled": true,
-    "models_dir": "machinelearning/models"
+    "models_dir": "/home/jpauleni/vm-vision-system-python/machinelearning/models"
   }
 }
