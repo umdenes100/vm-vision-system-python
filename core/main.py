@@ -220,7 +220,8 @@ async def run():
         logger.info(f"ESP WebSocket server listening on ws://{_get_best_local_ip()}:{ws_port}/ws")
         # -----------------------
 
-        app = create_app(stop_event, arenacam, arena_processor)
+        restart_password = str(fe_cfg.get("restart_password", "")).strip()
+        app = create_app(stop_event, arenacam, arena_processor, restart_password=restart_password)
         runner = web.AppRunner(app)
         await runner.setup()
         site = web.TCPSite(runner, tcp_host, tcp_port)
