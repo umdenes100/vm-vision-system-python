@@ -26,9 +26,25 @@
       gap: 16px;
     }
     .vs-title { font-weight: 700; font-size: 26px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .vs-nav { display: flex; gap: 18px; justify-content: flex-end; white-space: nowrap; }
+    .vs-header-actions { display: flex; align-items: center; gap: 14px; min-width: 0; }
+    .vs-nav { display: flex; gap: 18px; justify-content: flex-end; white-space: nowrap; min-width: 0; }
     .vs-nav a { color: #fff; text-decoration: none; font-weight: 600; font-size: 14px; opacity: 0.95; }
     .vs-nav a:hover { text-decoration: underline; opacity: 1.0; }
+
+    .vs-header-restart-btn {
+      border: 1px solid rgba(255,255,255,0.45);
+      background: rgba(0,0,0,0.18);
+      color: #fff;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .vs-header-restart-btn:hover {
+      background: rgba(0,0,0,0.28);
+    }
 
     .vs-main { height: calc(100vh - 64px); display: flex; background: #000; }
 
@@ -256,7 +272,10 @@
 
 <header class="vs-header">
   <div class="vs-title" id="headerTitle">&lt;Class Name&gt; &lt;Room Placeholder&gt; Vision System</div>
-  <nav class="vs-nav" id="headerLinks"></nav>
+  <div class="vs-header-actions">
+    <nav class="vs-nav" id="headerLinks"></nav>
+    <button class="vs-header-restart-btn" id="restartButton" type="button">Restart</button>
+  </div>
 </header>
 
 <div class="vs-main">
@@ -580,5 +599,42 @@
   })();
 </script>
 
+<script>
+  (function () {
+    const restartButton = document.getElementById("restartButton");
+    if (!restartButton) return;
+
+    restartButton.addEventListener("click", async function () {
+      const password = window.prompt("Enter restart password:", "");
+      if (password === null) return;
+
+      restartButton.disabled = true;
+      const originalText = restartButton.textContent;
+      restartButton.textContent = "Restarting...";
+
+      try {
+        const response = await fetch("/api/restart", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password })
+        });
+
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok || !data.ok) {
+          throw new Error(data.error || "Restart failed.");
+        }
+
+        window.alert(data.message || "Vision system is restarting.");
+        window.setTimeout(function () {
+          window.location.reload();
+        }, 2500);
+      } catch (error) {
+        window.alert(error.message || "Restart failed.");
+        restartButton.disabled = false;
+        restartButton.textContent = originalText;
+      }
+    });
+  })();
+</script>
 </body>
 </html>
