@@ -11,7 +11,8 @@
   },
   "frontend": {
     "host": "0.0.0.0",
-    "port": 8080
+    "port": 8080,
+    "restart_password": "change-me"
   },
   "machinelearning": {
     "listener_enabled": true,
