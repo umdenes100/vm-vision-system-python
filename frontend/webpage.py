@@ -1,5 +1,7 @@
 import asyncio
 import json
+import os
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -7,7 +9,7 @@ import cv2
 import numpy as np
 from aiohttp import web, WSMsgType
 
-from utils.logging import register_web_event_sink
+from utils.logging import get_logger, register_web_event_sink
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -69,8 +71,17 @@ def _draw_waiting_overlay(frame: np.ndarray) -> np.ndarray:
     return out
 
 
+async def _restart_process_after_delay(delay_seconds: float = 0.5):
+    await asyncio.sleep(delay_seconds)
+    python = sys.executable
+    argv = [python] + sys.argv
+    os.execv(python, argv)
+
+
 class WebPage:
     def __init__(self, stop_event, arenacam, arena_processor, restart_password: str = ""):
+        self.logger = get_logger("frontend")
+
         self.stop_event = stop_event
         self.arenacam = arenacam
         self.arena = arena_processor
@@ -190,19 +201,29 @@ class WebPage:
         return response
 
     async def handle_video_stream(self, request):
-        return await self.mjpeg_stream(request, self.get_raw_jpeg)
+        self.logger.info("Web client connected to /video")
+        response = await self.mjpeg_stream(request, self.get_raw_jpeg)
+        self.logger.info("Web client disconnected from /video")
+        return response
 
     async def handle_overlay_stream(self, request):
-        return await self.mjpeg_stream(request, self.get_overlay_jpeg)
+        self.logger.info("Web client connected to /overlay")
+        response = await self.mjpeg_stream(request, self.get_overlay_jpeg)
+        self.logger.info("Web client disconnected from /overlay")
+        return response
 
     async def handle_crop_stream(self, request):
-        return await self.mjpeg_stream(request, self.get_crop_jpeg)
+        self.logger.info("Web client connected to /crop")
+        response = await self.mjpeg_stream(request, self.get_crop_jpeg)
+        self.logger.info("Web client disconnected from /crop")
+        return response
 
     async def handle_ws(self, request):
         ws = web.WebSocketResponse()
         await ws.prepare(request)
 
         self.ws_clients.add(ws)
+        self.logger.info("WebSocket client connected to /ws")
 
         try:
             async for msg in ws:
@@ -212,6 +233,7 @@ class WebPage:
                     break
         finally:
             self.ws_clients.discard(ws)
+            self.logger.info("WebSocket client disconnected from /ws")
 
         return ws
 
@@ -221,28 +243,57 @@ class WebPage:
             return web.json_response({"ok": True, **result})
 
         return web.json_response(
-            {"ok": False, "error": "ArenaProcessor has no randomize_mission_overlay() method."},
+            {
+                "ok": False,
+                "error": "ArenaProcessor has no randomize_mission_overlay() method.",
+            },
             status=500,
         )
 
     async def handle_restart(self, request):
+        if not self.restart_password:
+            return web.json_response(
+                {
+                    "ok": False,
+                    "error": "Restart is not configured.",
+                    "message": "Restart is not configured.",
+                },
+                status=503,
+            )
+
         try:
             data = await request.json()
         except Exception:
-            data = {}
+            return web.json_response(
+                {
+                    "ok": False,
+                    "error": "Invalid JSON body.",
+                    "message": "Invalid JSON body.",
+                },
+                status=400,
+            )
 
         password = str(data.get("password", ""))
 
-        if self.restart_password and password != self.restart_password:
+        if password != self.restart_password:
+            self.logger.warning("Rejected restart request due to invalid password")
             return web.json_response(
-                {"ok": False, "message": "Incorrect restart password."},
+                {
+                    "ok": False,
+                    "error": "Invalid password.",
+                    "message": "Invalid password.",
+                },
                 status=403,
             )
 
-        self.stop_event.set()
+        self.logger.warning("Accepted authenticated restart request from web client")
+        asyncio.create_task(_restart_process_after_delay())
 
         return web.json_response(
-            {"ok": True, "message": "Vision system is restarting."}
+            {
+                "ok": True,
+                "message": "Restarting vision system...",
+            }
         )
 
 
