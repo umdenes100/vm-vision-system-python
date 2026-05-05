@@ -1,208 +1,256 @@
 import asyncio
 import json
-import os
-import sys
 from pathlib import Path
-from aiohttp import web
+from typing import Optional
 
 import cv2
 import numpy as np
+from aiohttp import web, WSMsgType
 
-from utils.logging import get_logger, register_web_event_sink
-
-_BOUNDARY = "frame"
-
-
-def _make_placeholder_jpeg(text: str) -> bytes:
-    img = np.zeros((240, 480, 3), dtype=np.uint8)
-    cv2.putText(img, text, (12, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
-    ok, buf = cv2.imencode(".jpg", img, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
-    return buf.tobytes() if ok else b""
+from utils.logging import register_web_event_sink
 
 
-_PLACEHOLDER_RAW = _make_placeholder_jpeg("Waiting for raw video...")
-_PLACEHOLDER_OVERLAY = _make_placeholder_jpeg("Waiting for overlay...")
-_PLACEHOLDER_CROP = _make_placeholder_jpeg("Waiting for crop transform...")
+BASE_DIR = Path(__file__).resolve().parent
+STATIC_DIR = BASE_DIR / "static"
 
 
-async def _mjpeg_stream(stop_event: asyncio.Event, request: web.Request, frame_getter, placeholder: bytes):
-    resp = web.StreamResponse(
-        status=200,
-        reason="OK",
-        headers={
-            "Content-Type": f"multipart/x-mixed-replace; boundary={_BOUNDARY}",
-            "Cache-Control": "no-cache, no-store, must-revalidate",
-            "Pragma": "no-cache",
-            "Expires": "0",
-        },
+def _decode_jpeg(jpeg_bytes: bytes) -> Optional[np.ndarray]:
+    if not jpeg_bytes:
+        return None
+    arr = np.frombuffer(jpeg_bytes, dtype=np.uint8)
+    return cv2.imdecode(arr, cv2.IMREAD_COLOR)
+
+
+def _encode_jpeg(frame: np.ndarray, quality: int = 80) -> Optional[bytes]:
+    ok, buf = cv2.imencode(
+        ".jpg",
+        frame,
+        [int(cv2.IMWRITE_JPEG_QUALITY), int(quality)],
     )
-    await resp.prepare(request)
+    return buf.tobytes() if ok else None
 
-    try:
-        while not stop_event.is_set():
-            frame = frame_getter()
-            if frame is None:
-                frame = placeholder
 
-            header = (
-                f"--{_BOUNDARY}\r\n"
-                "Content-Type: image/jpeg\r\n"
-                f"Content-Length: {len(frame)}\r\n"
-                "\r\n"
-            ).encode("utf-8")
+def _draw_waiting_overlay(frame: np.ndarray) -> np.ndarray:
+    out = frame.copy()
 
-            await resp.write(header)
-            await resp.write(frame)
-            await resp.write(b"\r\n")
+    text = "Waiting for crop transform..."
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    scale = 1.0
+    thickness = 2
 
-            await asyncio.sleep(0.05)
-    except (asyncio.CancelledError, ConnectionResetError, BrokenPipeError):
-        pass
-    finally:
+    h, w = out.shape[:2]
+    (tw, th), _ = cv2.getTextSize(text, font, scale, thickness)
+
+    x = max(10, (w - tw) // 2)
+    y = max(th + 10, (h + th) // 2)
+
+    cv2.putText(
+        out,
+        text,
+        (x, y),
+        font,
+        scale,
+        (0, 0, 0),
+        thickness + 4,
+        cv2.LINE_AA,
+    )
+
+    cv2.putText(
+        out,
+        text,
+        (x, y),
+        font,
+        scale,
+        (255, 255, 255),
+        thickness,
+        cv2.LINE_AA,
+    )
+
+    return out
+
+
+class WebPage:
+    def __init__(self, stop_event, arenacam, arena_processor, restart_password: str = ""):
+        self.stop_event = stop_event
+        self.arenacam = arenacam
+        self.arena = arena_processor
+        self.restart_password = restart_password or ""
+
+        self.app = web.Application()
+        self.ws_clients = set()
+
+        self.setup_routes()
+        self.setup_event_sink()
+
+    def setup_routes(self):
+        self.app.router.add_get("/", self.handle_index)
+
+        self.app.router.add_get("/video", self.handle_video_stream)
+        self.app.router.add_get("/overlay", self.handle_overlay_stream)
+        self.app.router.add_get("/crop", self.handle_crop_stream)
+
+        self.app.router.add_get("/ws", self.handle_ws)
+
+        self.app.router.add_post("/api/randomize", self.handle_randomize)
+        self.app.router.add_post("/api/restart", self.handle_restart)
+
+        self.app.router.add_static(
+            "/static/",
+            path=str(STATIC_DIR),
+            name="static",
+            show_index=False,
+        )
+
+    def setup_event_sink(self):
+        loop = asyncio.get_running_loop()
+
+        def sink(evt):
+            loop.call_soon_threadsafe(
+                lambda: asyncio.create_task(self.broadcast_event(evt))
+            )
+
+        register_web_event_sink(sink)
+
+    async def broadcast_event(self, evt):
+        if not self.ws_clients:
+            return
+
+        data = json.dumps(evt)
+
+        dead = []
+        for ws in list(self.ws_clients):
+            try:
+                await ws.send_str(data)
+            except Exception:
+                dead.append(ws)
+
+        for ws in dead:
+            self.ws_clients.discard(ws)
+
+    async def handle_index(self, request):
+        return web.FileResponse(STATIC_DIR / "index.html")
+
+    def get_raw_jpeg(self) -> Optional[bytes]:
+        return self.arenacam.latest_frame
+
+    def get_overlay_jpeg(self) -> Optional[bytes]:
+        return self.arena.latest_overlay_jpeg or self.get_raw_jpeg()
+
+    def get_crop_jpeg(self) -> Optional[bytes]:
+        if self.arena.latest_cropped_jpeg is not None:
+            return self.arena.latest_cropped_jpeg
+
+        raw = self.get_raw_jpeg()
+        if raw is None:
+            return None
+
+        frame = _decode_jpeg(raw)
+        if frame is None:
+            return raw
+
+        frame = _draw_waiting_overlay(frame)
+        return _encode_jpeg(frame, quality=80)
+
+    async def mjpeg_stream(self, request, frame_getter):
+        response = web.StreamResponse(
+            status=200,
+            reason="OK",
+            headers={
+                "Content-Type": "multipart/x-mixed-replace; boundary=frame",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
+        )
+
+        await response.prepare(request)
+
         try:
-            await resp.write_eof()
+            while not self.stop_event.is_set():
+                jpeg = frame_getter()
+
+                if jpeg is not None:
+                    await response.write(
+                        b"--frame\r\n"
+                        b"Content-Type: image/jpeg\r\n"
+                        b"Content-Length: "
+                        + str(len(jpeg)).encode("ascii")
+                        + b"\r\n\r\n"
+                        + jpeg
+                        + b"\r\n"
+                    )
+
+                await asyncio.sleep(1 / 30)
+
+        except (asyncio.CancelledError, ConnectionResetError, BrokenPipeError):
+            pass
         except Exception:
             pass
 
-    return resp
+        return response
 
+    async def handle_video_stream(self, request):
+        return await self.mjpeg_stream(request, self.get_raw_jpeg)
 
+    async def handle_overlay_stream(self, request):
+        return await self.mjpeg_stream(request, self.get_overlay_jpeg)
 
+    async def handle_crop_stream(self, request):
+        return await self.mjpeg_stream(request, self.get_crop_jpeg)
 
-async def _restart_process_after_delay(delay_seconds: float = 0.5):
-    await asyncio.sleep(delay_seconds)
-    python = sys.executable
-    argv = [python] + sys.argv
-    os.execv(python, argv)
-
-def create_app(stop_event: asyncio.Event, arenacam, arena_processor, restart_password: str | None = None):
-    logger = get_logger("frontend")
-    app = web.Application()
-
-    static_dir = Path(__file__).parent / "static"
-    index_path = static_dir / "index.html"
-
-    app["ws_clients"] = set()
-    app["web_evt_queue"] = asyncio.Queue(maxsize=2000)
-
-    async def index(request: web.Request) -> web.Response:
-        if not index_path.exists():
-            return web.Response(text="Missing frontend/static/index.html", status=500)
-        return web.FileResponse(path=index_path)
-
-    async def video(request):
-        logger.info("Web client connected to /video")
-        resp = await _mjpeg_stream(stop_event, request, lambda: arenacam.latest_frame, _PLACEHOLDER_RAW)
-        logger.info("Web client disconnected from /video")
-        return resp
-
-    async def overlay(request):
-        logger.info("Web client connected to /overlay")
-        resp = await _mjpeg_stream(stop_event, request, lambda: arena_processor.latest_overlay_jpeg, _PLACEHOLDER_OVERLAY)
-        logger.info("Web client disconnected from /overlay")
-        return resp
-
-    async def crop(request):
-        logger.info("Web client connected to /crop")
-        resp = await _mjpeg_stream(stop_event, request, lambda: arena_processor.latest_cropped_jpeg, _PLACEHOLDER_CROP)
-        logger.info("Web client disconnected from /crop")
-        return resp
-
-    async def ws_handler(request: web.Request) -> web.WebSocketResponse:
+    async def handle_ws(self, request):
         ws = web.WebSocketResponse()
         await ws.prepare(request)
 
-        app["ws_clients"].add(ws)
-        logger.info("WebSocket client connected to /ws")
+        self.ws_clients.add(ws)
+
         try:
-            async for _msg in ws:
-                pass
-        except asyncio.CancelledError:
-            pass
+            async for msg in ws:
+                if msg.type == WSMsgType.TEXT:
+                    pass
+                elif msg.type == WSMsgType.ERROR:
+                    break
         finally:
-            app["ws_clients"].discard(ws)
-            logger.info("WebSocket client disconnected from /ws")
+            self.ws_clients.discard(ws)
+
         return ws
 
-    async def restart(request: web.Request) -> web.Response:
-        if not restart_password:
-            return web.json_response({"ok": False, "error": "Restart is not configured."}, status=503)
+    async def handle_randomize(self, request):
+        if hasattr(self.arena, "randomize_mission_overlay"):
+            result = self.arena.randomize_mission_overlay()
+            return web.json_response({"ok": True, **result})
 
+        return web.json_response(
+            {"ok": False, "error": "ArenaProcessor has no randomize_mission_overlay() method."},
+            status=500,
+        )
+
+    async def handle_restart(self, request):
         try:
-            payload = await request.json()
+            data = await request.json()
         except Exception:
-            return web.json_response({"ok": False, "error": "Invalid JSON body."}, status=400)
+            data = {}
 
-        submitted_password = str(payload.get("password", ""))
-        if submitted_password != restart_password:
-            logger.warning("Rejected restart request due to invalid password")
-            return web.json_response({"ok": False, "error": "Invalid password."}, status=403)
+        password = str(data.get("password", ""))
 
-        logger.warning("Accepted authenticated restart request from web client")
-        asyncio.create_task(_restart_process_after_delay())
-        return web.json_response({"ok": True, "message": "Restarting vision system..."})
+        if self.restart_password and password != self.restart_password:
+            return web.json_response(
+                {"ok": False, "message": "Incorrect restart password."},
+                status=403,
+            )
 
-    async def broadcaster_task(app_: web.Application):
-        try:
-            while not stop_event.is_set():
-                evt = await app_["web_evt_queue"].get()
-                payload = json.dumps(evt)
+        self.stop_event.set()
 
-                dead = []
-                for ws in list(app_["ws_clients"]):
-                    try:
-                        await ws.send_str(payload)
-                    except Exception:
-                        dead.append(ws)
-                for ws in dead:
-                    app_["ws_clients"].discard(ws)
-        except asyncio.CancelledError:
-            # Normal during shutdown
-            return
+        return web.json_response(
+            {"ok": True, "message": "Vision system is restarting."}
+        )
 
-    async def on_startup(app_: web.Application):
-        loop = asyncio.get_running_loop()
 
-        def sink(evt: dict):
-            def _put_nowait():
-                q: asyncio.Queue = app_["web_evt_queue"]
-                try:
-                    q.put_nowait(evt)
-                except asyncio.QueueFull:
-                    try:
-                        _ = q.get_nowait()
-                    except Exception:
-                        pass
-                    try:
-                        q.put_nowait(evt)
-                    except Exception:
-                        pass
-
-            loop.call_soon_threadsafe(_put_nowait)
-
-        register_web_event_sink(sink)
-        app_["broadcaster"] = asyncio.create_task(broadcaster_task(app_))
-
-    async def on_cleanup(app_: web.Application):
-        task = app_.get("broadcaster")
-        if task:
-            task.cancel()
-            try:
-                await task
-            except asyncio.CancelledError:
-                pass
-            except Exception:
-                pass
-
-    app.on_startup.append(on_startup)
-    app.on_cleanup.append(on_cleanup)
-
-    app.router.add_get("/", index)
-    app.router.add_get("/video", video)
-    app.router.add_get("/overlay", overlay)
-    app.router.add_get("/crop", crop)
-    app.router.add_get("/ws", ws_handler)
-    app.router.add_post("/api/restart", restart)
-    app.router.add_static("/static/", path=static_dir, show_index=False)
-
-    return app
+def create_app(stop_event, arenacam, arena_processor, restart_password: str = ""):
+    page = WebPage(
+        stop_event=stop_event,
+        arenacam=arenacam,
+        arena_processor=arena_processor,
+        restart_password=restart_password,
+    )
+    return page.app
