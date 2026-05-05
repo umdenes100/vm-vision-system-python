@@ -169,9 +169,76 @@ class ArenaProcessor:
         py = int(round((1.0 - (float(y) / 2.0)) * (self.cfg.output_height - 1)))
         return px, py
 
+    def _draw_center_obstacles_on_crop(self, img: np.ndarray) -> None:
+        """Draw the randomized center obstacles from the old vision system.
+
+        The randomization string is formatted like "01A":
+          - first digit: row for solid obstacle in left column
+          - second digit: row for solid obstacle in right column
+          - letter A/B: which column gets the traversable obstacle
+        """
+        if not self._mission_overlay_enabled:
+            return
+
+        instruction = self._mission_randomization
+        if len(instruction) < 3:
+            return
+
+        possible_x = [1.40, 2.23]
+        possible_y = [1.25, 0.75, 0.25]
+        rows = [0, 1, 2]
+        x_length = 0.20
+        y_length = 0.50
+
+        solid_color = (185, 146, 68)
+        traversable_color = (25, 177, 215)
+        text_color = (255, 0, 0)
+        thickness = int(self.cfg.mission_draw_thickness)
+
+        def draw_obstacle(x: float, y: float, color: tuple[int, int, int], label: str) -> None:
+            cv2.rectangle(
+                img,
+                self._arena_to_crop_px(x, y),
+                self._arena_to_crop_px(x + x_length, y + y_length),
+                color,
+                thickness,
+            )
+            cv2.putText(
+                img,
+                label,
+                self._arena_to_crop_px(x + 0.05, y + 0.25),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1.0,
+                text_color,
+                2,
+                cv2.LINE_AA,
+            )
+
+        try:
+            # Two solid obstacles.
+            for col in range(2):
+                row = int(instruction[col])
+                draw_obstacle(possible_x[col], possible_y[row], solid_color, "S")
+                if row in rows:
+                    rows.remove(row)
+
+            # One traversable obstacle in the remaining row.
+            traversable_col = 0 if instruction[2] == "A" else 1
+            traversable_row = rows[0]
+            draw_obstacle(
+                possible_x[traversable_col],
+                possible_y[traversable_row],
+                traversable_color,
+                "T",
+            )
+        except Exception:
+            return
+
     def _draw_mission_overlay_on_crop(self, img: np.ndarray) -> None:
         if not self._mission_overlay_enabled:
             return
+
+        self._draw_center_obstacles_on_crop(img)
 
         y_options = [0.55, 1.45]
         start_y = y_options[self._mission_start_loc]
@@ -193,6 +260,7 @@ class ArenaProcessor:
             0.10 * math.cos(theta - math.pi) + 0.575,
             0.10 * math.sin(theta - math.pi) + start_y,
         )
+
         cv2.arrowedLine(
             img,
             self._arena_to_crop_px(*arrow_tip),
