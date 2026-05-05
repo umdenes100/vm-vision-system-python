@@ -124,6 +124,17 @@ def create_app(stop_event: asyncio.Event, arenacam, arena_processor, restart_pas
             logger.info("WebSocket client disconnected from /ws")
         return ws
 
+    async def randomize(request: web.Request) -> web.Response:
+        state = arena_processor.randomize_mission_overlay()
+        logger.info(
+            "Randomized mission overlay: "
+            f"preset={state['randomization']} "
+            f"start_loc={state['start_loc']} "
+            f"mission_loc={state['mission_loc']} "
+            f"theta={state['theta']:.3f}"
+        )
+        return web.json_response({"ok": True, **state})
+
     async def restart(request: web.Request) -> web.Response:
         if not restart_password:
             return web.json_response({"ok": False, "error": "Restart is not configured."}, status=503)
@@ -202,6 +213,7 @@ def create_app(stop_event: asyncio.Event, arenacam, arena_processor, restart_pas
     app.router.add_get("/overlay", overlay)
     app.router.add_get("/crop", crop)
     app.router.add_get("/ws", ws_handler)
+    app.router.add_post("/api/randomize", randomize)
     app.router.add_post("/api/restart", restart)
     app.router.add_static("/static/", path=static_dir, show_index=False)
 

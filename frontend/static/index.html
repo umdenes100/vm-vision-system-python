@@ -25,13 +25,14 @@
       box-shadow: 0 2px 0 rgba(0,0,0,0.2);
       gap: 16px;
     }
+    .vs-title-row { display: flex; align-items: center; gap: 14px; min-width: 0; }
     .vs-title { font-weight: 700; font-size: 26px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .vs-header-actions { display: flex; align-items: center; gap: 14px; min-width: 0; }
     .vs-nav { display: flex; gap: 18px; justify-content: flex-end; white-space: nowrap; min-width: 0; }
     .vs-nav a { color: #fff; text-decoration: none; font-weight: 600; font-size: 14px; opacity: 0.95; }
     .vs-nav a:hover { text-decoration: underline; opacity: 1.0; }
 
-    .vs-header-restart-btn {
+    .vs-header-button {
       border: 1px solid rgba(255,255,255,0.45);
       background: rgba(0,0,0,0.18);
       color: #fff;
@@ -42,7 +43,7 @@
       white-space: nowrap;
     }
 
-    .vs-header-restart-btn:hover {
+    .vs-header-button:hover {
       background: rgba(0,0,0,0.28);
     }
 
@@ -271,10 +272,13 @@
 <body>
 
 <header class="vs-header">
-  <div class="vs-title" id="headerTitle">&lt;Class Name&gt; &lt;Room Placeholder&gt; Vision System</div>
+  <div class="vs-title-row">
+    <div class="vs-title" id="headerTitle">&lt;Class Name&gt; &lt;Room Placeholder&gt; Vision System</div>
+    <button class="vs-header-button" id="randomizeButton" type="button">Randomize</button>
+  </div>
   <div class="vs-header-actions">
     <nav class="vs-nav" id="headerLinks"></nav>
-    <button class="vs-header-restart-btn" id="restartButton" type="button">Restart</button>
+    <button class="vs-header-button" id="restartButton" type="button">Restart</button>
   </div>
 </header>
 
@@ -372,6 +376,7 @@
     const autoscroll = document.getElementById("autoscroll");
     const showDisconnected = document.getElementById("showDisconnected");
     const clearBtn = document.getElementById("clearPrints");
+    const randomizeButton = document.getElementById("randomizeButton");
 
     const mlImage = document.getElementById("mlImage");
     const mlPlaceholder = document.getElementById("mlPlaceholder");
@@ -498,6 +503,28 @@
       teamLogs.set(selectedTeam, []);
       renderSelectedTeamLogs();
     });
+
+    if (randomizeButton) {
+      randomizeButton.addEventListener("click", async () => {
+        randomizeButton.disabled = true;
+        const originalText = randomizeButton.textContent;
+        randomizeButton.textContent = "Randomizing...";
+
+        try {
+          const response = await fetch("/api/randomize", { method: "POST" });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok || !data.ok) {
+            throw new Error(data.error || "Randomize failed.");
+          }
+          appendSystemLine(`[INFO] Randomized mission overlay: start=${data.start_loc}, mission=${data.mission_loc}, theta=${Number(data.theta).toFixed(3)}`);
+        } catch (error) {
+          window.alert(error.message || "Randomize failed.");
+        } finally {
+          randomizeButton.disabled = false;
+          randomizeButton.textContent = originalText;
+        }
+      });
+    }
 
     function appendSystemLine(line) {
       if (systemBox.textContent.startsWith("[INFO] Waiting for system logs...")) {

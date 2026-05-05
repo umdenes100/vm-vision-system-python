@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from typing import Dict, Optional, Tuple
+import random
 
 import cv2
 import numpy as np
@@ -55,6 +56,10 @@ class ArenaConfig:
     # Hollow origin box half size (pixels)
     origin_box_half_size_px: int = 5
 
+    # Mission randomization overlay
+    mission_draw_thickness: int = 3
+    mission_site_radius_px: int = 40
+
     # System printouts
     seen_markers_print_period_s: float = 60.0
 
@@ -88,11 +93,51 @@ class ArenaProcessor:
 
         self._last_seen_print_monotonic: float = 0.0
 
+        self._mission_overlay_enabled: bool = False
+        self._mission_start_loc: int = 0
+        self._mission_loc: int = 1
+        self._mission_theta: float = -(math.pi / 2)
+        self._mission_randomization: str = "01A"
+        self._mission_obstacle_presets = [
+            "01A", "01B", "02A", "02B",
+            "10A", "10B", "12A", "12B",
+            "20A", "20B", "21A", "21B",
+        ]
+
     # -------------------- Public accessors --------------------
 
     @property
     def seen_ids(self) -> set[int]:
         return set(self._seen_ids)
+
+    def randomize_mission_overlay(self) -> dict:
+        """Randomize the OTV start square, mission site, and start arrow."""
+        randomization = random.choice(self._mission_obstacle_presets)
+
+        if randomization[:2] in ("01", "10"):
+            start = 1
+        elif randomization[:2] in ("21", "12"):
+            start = 0
+        else:
+            start = random.randrange(0, 2)
+
+        if start == 0:
+            theta = (random.randrange(0, 180) * 2 * math.pi) / 360
+        else:
+            theta = ((random.randrange(0, 180) + 180) * 2 * math.pi) / 360
+
+        self._mission_overlay_enabled = True
+        self._mission_start_loc = start
+        self._mission_loc = (start + 1) % 2
+        self._mission_theta = theta
+        self._mission_randomization = randomization
+
+        return {
+            "randomization": randomization,
+            "start_loc": self._mission_start_loc,
+            "mission_loc": self._mission_loc,
+            "theta": self._mission_theta,
+        }
 
     @property
     def poses_arena(self) -> Dict[int, Tuple[float, float, float]]:
@@ -117,6 +162,52 @@ class ArenaProcessor:
     @staticmethod
     def _marker_topleft_px(m: ArucoMarker) -> np.ndarray:
         return m.corners[0].astype(np.float32)
+
+
+    def _arena_to_crop_px(self, x: float, y: float) -> Tuple[int, int]:
+        px = int(round((float(x) / 4.0) * (self.cfg.output_width - 1)))
+        py = int(round((1.0 - (float(y) / 2.0)) * (self.cfg.output_height - 1)))
+        return px, py
+
+    def _draw_mission_overlay_on_crop(self, img: np.ndarray) -> None:
+        if not self._mission_overlay_enabled:
+            return
+
+        y_options = [0.55, 1.45]
+        start_y = y_options[self._mission_start_loc]
+        mission_y = y_options[self._mission_loc]
+        theta = self._mission_theta
+
+        red = (142, 80, 233)
+        white = (255, 255, 255)
+        thickness = int(self.cfg.mission_draw_thickness)
+
+        mission_center = self._arena_to_crop_px(0.575, mission_y)
+        cv2.circle(img, mission_center, int(self.cfg.mission_site_radius_px), red, 2)
+
+        arrow_tip = (
+            0.175 * math.cos(theta) + 0.575,
+            0.175 * math.sin(theta) + start_y,
+        )
+        arrow_tail = (
+            0.10 * math.cos(theta - math.pi) + 0.575,
+            0.10 * math.sin(theta - math.pi) + start_y,
+        )
+        cv2.arrowedLine(
+            img,
+            self._arena_to_crop_px(*arrow_tip),
+            self._arena_to_crop_px(*arrow_tail),
+            white,
+            thickness,
+        )
+
+        cv2.rectangle(
+            img,
+            self._arena_to_crop_px(0.55 - 0.20, start_y - 0.20),
+            self._arena_to_crop_px(0.55 + 0.20, start_y + 0.20),
+            white,
+            thickness,
+        )
 
     def _draw_origin_hollow_box(self, img: np.ndarray, origin_xy: Tuple[int, int]) -> None:
         hs = int(self.cfg.origin_box_half_size_px)
@@ -400,6 +491,8 @@ class ArenaProcessor:
                     c_w = cv2.perspectiveTransform(c, M)[0][0]
                     cx, cy = int(c_w[0]), int(c_w[1])
                     cv2.putText(warped, str(mid), (cx + 6, cy - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2, cv2.LINE_AA)
+
+            self._draw_mission_overlay_on_crop(warped)
 
             cropped_jpg = self._encode_jpeg(warped, self.cfg.crop_jpeg_quality)
             if cropped_jpg is not None:
