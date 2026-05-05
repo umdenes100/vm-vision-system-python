@@ -20,7 +20,6 @@ class WebPage:
         self.app.router.add_get("/crop", self.handle_crop)
         self.app.router.add_get("/ws", self.handle_ws)
 
-        # existing APIs (if present)
         self.app.router.add_post("/api/randomize", self.handle_randomize)
         self.app.router.add_post("/api/restart", self.handle_restart)
 
@@ -41,8 +40,8 @@ class WebPage:
 
     async def handle_crop(self, request):
         """
-        FIXED BEHAVIOR:
-        If crop is not ready, show RAW frame + overlay text instead of black screen.
+        If crop exists → return it
+        If not → show RAW frame with overlay text instead of black screen
         """
         if self.arena.latest_cropped_jpeg is not None:
             return web.Response(
@@ -50,7 +49,7 @@ class WebPage:
                 content_type="image/jpeg"
             )
 
-        # --- NEW FALLBACK LOGIC ---
+        # --- RAW FALLBACK WITH TEXT ---
         if self.arena.latest_raw_jpeg is not None:
             frame = cv2.imdecode(
                 np.frombuffer(self.arena.latest_raw_jpeg, dtype=np.uint8),
@@ -62,7 +61,6 @@ class WebPage:
 
                 text = "Waiting for crop transform..."
 
-                # center text
                 font = cv2.FONT_HERSHEY_SIMPLEX
                 scale = 1
                 thickness = 2
@@ -71,7 +69,7 @@ class WebPage:
                 x = (w - tw) // 2
                 y = (h + th) // 2
 
-                # black outline for visibility
+                # black outline
                 cv2.putText(frame, text, (x, y),
                             font, scale, (0, 0, 0), thickness + 3, cv2.LINE_AA)
 
@@ -86,7 +84,7 @@ class WebPage:
                     content_type="image/jpeg"
                 )
 
-        # fallback if no raw frame exists
+        # fallback if nothing available
         return web.Response(body=b"", content_type="image/jpeg")
 
     async def handle_ws(self, request):
@@ -105,13 +103,19 @@ class WebPage:
         return ws
 
     async def handle_randomize(self, request):
-        self.arena.randomize_mission()
+        if hasattr(self.arena, "randomize_mission"):
+            self.arena.randomize_mission()
         return web.json_response({"status": "ok"})
 
     async def handle_restart(self, request):
-        # keep existing behavior
         import os
         os._exit(0)
 
     def run(self, host="0.0.0.0", port=8080):
         web.run_app(self.app, host=host, port=port)
+
+
+# ✅ REQUIRED FOR YOUR MAIN.PY
+def create_app(arena_processor, wifi_server):
+    page = WebPage(arena_processor, wifi_server)
+    return page.app
