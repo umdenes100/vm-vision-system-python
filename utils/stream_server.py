@@ -1,59 +1,1473 @@
-# Make sure to do: pip install flask
-from flask import Flask, Response
-import subprocess
+from dataclasses import dataclass
+from typing import Dict, Optional, Tuple
+import random
 
-app = Flask(__name__)
+import cv2
+import numpy as np
+import time
+import math
 
-PORT_IN = 5000
-PORT_WEB = 8080
+from utils.logging import web_info
+from vision.aruco import ArucoDetector, ArucoMarker
 
-GST_CMD = [
-    "gst-launch-1.0",
-    "udpsrc", f"port={PORT_IN}",
-    "caps=application/x-rtp,media=video,encoding-name=H264,clock-rate=90000,payload=96",
-    "!", "rtpjitterbuffer", "latency=250",
-    "!", "rtph264depay",
-    "!", "h264parse",
-    "!", "avdec_h264",
-    "!", "videoconvert",
-    "!", "jpegenc",
-    "!", "multipartmux", "boundary=frame",
-    "!", "fdsink"
-]
 
-def generate():
-    proc = subprocess.Popen(
-        GST_CMD,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        bufsize=0
-    )
+@dataclass
+class ArenaConfig:
+    # Corner marker layout in the arena:
+    # 0=Bottom Left, 1=Top Left, 2=Top Right, 3=Bottom Right
+    id_bl: int = 0
+    id_tl: int = 1
+    id_tr: int = 2
+    id_br: int = 3
 
-    try:
-        while True:
-            chunk = proc.stdout.read(4096)
-            if not chunk:
-                break
-            yield chunk
-    finally:
-        proc.kill()
+    # Physical coordinates of the *origin* (bottom-left) of each corner marker
+    arena_bl: Tuple[float, float] = (0.0, 0.0)
+    arena_tl: Tuple[float, float] = (0.0, 2.0)
+    arena_tr: Tuple[float, float] = (4.0, 2.0)
+    arena_br: Tuple[float, float] = (4.0, 0.0)
 
-@app.route("/")
-def index():
-    return """
-    <html>
-      <body style="margin:0;background:black;text-align:center;">
-        <img src="/stream" style="max-width:100vw;max-height:100vh;">
-      </body>
-    </html>
+    # Output crop size (pixels)
+    output_width: int = 1000
+    output_height: int = 500
+
+    # How often to refresh crop/arena homography from markers 0-3 (seconds)
+    crop_refresh_seconds: float = 600.0  # 10 minutes
+
+    # Crop border tuning
+    border_marker_fraction: float = 0.5
+    horizontal_padding_fraction: float = 0.01
+    vertical_padding_fraction: float = 0.05
+
+    # JPEG quality
+    overlay_jpeg_quality: int = 80
+    crop_jpeg_quality: int = 75
+
+    # Drawing
+    box_thickness: int = 2
+    arrow_thickness: int = 1
+    origin_box_thickness: int = 1
+    draw_ids: bool = True
+
+    # Arena bounds
+    arena_x_min: float = 0.0
+    arena_x_max: float = 4.0
+    arena_y_min: float = 0.0
+    arena_y_max: float = 2.0
+
+    # Hollow origin box half size
+    origin_box_half_size_px: int = 5
+
+    # Mission randomization overlay
+    mission_draw_thickness: int = 3
+    mission_site_radius_px: int = 40
+
+    # System printouts
+    seen_markers_print_period_s: float = 60.0
+
+
+class ArenaProcessor:
+    """
+    - aruco.py discovers/localizes markers in pixel space
+    - arena.py:
+        * computes crop transform from corner markers (0-3)
+        * computes image->arena mapping
+        * provides marker poses (x,y,theta) in arena coords
+        * draws green boxes, red arrow, red hollow origin box
     """
 
-@app.route("/stream")
-def stream():
-    return Response(
-        generate(),
-        mimetype="multipart/x-mixed-replace; boundary=frame"
-    )
+    def __init__(self, cfg: ArenaConfig):
+        self.cfg = cfg
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=PORT_WEB, threaded=True)
+        # IDs like 257/467/522/697 require DICT_4X4_1000
+        self.detector = ArucoDetector(dict_name="DICT_4X4_1000")
+
+        self.latest_overlay_jpeg: Optional[bytes] = None
+        self.latest_cropped_jpeg: Optional[bytes] = None
+
+        self._M_img_to_crop: Optional[np.ndarray] = None
+        self._H_img_to_arena: Optional[np.ndarray] = None
+        self._last_xform_update_monotonic: float = 0.0
+
+        # Latest detected IDs and computed poses
+        self._seen_ids: set[int] = set()
+        self._poses_arena: Dict[int, Tuple[float, float, float]] = {}
+
+        self._last_seen_print_monotonic: float = 0.0
+
+        self._mission_overlay_enabled: bool = False
+        self._mission_start_loc: int = 0
+        self._mission_loc: int = 1
+        self._mission_theta: float = -(math.pi / 2)
+        self._mission_randomization: str = "01A"
+
+        self._mission_obstacle_presets = [
+            "01A", "01B", "02A", "02B",
+            "10A", "10B", "12A", "12B",
+            "20A", "20B", "21A", "21B",
+        ]
+
+    # -------------------- Public accessors --------------------
+
+    @property
+    def seen_ids(self) -> set[int]:
+        return set(self._seen_ids)
+
+    def randomize_mission_overlay(self) -> dict:
+        """Randomize the OTV start square, mission site, and start arrow."""
+
+        randomization = random.choice(self._mission_obstacle_presets)
+
+        if randomization[:2] in ("01", "10"):
+            start = 1
+        elif randomization[:2] in ("21", "12"):
+            start = 0
+        else:
+            start = random.randrange(0, 2)
+
+        if start == 0:
+            theta = (
+                random.randrange(0, 180)
+                * 2
+                * math.pi
+            ) / 360
+        else:
+            theta = (
+                (random.randrange(0, 180) + 180)
+                * 2
+                * math.pi
+            ) / 360
+
+        self._mission_overlay_enabled = True
+        self._mission_start_loc = start
+        self._mission_loc = (start + 1) % 2
+        self._mission_theta = theta
+        self._mission_randomization = randomization
+
+        return {
+            "randomization": randomization,
+            "start_loc": self._mission_start_loc,
+            "mission_loc": self._mission_loc,
+            "theta": self._mission_theta,
+        }
+
+    @property
+    def poses_arena(
+        self,
+    ) -> Dict[int, Tuple[float, float, float]]:
+        """
+        marker_id -> (x,y,theta) in arena coords.
+
+        If marker is out of bounds OR no mapping,
+        (-1,-1,-1) is returned for that marker.
+        """
+        return dict(self._poses_arena)
+
+    # -------------------- Internal helpers --------------------
+
+    @staticmethod
+    def _encode_jpeg(
+        bgr: np.ndarray,
+        quality: int,
+    ) -> Optional[bytes]:
+
+        ok, buf = cv2.imencode(
+            ".jpg",
+            bgr,
+            [
+                int(cv2.IMWRITE_JPEG_QUALITY),
+                int(quality),
+            ],
+        )
+
+        return buf.tobytes() if ok else None
+
+    @staticmethod
+    def _marker_origin_px(
+        m: ArucoMarker,
+    ) -> np.ndarray:
+
+        # Marker-local bottom-left corner.
+        #
+        # NOTE:
+        # This is deliberately unchanged from the original arena coordinate
+        # logic. The crop fix below does NOT affect arena localization.
+        return m.corners[3].astype(np.float32)
+
+    @staticmethod
+    def _marker_topleft_px(
+        m: ArucoMarker,
+    ) -> np.ndarray:
+
+        return m.corners[0].astype(np.float32)
+
+    def _arena_to_crop_px(
+        self,
+        x: float,
+        y: float,
+    ) -> Tuple[int, int]:
+
+        px = int(
+            round(
+                (float(x) / 4.0)
+                * (self.cfg.output_width - 1)
+            )
+        )
+
+        py = int(
+            round(
+                (
+                    1.0
+                    - (float(y) / 2.0)
+                )
+                * (self.cfg.output_height - 1)
+            )
+        )
+
+        return px, py
+
+    # -------------------- Mission drawing --------------------
+
+    def _draw_center_obstacles_on_crop(
+        self,
+        img: np.ndarray,
+    ) -> None:
+        """
+        Draw the randomized center obstacles
+        from the old vision system.
+
+        Randomization example: "01A"
+
+        first digit  = row for solid obstacle left
+        second digit = row for solid obstacle right
+        A/B          = traversable obstacle column
+        """
+
+        if not self._mission_overlay_enabled:
+            return
+
+        instruction = self._mission_randomization
+
+        if len(instruction) < 3:
+            return
+
+        possible_x = [
+            1.40,
+            2.23,
+        ]
+
+        possible_y = [
+            1.25,
+            0.75,
+            0.25,
+        ]
+
+        rows = [
+            0,
+            1,
+            2,
+        ]
+
+        x_length = 0.20
+        y_length = 0.50
+
+        solid_color = (
+            185,
+            146,
+            68,
+        )
+
+        traversable_color = (
+            25,
+            177,
+            215,
+        )
+
+        text_color = (
+            255,
+            0,
+            0,
+        )
+
+        thickness = int(
+            self.cfg.mission_draw_thickness
+        )
+
+        def draw_obstacle(
+            x: float,
+            y: float,
+            color: tuple[int, int, int],
+            label: str,
+        ) -> None:
+
+            cv2.rectangle(
+                img,
+                self._arena_to_crop_px(
+                    x,
+                    y,
+                ),
+                self._arena_to_crop_px(
+                    x + x_length,
+                    y + y_length,
+                ),
+                color,
+                thickness,
+            )
+
+            cv2.putText(
+                img,
+                label,
+                self._arena_to_crop_px(
+                    x + 0.05,
+                    y + 0.25,
+                ),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1.0,
+                text_color,
+                2,
+                cv2.LINE_AA,
+            )
+
+        try:
+
+            # Two solid obstacles.
+            for col in range(2):
+
+                row = int(
+                    instruction[col]
+                )
+
+                draw_obstacle(
+                    possible_x[col],
+                    possible_y[row],
+                    solid_color,
+                    "S",
+                )
+
+                if row in rows:
+                    rows.remove(row)
+
+            # One traversable obstacle
+            # in the remaining row.
+            traversable_col = (
+                0
+                if instruction[2] == "A"
+                else 1
+            )
+
+            traversable_row = rows[0]
+
+            draw_obstacle(
+                possible_x[traversable_col],
+                possible_y[traversable_row],
+                traversable_color,
+                "T",
+            )
+
+        except Exception:
+            return
+
+    def _draw_mission_overlay_on_crop(
+        self,
+        img: np.ndarray,
+    ) -> None:
+
+        if not self._mission_overlay_enabled:
+            return
+
+        self._draw_center_obstacles_on_crop(
+            img
+        )
+
+        y_options = [
+            0.55,
+            1.45,
+        ]
+
+        start_y = y_options[
+            self._mission_start_loc
+        ]
+
+        mission_y = y_options[
+            self._mission_loc
+        ]
+
+        theta = self._mission_theta
+
+        red = (
+            142,
+            80,
+            233,
+        )
+
+        white = (
+            255,
+            255,
+            255,
+        )
+
+        thickness = int(
+            self.cfg.mission_draw_thickness
+        )
+
+        mission_center = (
+            self._arena_to_crop_px(
+                0.575,
+                mission_y,
+            )
+        )
+
+        cv2.circle(
+            img,
+            mission_center,
+            int(
+                self.cfg.mission_site_radius_px
+            ),
+            red,
+            2,
+        )
+
+        arrow_tip = (
+            0.175 * math.cos(theta) + 0.575,
+            0.175 * math.sin(theta) + start_y,
+        )
+
+        arrow_tail = (
+            0.10
+            * math.cos(theta - math.pi)
+            + 0.575,
+
+            0.10
+            * math.sin(theta - math.pi)
+            + start_y,
+        )
+
+        cv2.arrowedLine(
+            img,
+            self._arena_to_crop_px(
+                *arrow_tip
+            ),
+            self._arena_to_crop_px(
+                *arrow_tail
+            ),
+            white,
+            thickness,
+        )
+
+        cv2.rectangle(
+            img,
+            self._arena_to_crop_px(
+                0.55 - 0.20,
+                start_y - 0.20,
+            ),
+            self._arena_to_crop_px(
+                0.55 + 0.20,
+                start_y + 0.20,
+            ),
+            white,
+            thickness,
+        )
+
+    # -------------------- Marker drawing --------------------
+
+    def _draw_origin_hollow_box(
+        self,
+        img: np.ndarray,
+        origin_xy: Tuple[int, int],
+    ) -> None:
+
+        hs = int(
+            self.cfg.origin_box_half_size_px
+        )
+
+        x = int(origin_xy[0])
+        y = int(origin_xy[1])
+
+        cv2.rectangle(
+            img,
+            (
+                x - hs,
+                y - hs,
+            ),
+            (
+                x + hs,
+                y + hs,
+            ),
+            color=(
+                0,
+                0,
+                255,
+            ),
+            thickness=int(
+                self.cfg.origin_box_thickness
+            ),
+        )
+
+    def _draw_marker_boxes_arrows_origins(
+        self,
+        img: np.ndarray,
+        markers: Dict[int, ArucoMarker],
+    ) -> None:
+
+        for mid, m in markers.items():
+
+            pts = (
+                m.corners
+                .astype(int)
+                .reshape(-1, 1, 2)
+            )
+
+            cv2.polylines(
+                img,
+                [pts],
+                isClosed=True,
+                color=(
+                    0,
+                    255,
+                    0,
+                ),
+                thickness=int(
+                    self.cfg.box_thickness
+                ),
+            )
+
+            # Marker-local origin -> marker-local top-left.
+            o = (
+                m.corners[3]
+                .astype(int)
+            )
+
+            tl = (
+                m.corners[0]
+                .astype(int)
+            )
+
+            cv2.arrowedLine(
+                img,
+                tuple(o),
+                tuple(tl),
+                color=(
+                    0,
+                    0,
+                    255,
+                ),
+                thickness=int(
+                    self.cfg.arrow_thickness
+                ),
+                tipLength=0.25,
+            )
+
+            self._draw_origin_hollow_box(
+                img,
+                (
+                    int(o[0]),
+                    int(o[1]),
+                ),
+            )
+
+            if self.cfg.draw_ids:
+
+                cx = int(
+                    m.center[0]
+                )
+
+                cy = int(
+                    m.center[1]
+                )
+
+                cv2.putText(
+                    img,
+                    str(mid),
+                    (
+                        cx + 6,
+                        cy - 6,
+                    ),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (
+                        0,
+                        255,
+                        0,
+                    ),
+                    2,
+                    cv2.LINE_AA,
+                )
+
+    # -------------------- Corner detection --------------------
+
+    def _have_corner_markers(
+        self,
+        markers: Dict[int, ArucoMarker],
+    ) -> bool:
+
+        return (
+            self.cfg.id_bl in markers
+            and self.cfg.id_tl in markers
+            and self.cfg.id_tr in markers
+            and self.cfg.id_br in markers
+        )
+
+    @staticmethod
+    def _mean_marker_size_px(
+        marker: ArucoMarker,
+    ) -> float:
+
+        c = marker.corners
+
+        edges = [
+            np.linalg.norm(
+                c[0] - c[1]
+            ),
+            np.linalg.norm(
+                c[1] - c[2]
+            ),
+            np.linalg.norm(
+                c[2] - c[3]
+            ),
+            np.linalg.norm(
+                c[3] - c[0]
+            ),
+        ]
+
+        return float(
+            np.mean(edges)
+        )
+
+    # -------------------- Crop geometry --------------------
+
+    @staticmethod
+    def _expand_quad_radial(
+        src: np.ndarray,
+        border_px: float,
+    ) -> np.ndarray:
+
+        if border_px <= 0:
+            return src
+
+        centroid = np.mean(
+            src,
+            axis=0,
+        )
+
+        out = []
+
+        for p in src:
+
+            v = p - centroid
+
+            n = float(
+                np.linalg.norm(v)
+            )
+
+            if n < 1e-6:
+                out.append(p)
+
+            else:
+                out.append(
+                    p
+                    + (
+                        border_px
+                        * v
+                        / n
+                    )
+                )
+
+        return np.array(
+            out,
+            dtype=np.float32,
+        )
+
+    def _apply_horizontal_padding(
+        self,
+        src: np.ndarray,
+    ) -> np.ndarray:
+        """
+        Expand left/right edges.
+
+        src order:
+            TL, TR, BR, BL
+        """
+
+        pad = float(
+            self.cfg.horizontal_padding_fraction
+        )
+
+        if pad <= 0:
+            return src
+
+        left_mid = (
+            src[0]
+            + src[3]
+        ) * 0.5
+
+        right_mid = (
+            src[1]
+            + src[2]
+        ) * 0.5
+
+        horizontal_vector = (
+            right_mid
+            - left_mid
+        )
+
+        src2 = src.copy()
+
+        # Left edge outward.
+        src2[0] -= (
+            horizontal_vector
+            * pad
+        )
+
+        src2[3] -= (
+            horizontal_vector
+            * pad
+        )
+
+        # Right edge outward.
+        src2[1] += (
+            horizontal_vector
+            * pad
+        )
+
+        src2[2] += (
+            horizontal_vector
+            * pad
+        )
+
+        return src2
+
+    def _apply_vertical_padding(
+        self,
+        src: np.ndarray,
+    ) -> np.ndarray:
+        """
+        Expand top/bottom edges.
+
+        src order:
+            TL, TR, BR, BL
+        """
+
+        pad = float(
+            self.cfg.vertical_padding_fraction
+        )
+
+        if pad <= 0:
+            return src
+
+        top_mid = (
+            src[0]
+            + src[1]
+        ) * 0.5
+
+        bottom_mid = (
+            src[2]
+            + src[3]
+        ) * 0.5
+
+        vertical_vector = (
+            bottom_mid
+            - top_mid
+        )
+
+        src2 = src.copy()
+
+        # Top edge outward.
+        src2[0] -= (
+            vertical_vector
+            * pad
+        )
+
+        src2[1] -= (
+            vertical_vector
+            * pad
+        )
+
+        # Bottom edge outward.
+        src2[2] += (
+            vertical_vector
+            * pad
+        )
+
+        src2[3] += (
+            vertical_vector
+            * pad
+        )
+
+        return src2
+
+    @staticmethod
+    def _outer_marker_corner(
+        marker: ArucoMarker,
+        arena_center_px: np.ndarray,
+    ) -> np.ndarray:
+        """
+        Return the physical corner of a corner ArUco marker
+        that points AWAY from the center of the arena.
+
+        This is important because ArUco's corner array is tied
+        to marker orientation. A rotated marker means corners[0]
+        is not necessarily the image-space upper-left corner.
+
+        Choosing the point farthest from the arena center works
+        regardless of how the marker itself is rotated.
+        """
+
+        corners = (
+            marker.corners
+            .astype(np.float32)
+        )
+
+        distances_sq = np.sum(
+            (
+                corners
+                - arena_center_px
+            ) ** 2,
+            axis=1,
+        )
+
+        index = int(
+            np.argmax(
+                distances_sq
+            )
+        )
+
+        return corners[index]
+
+    # -------------------- Homographies --------------------
+
+    def _compute_transforms_from_corners(
+        self,
+        markers: Dict[int, ArucoMarker],
+    ) -> None:
+        """
+        Compute:
+
+        1. image -> arena coordinates
+        2. image -> rectified cropped view
+
+        Homography point order is always:
+
+            TL
+            TR
+            BR
+            BL
+
+        IMPORTANT:
+
+        The arena-coordinate transform and the visual crop
+        intentionally use different source points.
+
+        Arena coordinates continue using the marker-local
+        origin points.
+
+        The visual crop uses the physical OUTER corner of each
+        corner marker.
+        """
+
+        bl = markers[
+            self.cfg.id_bl
+        ]
+
+        tl = markers[
+            self.cfg.id_tl
+        ]
+
+        tr = markers[
+            self.cfg.id_tr
+        ]
+
+        br = markers[
+            self.cfg.id_br
+        ]
+
+        # =====================================================
+        # ARENA COORDINATE HOMOGRAPHY
+        # =====================================================
+
+        src_arena = np.array(
+            [
+                self._marker_origin_px(
+                    tl
+                ),
+
+                self._marker_origin_px(
+                    tr
+                ),
+
+                self._marker_origin_px(
+                    br
+                ),
+
+                self._marker_origin_px(
+                    bl
+                ),
+            ],
+            dtype=np.float32,
+        )
+
+        dst_arena = np.array(
+            [
+                self.cfg.arena_tl,
+                self.cfg.arena_tr,
+                self.cfg.arena_br,
+                self.cfg.arena_bl,
+            ],
+            dtype=np.float32,
+        )
+
+        # =====================================================
+        # VISUAL CROP HOMOGRAPHY
+        # =====================================================
+
+        # Approximate center of the arena from the centers
+        # of its four corner markers.
+        arena_center_px = np.mean(
+            [
+                bl.center,
+                tl.center,
+                tr.center,
+                br.center,
+            ],
+            axis=0,
+        ).astype(
+            np.float32
+        )
+
+        # Pick the physical outside corner from each marker.
+        #
+        # The array itself must remain ordered:
+        #
+        #     TL, TR, BR, BL
+        #
+        src_crop = np.array(
+            [
+                self._outer_marker_corner(
+                    tl,
+                    arena_center_px,
+                ),
+
+                self._outer_marker_corner(
+                    tr,
+                    arena_center_px,
+                ),
+
+                self._outer_marker_corner(
+                    br,
+                    arena_center_px,
+                ),
+
+                self._outer_marker_corner(
+                    bl,
+                    arena_center_px,
+                ),
+            ],
+            dtype=np.float32,
+        )
+
+        # =====================================================
+        # EXTRA CROP BORDER
+        # =====================================================
+
+        mean_size = float(
+            np.mean(
+                [
+                    self._mean_marker_size_px(
+                        bl
+                    ),
+
+                    self._mean_marker_size_px(
+                        tl
+                    ),
+
+                    self._mean_marker_size_px(
+                        tr
+                    ),
+
+                    self._mean_marker_size_px(
+                        br
+                    ),
+                ]
+            )
+        )
+
+        # First expand slightly based on marker size.
+        border_px = (
+            mean_size
+            * float(
+                self.cfg.border_marker_fraction
+            )
+        )
+
+        src_crop = (
+            self._expand_quad_radial(
+                src_crop,
+                border_px,
+            )
+        )
+
+        # Then apply independent horizontal and vertical padding.
+        src_crop = (
+            self._apply_horizontal_padding(
+                src_crop
+            )
+        )
+
+        src_crop = (
+            self._apply_vertical_padding(
+                src_crop
+            )
+        )
+
+        # =====================================================
+        # OUTPUT RECTANGLE
+        # =====================================================
+
+        dst_crop = np.array(
+            [
+                [
+                    0,
+                    0,
+                ],
+
+                [
+                    self.cfg.output_width - 1,
+                    0,
+                ],
+
+                [
+                    self.cfg.output_width - 1,
+                    self.cfg.output_height - 1,
+                ],
+
+                [
+                    0,
+                    self.cfg.output_height - 1,
+                ],
+            ],
+            dtype=np.float32,
+        )
+
+        self._M_img_to_crop = (
+            cv2.getPerspectiveTransform(
+                src_crop,
+                dst_crop,
+            )
+        )
+
+        self._H_img_to_arena = (
+            cv2.getPerspectiveTransform(
+                src_arena,
+                dst_arena,
+            )
+        )
+
+    def _maybe_refresh_transforms(
+        self,
+        markers: Dict[int, ArucoMarker],
+    ) -> None:
+
+        if not self._have_corner_markers(
+            markers
+        ):
+            return
+
+        now = time.monotonic()
+
+        if (
+            self._M_img_to_crop is not None
+            and (
+                now
+                - self._last_xform_update_monotonic
+            )
+            < float(
+                self.cfg.crop_refresh_seconds
+            )
+        ):
+            return
+
+        self._compute_transforms_from_corners(
+            markers
+        )
+
+        self._last_xform_update_monotonic = (
+            now
+        )
+
+    # -------------------- Coordinate transform --------------------
+
+    def _transform_point(
+        self,
+        H: np.ndarray,
+        p: np.ndarray,
+    ) -> Tuple[float, float]:
+
+        pts = np.array(
+            [
+                [
+                    p
+                ]
+            ],
+            dtype=np.float32,
+        )
+
+        out = (
+            cv2.perspectiveTransform(
+                pts,
+                H,
+            )[0][0]
+        )
+
+        return (
+            float(out[0]),
+            float(out[1]),
+        )
+
+    def _marker_pose_arena(
+        self,
+        m: ArucoMarker,
+    ) -> Tuple[float, float, float]:
+        """
+        Return:
+
+            x
+            y
+            theta
+
+        in arena coordinates.
+
+        If unavailable or outside the arena:
+
+            (-1, -1, -1)
+        """
+
+        if self._H_img_to_arena is None:
+            return (
+                -1.0,
+                -1.0,
+                -1.0,
+            )
+
+        o_px = (
+            self._marker_origin_px(
+                m
+            )
+        )
+
+        tl_px = (
+            self._marker_topleft_px(
+                m
+            )
+        )
+
+        ox, oy = (
+            self._transform_point(
+                self._H_img_to_arena,
+                o_px,
+            )
+        )
+
+        # Bounds check.
+        if (
+            ox < self.cfg.arena_x_min
+            or ox > self.cfg.arena_x_max
+            or oy < self.cfg.arena_y_min
+            or oy > self.cfg.arena_y_max
+        ):
+            return (
+                -1.0,
+                -1.0,
+                -1.0,
+            )
+
+        tlx, tly = (
+            self._transform_point(
+                self._H_img_to_arena,
+                tl_px,
+            )
+        )
+
+        vx = tlx - ox
+        vy = tly - oy
+
+        theta = math.atan2(
+            vy,
+            vx,
+        )
+
+        return (
+            ox,
+            oy,
+            theta,
+        )
+
+    # -------------------- Logging --------------------
+
+    def _maybe_print_seen_markers(
+        self,
+    ) -> None:
+
+        now = time.monotonic()
+
+        if (
+            now
+            - self._last_seen_print_monotonic
+        ) < float(
+            self.cfg.seen_markers_print_period_s
+        ):
+            return
+
+        self._last_seen_print_monotonic = (
+            now
+        )
+
+        ids = sorted(
+            self._seen_ids
+        )
+
+        if not ids:
+            web_info(
+                "Seen markers: none"
+            )
+
+        else:
+            web_info(
+                "Seen markers: "
+                + ", ".join(
+                    str(i)
+                    for i in ids
+                )
+            )
+
+    # -------------------- Main processing --------------------
+
+    def process_bgr(
+        self,
+        frame_bgr: np.ndarray,
+    ) -> None:
+
+        markers = self.detector.detect(
+            frame_bgr
+        )
+
+        self._seen_ids = set(
+            markers.keys()
+        )
+
+        # Refresh transforms.
+        self._maybe_refresh_transforms(
+            markers
+        )
+
+        # Update pose cache for all seen markers.
+        poses: Dict[
+            int,
+            Tuple[
+                float,
+                float,
+                float,
+            ],
+        ] = {}
+
+        for mid, m in markers.items():
+            poses[mid] = (
+                self._marker_pose_arena(
+                    m
+                )
+            )
+
+        self._poses_arena = poses
+
+        # =====================================================
+        # FULL RAW OVERLAY
+        # =====================================================
+
+        overlay = frame_bgr.copy()
+
+        self._draw_marker_boxes_arrows_origins(
+            overlay,
+            markers,
+        )
+
+        overlay_jpg = (
+            self._encode_jpeg(
+                overlay,
+                self.cfg.overlay_jpeg_quality,
+            )
+        )
+
+        if overlay_jpg is not None:
+            self.latest_overlay_jpeg = (
+                overlay_jpg
+            )
+
+        # =====================================================
+        # RECTIFIED / CROPPED OVERLAY
+        # =====================================================
+
+        if self._M_img_to_crop is None:
+
+            self.latest_cropped_jpeg = None
+
+        else:
+
+            warped = cv2.warpPerspective(
+                frame_bgr,
+                self._M_img_to_crop,
+                (
+                    self.cfg.output_width,
+                    self.cfg.output_height,
+                ),
+            )
+
+            M = self._M_img_to_crop
+
+            # Draw all currently visible markers
+            # in cropped coordinates.
+            for mid, m in markers.items():
+
+                pts = (
+                    m.corners
+                    .reshape(-1, 1, 2)
+                    .astype(np.float32)
+                )
+
+                pts_w = (
+                    cv2.perspectiveTransform(
+                        pts,
+                        M,
+                    )
+                    .astype(int)
+                )
+
+                cv2.polylines(
+                    warped,
+                    [pts_w],
+                    True,
+                    (
+                        0,
+                        255,
+                        0,
+                    ),
+                    int(
+                        self.cfg.box_thickness
+                    ),
+                )
+
+                o = (
+                    m.corners[3]
+                    .reshape(1, 1, 2)
+                    .astype(np.float32)
+                )
+
+                tl = (
+                    m.corners[0]
+                    .reshape(1, 1, 2)
+                    .astype(np.float32)
+                )
+
+                o_w = (
+                    cv2.perspectiveTransform(
+                        o,
+                        M,
+                    )[0][0]
+                    .astype(int)
+                )
+
+                tl_w = (
+                    cv2.perspectiveTransform(
+                        tl,
+                        M,
+                    )[0][0]
+                    .astype(int)
+                )
+
+                cv2.arrowedLine(
+                    warped,
+                    (
+                        int(o_w[0]),
+                        int(o_w[1]),
+                    ),
+                    (
+                        int(tl_w[0]),
+                        int(tl_w[1]),
+                    ),
+                    (
+                        0,
+                        0,
+                        255,
+                    ),
+                    int(
+                        self.cfg.arrow_thickness
+                    ),
+                    tipLength=0.25,
+                )
+
+                self._draw_origin_hollow_box(
+                    warped,
+                    (
+                        int(o_w[0]),
+                        int(o_w[1]),
+                    ),
+                )
+
+                if self.cfg.draw_ids:
+
+                    c = np.array(
+                        [
+                            [
+                                m.center
+                            ]
+                        ],
+                        dtype=np.float32,
+                    )
+
+                    c_w = (
+                        cv2.perspectiveTransform(
+                            c,
+                            M,
+                        )[0][0]
+                    )
+
+                    cx = int(
+                        c_w[0]
+                    )
+
+                    cy = int(
+                        c_w[1]
+                    )
+
+                    cv2.putText(
+                        warped,
+                        str(mid),
+                        (
+                            cx + 6,
+                            cy - 6,
+                        ),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.6,
+                        (
+                            0,
+                            255,
+                            0,
+                        ),
+                        2,
+                        cv2.LINE_AA,
+                    )
+
+            self._draw_mission_overlay_on_crop(
+                warped
+            )
+
+            cropped_jpg = (
+                self._encode_jpeg(
+                    warped,
+                    self.cfg.crop_jpeg_quality,
+                )
+            )
+
+            if cropped_jpg is not None:
+                self.latest_cropped_jpeg = (
+                    cropped_jpg
+                )
+
+        # 60-second printout of seen markers.
+        self._maybe_print_seen_markers()
