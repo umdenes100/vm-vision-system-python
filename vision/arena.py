@@ -35,7 +35,7 @@ class ArenaConfig:
 
     # Crop border tuning
     border_marker_fraction: float = 0.5
-    horizontal_padding_fraction: float = 0.03
+    horizontal_padding_fraction: float = 0.01
     vertical_padding_fraction: float = 0.05
 
     # JPEG quality
