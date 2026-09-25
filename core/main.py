@@ -15,17 +15,12 @@ from aiohttp import web
 
 from utils.logging import get_logger, parse_level
 from utils.port_guard import ensure_ports_available
-from communications.arenacam import (
-    ArenaCamConfig,
-    create_arenacam,
-)
+from communications.arenacam import ArenaCamConfig, create_arenacam
 from communications.wifi_server import WifiServer
 from vision.arena import ArenaConfig, ArenaProcessor
 from frontend.webpage import create_app
 
 
-# run.sh watches for this exit code and performs a completely
-# fresh launch after cleaning all application ports.
 RESTART_EXIT_CODE = 42
 
 
@@ -34,38 +29,18 @@ def load_config(path: Path) -> dict:
         return json.load(f)
 
 
-def _decode_jpeg_to_bgr(
-    jpeg_bytes: bytes,
-) -> Optional[np.ndarray]:
-
-    arr = np.frombuffer(
-        jpeg_bytes,
-        dtype=np.uint8,
-    )
-
-    return cv2.imdecode(
-        arr,
-        cv2.IMREAD_COLOR,
-    )
+def _decode_jpeg_to_bgr(jpeg_bytes: bytes) -> Optional[np.ndarray]:
+    arr = np.frombuffer(jpeg_bytes, dtype=np.uint8)
+    return cv2.imdecode(arr, cv2.IMREAD_COLOR)
 
 
 def _get_best_local_ip() -> str:
     try:
-        s = socket.socket(
-            socket.AF_INET,
-            socket.SOCK_DGRAM,
-        )
-
-        s.connect(
-            ("8.8.8.8", 80)
-        )
-
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
         ip = s.getsockname()[0]
-
         s.close()
-
         return ip
-
     except Exception:
         return "127.0.0.1"
 
@@ -77,13 +52,7 @@ async def arena_processing_loop(
     arena_processor: ArenaProcessor,
     target_fps: float = 30.0,
 ):
-    frame_period = (
-        1.0
-        / max(
-            1.0,
-            float(target_fps),
-        )
-    )
+    frame_period = 1.0 / max(1.0, float(target_fps))
 
     try:
         while not stop_event.is_set():
@@ -92,9 +61,7 @@ async def arena_processing_loop(
             jpeg = arenacam.latest_frame
 
             if jpeg is not None:
-                bgr = _decode_jpeg_to_bgr(
-                    jpeg
-                )
+                bgr = _decode_jpeg_to_bgr(jpeg)
 
                 if bgr is not None:
                     await asyncio.to_thread(
@@ -102,20 +69,11 @@ async def arena_processing_loop(
                         bgr,
                     )
 
-            elapsed = (
-                time.perf_counter()
-                - start
-            )
-
-            sleep_time = (
-                frame_period
-                - elapsed
-            )
+            elapsed = time.perf_counter() - start
+            sleep_time = frame_period - elapsed
 
             if sleep_time > 0:
-                await asyncio.sleep(
-                    sleep_time
-                )
+                await asyncio.sleep(sleep_time)
             else:
                 await asyncio.sleep(0)
 
@@ -123,26 +81,13 @@ async def arena_processing_loop(
         return
 
 
-async def _start_ml_listener(
-    config: dict,
-    logger,
-):
-    ml_cfg = config.get(
-        "machinelearning",
-        {},
-    )
+async def _start_ml_listener(config: dict, logger):
+    ml_cfg = config.get("machinelearning", {})
 
-    if not ml_cfg.get(
-        "enabled",
-        True,
-    ):
+    if not ml_cfg.get("enabled", True):
         return None, None
 
-    repo_root = (
-        Path(__file__)
-        .resolve()
-        .parents[1]
-    )
+    repo_root = Path(__file__).resolve().parents[1]
 
     listener_path = (
         repo_root
@@ -152,43 +97,32 @@ async def _start_ml_listener(
 
     env = os.environ.copy()
 
-    models_dir = ml_cfg.get(
-        "models_dir"
-    )
+    models_dir = ml_cfg.get("models_dir")
 
     if models_dir:
         if Path(models_dir).is_absolute():
-            env["VISION_ML_MODELS_DIR"] = (
-                str(models_dir)
-            )
+            env["VISION_ML_MODELS_DIR"] = str(models_dir)
         else:
             env["VISION_ML_MODELS_DIR"] = str(
-                (
-                    repo_root
-                    / models_dir
-                ).resolve()
+                (repo_root / models_dir).resolve()
             )
 
     try:
-        proc = (
-            await asyncio.create_subprocess_exec(
-                sys.executable,
-                "-u",
-                str(listener_path),
-                cwd=str(repo_root),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.STDOUT,
-                env=env,
-            )
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable,
+            "-u",
+            str(listener_path),
+            cwd=str(repo_root),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+            env=env,
         )
 
         async def _stdout_pump():
             assert proc.stdout is not None
 
             while True:
-                line = (
-                    await proc.stdout.readline()
-                )
+                line = await proc.stdout.readline()
 
                 if not line:
                     break
@@ -204,9 +138,7 @@ async def _start_ml_listener(
             _stdout_pump()
         )
 
-        logger.info(
-            "[ml] Listener started"
-        )
+        logger.info("[ml] Listener started")
 
         return proc, stdout_task
 
@@ -218,68 +150,13 @@ async def _start_ml_listener(
         return None, None
 
 
-async def _safe_shutdown_step(
-    logger,
-    name: str,
-    awaitable,
-    timeout: float,
-):
-    """
-    Run one shutdown operation with a hard timeout.
-
-    Shutdown must never be allowed to block a restart forever.
-    """
-
-    logger.info(
-        f"Stopping {name}..."
-    )
-
-    try:
-        await asyncio.wait_for(
-            awaitable,
-            timeout=timeout,
-        )
-
-        logger.info(
-            f"{name} stopped"
-        )
-
-        return True
-
-    except asyncio.TimeoutError:
-        logger.warning(
-            f"{name} shutdown timed out after "
-            f"{timeout:.1f}s; continuing"
-        )
-
-        return False
-
-    except asyncio.CancelledError:
-        logger.warning(
-            f"{name} shutdown was cancelled; continuing"
-        )
-
-        return False
-
-    except Exception as e:
-        logger.warning(
-            f"Error stopping {name}: {e}"
-        )
-
-        return False
-
-
 async def run() -> bool:
     config = load_config(
-        Path(__file__).parent
-        / "config.json"
+        Path(__file__).parent / "config.json"
     )
 
     level = parse_level(
-        config.get(
-            "system",
-            {},
-        ).get(
+        config.get("system", {}).get(
             "log_level",
             "INFO",
         ),
@@ -291,16 +168,8 @@ async def run() -> bool:
         level=level,
     )
 
-    cam_cfg = config.get(
-        "camera",
-        {},
-    )
-
-    fe_cfg = config.get(
-        "frontend",
-        {},
-    )
-
+    cam_cfg = config.get("camera", {})
+    fe_cfg = config.get("frontend", {})
     communications_cfg = config.get(
         "communications",
         {},
@@ -342,30 +211,22 @@ async def run() -> bool:
         )
     )
 
-    # run.sh performs aggressive cleanup before launching us.
-    # This remains as a final sanity check.
     ensure_ports_available(
         udp_host=udp_host,
         udp_port=udp_port,
         tcp_host=tcp_host,
         tcp_port=tcp_port,
-        extra_tcp_ports=[
-            ws_port
-        ],
+        extra_tcp_ports=[ws_port],
     )
 
     stop_event = asyncio.Event()
-
     restart_requested = False
 
     loop = asyncio.get_running_loop()
 
     def _request_stop():
         if not stop_event.is_set():
-            logger.info(
-                "Shutdown requested"
-            )
-
+            logger.info("Shutdown requested")
             stop_event.set()
 
     async def _request_restart():
@@ -380,9 +241,9 @@ async def run() -> bool:
             "Clean restart requested from web UI"
         )
 
-        # Give the HTTP restart response time to reach the
-        # browser before shutting down aiohttp.
-        await asyncio.sleep(0.25)
+        # Give the HTTP request just enough time to send its
+        # successful response back to the browser.
+        await asyncio.sleep(0.15)
 
         stop_event.set()
 
@@ -395,7 +256,6 @@ async def run() -> bool:
                 sig,
                 _request_stop,
             )
-
         except NotImplementedError:
             pass
 
@@ -425,10 +285,9 @@ async def run() -> bool:
     ml_stdout_task = None
 
     try:
-
-        # =========================================================
-        # MACHINE LEARNING
-        # =========================================================
+        # =====================================================
+        # ML
+        # =====================================================
 
         ml_proc, ml_stdout_task = (
             await _start_ml_listener(
@@ -437,15 +296,15 @@ async def run() -> bool:
             )
         )
 
-        # =========================================================
-        # CAMERA / GSTREAMER
-        # =========================================================
+        # =====================================================
+        # CAMERA
+        # =====================================================
 
         await arenacam.start()
 
-        # =========================================================
+        # =====================================================
         # ARENA PROCESSING
-        # =========================================================
+        # =====================================================
 
         arena_processor = ArenaProcessor(
             ArenaConfig(
@@ -477,33 +336,18 @@ async def run() -> bool:
             )
         )
 
-        # =========================================================
-        # ESP WEBSOCKET SERVER
-        # =========================================================
+        # =====================================================
+        # ESP WEBSOCKET
+        # =====================================================
 
-        def _get_pose(
-            marker_id: int,
-        ):
-            return (
-                arena_processor
-                .poses_arena
-                .get(
-                    marker_id,
-                    (
-                        -1.0,
-                        -1.0,
-                        -1.0,
-                    ),
-                )
+        def _get_pose(marker_id: int):
+            return arena_processor.poses_arena.get(
+                marker_id,
+                (-1.0, -1.0, -1.0),
             )
 
-        def _is_seen(
-            marker_id: int,
-        ) -> bool:
-
-            seen_obj = (
-                arena_processor.seen_ids
-            )
+        def _is_seen(marker_id: int) -> bool:
+            seen_obj = arena_processor.seen_ids
 
             seen = (
                 seen_obj()
@@ -516,9 +360,7 @@ async def run() -> bool:
         models_dir = config.get(
             "machinelearning",
             {},
-        ).get(
-            "models_dir"
-        )
+        ).get("models_dir")
 
         wifi_server = WifiServer(
             host=ws_host,
@@ -535,9 +377,9 @@ async def run() -> bool:
             f"ws://{_get_best_local_ip()}:{ws_port}/ws"
         )
 
-        # =========================================================
+        # =====================================================
         # WEBSITE
-        # =========================================================
+        # =====================================================
 
         restart_password = str(
             fe_cfg.get(
@@ -554,9 +396,7 @@ async def run() -> bool:
             restart_callback=_request_restart,
         )
 
-        runner = web.AppRunner(
-            app
-        )
+        runner = web.AppRunner(app)
 
         await runner.setup()
 
@@ -575,81 +415,215 @@ async def run() -> bool:
             f"Open http://{ip}:{tcp_port}/"
         )
 
-        # =========================================================
-        # WAIT
-        # =========================================================
-
         await stop_event.wait()
 
     except asyncio.CancelledError:
         pass
 
     finally:
-
-        # =========================================================
-        # CLEAN SHUTDOWN
-        #
-        # Nothing in here is allowed to hang indefinitely.
-        #
-        # If something refuses to die, run.sh will kill anything
-        # remaining on the application ports before relaunching.
-        # =========================================================
-
         stop_event.set()
 
-        logger.info(
-            "Beginning clean shutdown"
-        )
+        # =====================================================
+        # FAST RESTART
+        # =====================================================
+        #
+        # IMPORTANT:
+        #
+        # During a restart we deliberately DO NOT call:
+        #
+        #     runner.cleanup()
+        #
+        # The browser may have long-running MJPEG/HTTP
+        # connections open. aiohttp can wait for those during
+        # cleanup, which makes the restart appear to hang.
+        #
+        # run.sh is the supervisor and will perform a final
+        # process/port sweep after Python exits.
+        # =====================================================
 
-        # =========================================================
-        # 1. STOP WEB LISTENER
-        # =========================================================
-
-        if site is not None:
-
-            await _safe_shutdown_step(
-                logger,
-                "web site",
-                site.stop(),
-                1.0,
+        if restart_requested:
+            logger.warning(
+                "Performing FAST restart shutdown"
             )
 
-        # =========================================================
-        # 2. CLEAN AIOHTTP RUNNER
-        # =========================================================
+            # -------------------------------------------------
+            # Stop arena processing immediately
+            # -------------------------------------------------
 
-        if runner is not None:
+            if proc_task is not None:
+                logger.info(
+                    "Cancelling arena processing task"
+                )
 
-            await _safe_shutdown_step(
-                logger,
-                "web runner",
-                runner.cleanup(),
-                1.0,
-            )
+                proc_task.cancel()
 
-        # =========================================================
-        # 3. STOP ESP WEBSOCKET SERVER
-        # =========================================================
-
-        if wifi_server is not None:
-
-            await _safe_shutdown_step(
-                logger,
-                "ESP WebSocket server",
-                wifi_server.stop(),
-                1.0,
-            )
-
-        # =========================================================
-        # 4. STOP ARENA PROCESSING
-        # =========================================================
-
-        if proc_task is not None:
+            # -------------------------------------------------
+            # Stop GStreamer
+            # -------------------------------------------------
+            #
+            # Port 5000 is the important resource to release.
+            # Give ArenaCam a very short opportunity to clean
+            # itself up. run.sh will force-kill anything left.
+            # -------------------------------------------------
 
             logger.info(
-                "Stopping arena processing task..."
+                "Stopping GStreamer for restart..."
             )
 
+            try:
+                await asyncio.wait_for(
+                    arenacam.stop(),
+                    timeout=1.0,
+                )
+
+                logger.info(
+                    "GStreamer stopped"
+                )
+
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "GStreamer stop exceeded 1 second; "
+                    "run.sh will force cleanup"
+                )
+
+            except Exception as e:
+                logger.warning(
+                    "GStreamer stop error: "
+                    f"{e}"
+                )
+
+            # -------------------------------------------------
+            # Stop ML subprocess
+            # -------------------------------------------------
+
+            if ml_proc is not None:
+                try:
+                    ml_proc.terminate()
+                except Exception:
+                    pass
+
+            if ml_stdout_task is not None:
+                ml_stdout_task.cancel()
+
+            # -------------------------------------------------
+            # DO NOT WAIT FOR AIOHTTP CLEANUP
+            # -------------------------------------------------
+
+            logger.warning(
+                "Fast restart cleanup complete"
+            )
+
+            logger.warning(
+                "Exiting with restart code 42"
+            )
+
+            return True
+
+        # =====================================================
+        # NORMAL SHUTDOWN
+        # =====================================================
+        #
+        # Ctrl+C / SIGTERM still gets a proper graceful
+        # shutdown.
+        # =====================================================
+
+        logger.info(
+            "Beginning normal clean shutdown"
+        )
+
+        # -------------------------------------------------
+        # WEB LISTENER
+        # -------------------------------------------------
+
+        if site is not None:
+            logger.info(
+                "Stopping web site..."
+            )
+
+            try:
+                await asyncio.wait_for(
+                    site.stop(),
+                    timeout=1.0,
+                )
+
+                logger.info(
+                    "Web site stopped"
+                )
+
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "Web site shutdown timed out"
+                )
+
+            except Exception as e:
+                logger.warning(
+                    f"Web site shutdown error: {e}"
+                )
+
+        # -------------------------------------------------
+        # AIOHTTP
+        # -------------------------------------------------
+
+        if runner is not None:
+            logger.info(
+                "Cleaning web runner..."
+            )
+
+            try:
+                await asyncio.wait_for(
+                    runner.cleanup(),
+                    timeout=1.0,
+                )
+
+                logger.info(
+                    "Web runner cleaned"
+                )
+
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "Web runner cleanup timed out"
+                )
+
+            except Exception as e:
+                logger.warning(
+                    f"Web runner cleanup error: {e}"
+                )
+
+        # -------------------------------------------------
+        # ESP WEBSOCKET
+        # -------------------------------------------------
+
+        if wifi_server is not None:
+            logger.info(
+                "Stopping ESP WebSocket server..."
+            )
+
+            try:
+                await asyncio.wait_for(
+                    wifi_server.stop(),
+                    timeout=1.0,
+                )
+
+                logger.info(
+                    "ESP WebSocket server stopped"
+                )
+
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "ESP WebSocket shutdown timed out"
+                )
+
+            except Exception as e:
+                logger.warning(
+                    "ESP WebSocket shutdown error: "
+                    f"{e}"
+                )
+
+        # -------------------------------------------------
+        # ARENA PROCESSING
+        # -------------------------------------------------
+
+        if proc_task is not None:
             proc_task.cancel()
 
             try:
@@ -658,28 +632,18 @@ async def run() -> bool:
                     timeout=0.5,
                 )
 
-            except asyncio.CancelledError:
+            except (
+                asyncio.CancelledError,
+                asyncio.TimeoutError,
+            ):
                 pass
 
-            except asyncio.TimeoutError:
-                logger.warning(
-                    "Arena processing task did not stop "
-                    "within 0.5s; continuing"
-                )
+            except Exception:
+                pass
 
-            except Exception as e:
-                logger.warning(
-                    "Arena processing task shutdown "
-                    f"error: {e}"
-                )
-
-            logger.info(
-                "Arena processing task stopped"
-            )
-
-        # =========================================================
-        # 5. STOP GSTREAMER
-        # =========================================================
+        # -------------------------------------------------
+        # GSTREAMER
+        # -------------------------------------------------
 
         logger.info(
             "Stopping ArenaCam / GStreamer..."
@@ -688,76 +652,28 @@ async def run() -> bool:
         try:
             await asyncio.wait_for(
                 arenacam.stop(),
-                timeout=3.0,
-            )
-
-            logger.info(
-                "ArenaCam / GStreamer stopped"
+                timeout=2.0,
             )
 
         except asyncio.TimeoutError:
             logger.warning(
-                "ArenaCam / GStreamer shutdown timed out. "
-                "run.sh will force cleanup."
-            )
-
-        except asyncio.CancelledError:
-            logger.warning(
-                "ArenaCam / GStreamer shutdown cancelled. "
-                "run.sh will force cleanup."
+                "ArenaCam shutdown timed out"
             )
 
         except Exception as e:
             logger.warning(
-                "ArenaCam / GStreamer shutdown error: "
-                f"{e}"
+                f"ArenaCam shutdown error: {e}"
             )
 
-        # =========================================================
-        # 6. STOP ML LISTENER
-        # =========================================================
+        # -------------------------------------------------
+        # ML
+        # -------------------------------------------------
 
         if ml_proc is not None:
-
-            logger.info(
-                "Stopping ML listener..."
-            )
-
             try:
                 ml_proc.terminate()
-
-            except ProcessLookupError:
-                pass
-
-            except Exception as e:
-                logger.warning(
-                    "ML listener terminate error: "
-                    f"{e}"
-                )
-
-        if ml_stdout_task is not None:
-
-            ml_stdout_task.cancel()
-
-            try:
-                await asyncio.wait_for(
-                    ml_stdout_task,
-                    timeout=0.5,
-                )
-
-            except asyncio.CancelledError:
-                pass
-
-            except asyncio.TimeoutError:
-                logger.warning(
-                    "ML stdout task did not stop "
-                    "within 0.5s"
-                )
-
             except Exception:
                 pass
-
-        if ml_proc is not None:
 
             try:
                 await asyncio.wait_for(
@@ -766,30 +682,16 @@ async def run() -> bool:
                 )
 
             except asyncio.TimeoutError:
-
-                logger.warning(
-                    "ML listener did not terminate; "
-                    "sending SIGKILL"
-                )
-
                 try:
                     ml_proc.kill()
-
                 except Exception:
                     pass
 
-                try:
-                    await asyncio.wait_for(
-                        ml_proc.wait(),
-                        timeout=0.5,
-                    )
+            except Exception:
+                pass
 
-                except Exception:
-                    pass
-
-        # =========================================================
-        # DONE
-        # =========================================================
+        if ml_stdout_task is not None:
+            ml_stdout_task.cancel()
 
         logger.info(
             "Stopped cleanly"
@@ -799,28 +701,11 @@ async def run() -> bool:
 
 
 def main():
-
     restart_requested = asyncio.run(
         run()
     )
 
     if restart_requested:
-
-        # IMPORTANT:
-        #
-        # Do NOT os.exec() here.
-        #
-        # Exit completely and allow run.sh to:
-        #
-        #   - observe exit code 42
-        #   - clean ports 5000 / 7755 / 8080
-        #   - kill any remaining stale processes
-        #   - start an entirely new Python process
-        #   - start a new GStreamer pipeline
-        #
-        # This is much more reliable than trying to restart the
-        # application inside the existing Python process.
-
         raise SystemExit(
             RESTART_EXIT_CODE
         )
