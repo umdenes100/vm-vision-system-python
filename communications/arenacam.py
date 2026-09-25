@@ -1,4 +1,6 @@
 import asyncio
+import os
+import signal
 import subprocess
 from dataclasses import dataclass
 from typing import Optional
@@ -30,10 +32,7 @@ class ArenaCamBase:
 
 
 class ArenaCamUDPJPEG(ArenaCamBase):
-    """
-    Very simple UDP receiver:
-      - Assumes each UDP datagram contains one complete JPEG frame.
-    """
+    """Very simple UDP receiver; one complete JPEG is expected per datagram."""
 
     def __init__(self, cfg: ArenaCamConfig):
         super().__init__()
@@ -53,7 +52,7 @@ class ArenaCamUDPJPEG(ArenaCamBase):
 
     async def start(self) -> None:
         if self._transport is not None:
-            self._logger.warn("Already started")
+            self._logger.warning("Already started")
             return
 
         loop = asyncio.get_running_loop()
@@ -66,7 +65,9 @@ class ArenaCamUDPJPEG(ArenaCamBase):
             def datagram_received(self, data: bytes, addr):
                 on_datagram(data, addr)
 
-        self._logger.info(f"Starting UDP-JPEG receiver on {self.cfg.bind_ip}:{self.cfg.bind_port}")
+        self._logger.info(
+            f"Starting UDP-JPEG receiver on {self.cfg.bind_ip}:{self.cfg.bind_port}"
+        )
         transport, _ = await loop.create_datagram_endpoint(
             lambda: _Proto(),
             local_addr=(self.cfg.bind_ip, self.cfg.bind_port),
@@ -79,17 +80,18 @@ class ArenaCamUDPJPEG(ArenaCamBase):
             return
         self._transport.close()
         self._transport = None
+        # Give asyncio one turn to actually close the underlying socket.
+        await asyncio.sleep(0)
         self._logger.info("UDP-JPEG receiver stopped")
 
 
 class ArenaCamRtpH264(ArenaCamBase):
     """
-    Receives RTP/H.264 over UDP and decodes into JPEG frames using a GStreamer subprocess.
+    Receives RTP/H.264 over UDP and decodes it into JPEG frames with GStreamer.
 
-    Pipeline (conceptually):
-      udpsrc ! application/x-rtp(H264) ! rtph264depay ! avdec_h264 ! jpegenc ! fdsink
-
-    Python reads concatenated JPEGs from stdout and extracts frames by SOI/EOI markers.
+    GStreamer is placed in its own process group.  On shutdown we terminate the
+    entire group, wait for it to exit, and escalate to SIGKILL if necessary.
+    This prevents an orphaned gst-launch process from keeping UDP port 5000.
     """
 
     def __init__(self, cfg: ArenaCamConfig):
@@ -97,16 +99,14 @@ class ArenaCamRtpH264(ArenaCamBase):
         self.cfg = cfg
         self._logger = get_logger("ArenaCamRtpH264")
         self._proc: Optional[subprocess.Popen] = None
-        self._task: Optional[asyncio.Task] = None
+        self._reader_task: Optional[asyncio.Task] = None
+        self._stderr_task: Optional[asyncio.Task] = None
         self._running = False
 
     def _gst_cmd(self) -> list[str]:
         caps = (
             f"application/x-rtp,media=video,encoding-name=H264,payload={int(self.cfg.rtp_payload)}"
         )
-
-        # Note: bind_ip is not strictly required for udpsrc; port is key.
-        # We keep it simple and bind to the port.
         return [
             "gst-launch-1.0",
             "-q",
@@ -129,35 +129,28 @@ class ArenaCamRtpH264(ArenaCamBase):
 
     @staticmethod
     def _extract_jpegs_from_buffer(buf: bytearray) -> list[bytes]:
-        """
-        Extract all complete JPEGs from buf, leaving remainder in buf.
-        JPEG frame is between SOI (FFD8) and EOI (FFD9), inclusive.
-        """
         frames: list[bytes] = []
         while True:
             soi = buf.find(b"\xff\xd8")
             if soi == -1:
-                # no start marker; drop old data if buffer is huge
                 if len(buf) > 2_000_000:
                     del buf[:-2]
                 break
 
             eoi = buf.find(b"\xff\xd9", soi + 2)
             if eoi == -1:
-                # wait for more data
                 if soi > 0:
-                    del buf[:soi]  # discard leading junk
+                    del buf[:soi]
                 break
 
-            frame = bytes(buf[soi : eoi + 2])
-            frames.append(frame)
+            frames.append(bytes(buf[soi : eoi + 2]))
             del buf[: eoi + 2]
 
         return frames
 
     async def start(self) -> None:
         if self._running:
-            self._logger.warn("Already started")
+            self._logger.warning("Already started")
             return
 
         cmd = self._gst_cmd()
@@ -170,77 +163,124 @@ class ArenaCamRtpH264(ArenaCamBase):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 bufsize=0,
+                start_new_session=True,
             )
         except FileNotFoundError:
             self._logger.fatal("gst-launch-1.0 not found. Install GStreamer on the VM.")
             raise
 
         if self._proc.stdout is None:
-            raise RuntimeError("Failed to open stdout from gstreamer process")
+            raise RuntimeError("Failed to open stdout from GStreamer process")
 
         self._running = True
-        self._task = asyncio.create_task(self._reader_loop())
-
-        # Also watch stderr to help debugging if pipeline fails
-        asyncio.create_task(self._stderr_watcher())
-
-        self._logger.info("ArenaCam RTP/H264 started")
+        self._reader_task = asyncio.create_task(self._reader_loop())
+        self._stderr_task = asyncio.create_task(self._stderr_watcher())
+        self._logger.info(f"ArenaCam RTP/H264 started (GStreamer PID {self._proc.pid})")
 
     async def _stderr_watcher(self) -> None:
-        if self._proc is None or self._proc.stderr is None:
+        proc = self._proc
+        if proc is None or proc.stderr is None:
             return
 
         loop = asyncio.get_running_loop()
-        while self._running and self._proc.poll() is None:
-            line = await loop.run_in_executor(None, self._proc.stderr.readline)
-            if not line:
-                await asyncio.sleep(0.05)
-                continue
-            # Only show in DEBUG unless user raised log level
-            self._logger.debug("GST: " + line.decode("utf-8", errors="replace").rstrip())
+        try:
+            while self._running and proc.poll() is None:
+                line = await loop.run_in_executor(None, proc.stderr.readline)
+                if not line:
+                    await asyncio.sleep(0.05)
+                    continue
+                self._logger.debug(
+                    "GST: " + line.decode("utf-8", errors="replace").rstrip()
+                )
+        except asyncio.CancelledError:
+            return
 
     async def _reader_loop(self) -> None:
-        assert self._proc is not None
-        assert self._proc.stdout is not None
+        proc = self._proc
+        if proc is None or proc.stdout is None:
+            return
 
         loop = asyncio.get_running_loop()
         buf = bytearray()
         frames = 0
 
-        while self._running and self._proc.poll() is None:
-            chunk = await loop.run_in_executor(None, self._proc.stdout.read, 4096)
-            if not chunk:
-                await asyncio.sleep(0.001)
-                continue
+        try:
+            while self._running and proc.poll() is None:
+                chunk = await loop.run_in_executor(None, proc.stdout.read, 4096)
+                if not chunk:
+                    await asyncio.sleep(0.001)
+                    continue
 
-            buf.extend(chunk)
-            extracted = self._extract_jpegs_from_buffer(buf)
-            for jpg in extracted:
-                self._latest_frame = jpg
-                frames += 1
-                if frames % 60 == 0:
-                    self._logger.debug(f"Decoded {frames} JPEG frames")
+                buf.extend(chunk)
+                for jpg in self._extract_jpegs_from_buffer(buf):
+                    self._latest_frame = jpg
+                    frames += 1
+                    if frames % 60 == 0:
+                        self._logger.debug(f"Decoded {frames} JPEG frames")
+        except asyncio.CancelledError:
+            return
+        finally:
+            if self._running:
+                self._logger.warning("GStreamer decode loop ended unexpectedly")
 
-        self._logger.warn("GStreamer decode loop ended")
+    def _signal_process_group(self, sig: int) -> None:
+        proc = self._proc
+        if proc is None or proc.poll() is not None:
+            return
+
+        try:
+            os.killpg(proc.pid, sig)
+        except ProcessLookupError:
+            pass
+        except Exception as e:
+            self._logger.warning(f"Could not signal GStreamer process group: {e}")
+            try:
+                proc.send_signal(sig)
+            except Exception:
+                pass
 
     async def stop(self) -> None:
         self._running = False
+        proc = self._proc
 
-        if self._task is not None:
+        if proc is not None and proc.poll() is None:
+            self._logger.info(f"Stopping GStreamer process group (PID {proc.pid})")
+            self._signal_process_group(signal.SIGTERM)
+
             try:
-                await asyncio.wait_for(self._task, timeout=2.0)
+                await asyncio.wait_for(asyncio.to_thread(proc.wait), timeout=1.5)
             except asyncio.TimeoutError:
-                pass
-            self._task = None
+                self._logger.warning("GStreamer did not exit after SIGTERM; sending SIGKILL")
+                self._signal_process_group(signal.SIGKILL)
+                try:
+                    await asyncio.wait_for(asyncio.to_thread(proc.wait), timeout=1.0)
+                except asyncio.TimeoutError:
+                    self._logger.error("GStreamer still did not exit after SIGKILL")
 
-        if self._proc is not None:
-            self._logger.info("Stopping GStreamer pipeline")
-            try:
-                self._proc.terminate()
-            except Exception:
-                pass
-            self._proc = None
+        # Closing the pipes releases any executor threads blocked in read/readline.
+        if proc is not None:
+            for pipe in (proc.stdout, proc.stderr):
+                if pipe is not None:
+                    try:
+                        pipe.close()
+                    except Exception:
+                        pass
 
+        for task in (self._reader_task, self._stderr_task):
+            if task is not None and not task.done():
+                task.cancel()
+
+        for task in (self._reader_task, self._stderr_task):
+            if task is not None:
+                try:
+                    await asyncio.wait_for(task, timeout=0.5)
+                except (asyncio.CancelledError, asyncio.TimeoutError, Exception):
+                    pass
+
+        self._reader_task = None
+        self._stderr_task = None
+        self._proc = None
+        self._latest_frame = None
         self._logger.info("ArenaCam RTP/H264 stopped")
 
 
@@ -248,5 +288,4 @@ def create_arenacam(cfg: ArenaCamConfig) -> ArenaCamBase:
     mode = (cfg.mode or "").strip().lower()
     if mode == "udp_jpeg":
         return ArenaCamUDPJPEG(cfg)
-    # default
     return ArenaCamRtpH264(cfg)

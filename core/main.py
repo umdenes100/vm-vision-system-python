@@ -14,7 +14,7 @@ import numpy as np
 from aiohttp import web
 
 from utils.logging import get_logger, parse_level
-from utils.port_guard import ensure_ports_available
+from utils.port_guard import ensure_ports_available, terminate_port_owners
 from communications.arenacam import ArenaCamConfig, create_arenacam
 from communications.wifi_server import WifiServer
 from vision.arena import ArenaConfig, ArenaProcessor
@@ -116,7 +116,7 @@ async def _start_ml_listener(config: dict, logger):
         return None, None
 
 
-async def run():
+async def run() -> bool:
     config = load_config(Path(__file__).parent / "config.json")
 
     level = parse_level(config.get("system", {}).get("log_level", "INFO"), default=logging.INFO)
@@ -143,12 +143,23 @@ async def run():
     )
 
     stop_event = asyncio.Event()
+    restart_requested = False
     loop = asyncio.get_running_loop()
 
     def _request_stop():
         if not stop_event.is_set():
-            logger.info("Shutdown requested (Ctrl+C)")
+            logger.info("Shutdown requested")
             stop_event.set()
+
+    async def _request_restart():
+        nonlocal restart_requested
+        if restart_requested:
+            return
+        restart_requested = True
+        logger.warning("Clean restart requested from web UI")
+        # Give the HTTP response a moment to flush before shutting down aiohttp.
+        await asyncio.sleep(0.25)
+        stop_event.set()
 
     for sig in (signal.SIGINT, signal.SIGTERM):
         try:
@@ -221,7 +232,13 @@ async def run():
         # -----------------------
 
         restart_password = str(fe_cfg.get("restart_password", "")).strip()
-        app = create_app(stop_event, arenacam, arena_processor, restart_password=restart_password)
+        app = create_app(
+            stop_event,
+            arenacam,
+            arena_processor,
+            restart_password=restart_password,
+            restart_callback=_request_restart,
+        )
         runner = web.AppRunner(app)
         await runner.setup()
         site = web.TCPSite(runner, tcp_host, tcp_port)
@@ -291,9 +308,39 @@ async def run():
 
         logger.info("Stopped cleanly")
 
+    if restart_requested:
+        # At this point our own aiohttp sockets and GStreamer process have been
+        # shut down. Sweep the application ports as a final defense against an
+        # orphan left by an older version or a failed prior shutdown.
+        terminate_port_owners(
+            [
+                (udp_port, "udp"),
+                (tcp_port, "tcp"),
+                (ws_port, "tcp"),
+            ],
+            term_timeout=1.0,
+        )
+
+        # Verify the ports before exec'ing the replacement process.
+        ensure_ports_available(
+            udp_host=udp_host,
+            udp_port=udp_port,
+            tcp_host=tcp_host,
+            tcp_port=tcp_port,
+            extra_tcp_ports=[ws_port],
+        )
+        logger.warning("Restart cleanup complete; launching fresh process")
+
+    return restart_requested
+
 
 def main():
-    asyncio.run(run())
+    restart_requested = asyncio.run(run())
+
+    if restart_requested:
+        python = sys.executable
+        argv = [python] + sys.argv
+        os.execv(python, argv)
 
 
 if __name__ == "__main__":

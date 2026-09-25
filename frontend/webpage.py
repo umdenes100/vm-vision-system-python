@@ -1,9 +1,7 @@
 import asyncio
 import json
-import os
-import sys
 from pathlib import Path
-from typing import Optional
+from typing import Awaitable, Callable, Optional
 
 import cv2
 import numpy as np
@@ -71,21 +69,22 @@ def _draw_waiting_overlay(frame: np.ndarray) -> np.ndarray:
     return out
 
 
-async def _restart_process_after_delay(delay_seconds: float = 0.5):
-    await asyncio.sleep(delay_seconds)
-    python = sys.executable
-    argv = [python] + sys.argv
-    os.execv(python, argv)
-
-
 class WebPage:
-    def __init__(self, stop_event, arenacam, arena_processor, restart_password: str = ""):
+    def __init__(
+        self,
+        stop_event,
+        arenacam,
+        arena_processor,
+        restart_password: str = "",
+        restart_callback: Optional[Callable[[], Awaitable[None]]] = None,
+    ):
         self.logger = get_logger("frontend")
 
         self.stop_event = stop_event
         self.arenacam = arenacam
         self.arena = arena_processor
         self.restart_password = restart_password or ""
+        self.restart_callback = restart_callback
 
         self.app = web.Application()
         self.ws_clients = set()
@@ -287,7 +286,23 @@ class WebPage:
             )
 
         self.logger.warning("Accepted authenticated restart request from web client")
-        asyncio.create_task(_restart_process_after_delay())
+
+        if self.restart_callback is None:
+            return web.json_response(
+                {
+                    "ok": False,
+                    "error": "Restart handler is not configured.",
+                    "message": "Restart handler is not configured.",
+                },
+                status=503,
+            )
+
+        # Do not exec() from inside the web handler.  That used to bypass the
+        # normal shutdown path and could orphan GStreamer on UDP port 5000.
+        # Instead, request a graceful shutdown.  core/main.py will clean up
+        # every server/subprocess, sweep the configured ports, and only then
+        # exec a fresh Python process.
+        asyncio.create_task(self.restart_callback())
 
         return web.json_response(
             {
@@ -297,11 +312,18 @@ class WebPage:
         )
 
 
-def create_app(stop_event, arenacam, arena_processor, restart_password: str = ""):
+def create_app(
+    stop_event,
+    arenacam,
+    arena_processor,
+    restart_password: str = "",
+    restart_callback: Optional[Callable[[], Awaitable[None]]] = None,
+):
     page = WebPage(
         stop_event=stop_event,
         arenacam=arenacam,
         arena_processor=arena_processor,
         restart_password=restart_password,
+        restart_callback=restart_callback,
     )
     return page.app
