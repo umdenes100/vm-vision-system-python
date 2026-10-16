@@ -237,16 +237,9 @@ class WebPage:
         return ws
 
     async def handle_randomize(self, request):
-        if hasattr(self.arena, "randomize_mission_overlay"):
-            result = self.arena.randomize_mission_overlay()
-            return web.json_response({"ok": True, **result})
-
         return web.json_response(
-            {
-                "ok": False,
-                "error": "ArenaProcessor has no randomize_mission_overlay() method.",
-            },
-            status=500,
+            {"ok": False, "error": "Randomization is browser-local."},
+            status=410,
         )
 
     async def handle_restart(self, request):

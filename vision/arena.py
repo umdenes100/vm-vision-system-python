@@ -1453,9 +1453,7 @@ class ArenaProcessor:
                         cv2.LINE_AA,
                     )
 
-            self._draw_mission_overlay_on_crop(
-                warped
-            )
+            # Mission overlays are browser-local
 
             cropped_jpg = (
                 self._encode_jpeg(
